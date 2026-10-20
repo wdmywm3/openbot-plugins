@@ -1,7 +1,7 @@
 {
   "id": "bilibili-explorer",
   "name": "B站主动探索",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
   "main": "index.js",
   "category": "automation",

@@ -3,7 +3,11 @@ function number(value, fallback, min, max) {
 }
 function parseResult(text) {
   const input = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try { return JSON.parse(input); } catch { throw new Error("探索结果格式无效，本轮未分享"); }
+  // Some providers stream a brief preamble before tools and then the final JSON.
+  for (let start = input.indexOf("{"); start >= 0; start = input.indexOf("{", start + 1)) {
+    try { return JSON.parse(input.slice(start)); } catch {}
+  }
+  throw new Error("探索结果格式无效，本轮未分享");
 }
 function candidate(item, minimum) {
   if (!item || Number(item.score) < minimum || !Number.isFinite(Number(item.score))) return null;

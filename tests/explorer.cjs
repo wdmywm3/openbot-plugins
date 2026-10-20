@@ -55,6 +55,11 @@ function fixture(extra = {}) {
   const invented = fixture(), original = invented.ctx.api.runAgent;
   invented.ctx.api.runAgent = async request => ({ ...await original(request), observedUrls: [] });
   await load().poll(invented.ctx); assert.equal(invented.pushes.length, 0, "invented links are not shared");
+  const preamble = fixture(), generate = preamble.ctx.api.runAgent;
+  preamble.ctx.api.runAgent = async request => {
+    const result = await generate(request); return { ...result, text: `先查找候选。\n\`\`\`json\n${result.text}\n\`\`\`` };
+  };
+  await load().poll(preamble.ctx); assert.equal(preamble.pushes.length, 1, "tool-round preambles do not break final JSON");
   const capped = fixture({ dailyShareLimit: 0 }); await load().handle(capped.ctx); assert.equal(capped.calls.length, 0);
   const quiet = fixture({ quietStartHour: 0, quietEndHour: 23 }); await load().poll(quiet.ctx); assert.equal(quiet.calls.length, 0);
   first.ctx.command.name = "explorelike"; first.ctx.args = "宇宙";
