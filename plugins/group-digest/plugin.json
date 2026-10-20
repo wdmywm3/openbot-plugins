@@ -1,0 +1,30 @@
+{
+  "id": "group-digest",
+  "name": "群聊总结",
+  "version": "1.0.0",
+  "description": "调用机器人 Agent 总结当前群聊中的近期消息",
+  "main": "index.js",
+  "responseMode": "agent",
+  "commandPrefixes": ["/"],
+  "permissions": ["agent"],
+  "agent": {
+    "prompt": "根据当前群聊中已有的近期记录生成总结。不要编造未出现的事实；按主要话题、结论、待办和分歧组织，缺少的部分省略。",
+    "replyToSource": true
+  },
+  "commands": [
+    {
+      "name": "groupsummary",
+      "aliases": ["digest", "群总结", "群聊总结"],
+      "description": "总结当前群聊的近期消息，可在参数中指定关注点",
+      "scope": "group",
+      "permission": "member",
+      "responseMode": "agent"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultFocus": { "type": "string", "title": "默认总结重点", "default": "" }
+    }
+  }
+}

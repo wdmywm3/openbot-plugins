@@ -1,0 +1,184 @@
+{
+  "id": "dice-maiden",
+  "name": "骰娘",
+  "version": "1.3.0",
+  "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
+  "main": "index.js",
+  "responseMode": "direct",
+  "commandPrefixes": ["/", ".", "!", "。"],
+  "permissions": ["reply", "state", "napcat:send_private_msg"],
+  "commands": [
+    {
+      "name": "roll",
+      "aliases": ["r", "rd", "d", "掷骰"],
+      "description": "通用掷骰，例如 .d50、.rd50、.rd 50、/r2d6+1 攻击或 .r3#d20",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^(?:[0-9(+-]|[dbp](?:$|[0-9%()+*/^#-]))",
+      "attachedArgsPatterns": {
+        "rd": "^[%0-9+*/^x×÷-]"
+      }
+    },
+    {
+      "name": "ra",
+      "aliases": ["rc", "检定"],
+      "description": "CoC 7 版检定，例如 .ra 侦查 60 或 .ra b1 侦查",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^[+0-9bp-]"
+    },
+    {
+      "name": "rh",
+      "aliases": ["rhd", "rdh", "暗骰"],
+      "description": "暗骰；群聊中将结果私聊发送给掷骰者",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^(?:[0-9(+-]|[dbp](?:$|[0-9%()+*/^#-]))",
+      "attachedArgsPatterns": {
+        "rhd": "^[%0-9+*/^x×÷-]",
+        "rdh": "^[%0-9+*/^x×÷-]"
+      }
+    },
+    {
+      "name": "rav",
+      "aliases": ["rcv", "对抗检定"],
+      "description": "CoC 对抗检定，例如 .rav 侦查 60 潜行 45",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "coc",
+      "description": "兼容的 CoC 百分骰检定，例如 /coc 60 b1",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "sc",
+      "description": "理智检定，例如 .sc 1/1d6 60",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^(?:[0-9(+-]|[dbp](?:$|[0-9%()+*/^#-]))"
+    },
+    {
+      "name": "st",
+      "description": "设置或查看本群角色卡，例如 .st 侦查 60 SAN 70",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "en",
+      "description": "CoC 技能成长检定，例如 .en 侦查",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "ti",
+      "description": "抽取临时疯狂症状",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "li",
+      "description": "抽取总结性疯狂症状",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "cocchar",
+      "aliases": ["coc7"],
+      "description": "生成 CoC 7 版角色属性",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^\\d+$"
+    },
+    {
+      "name": "d20",
+      "description": "D20 优势或劣势检定，例如 /d20 adv +3；直接 .d20 会返回基础骰点",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^(?:[+-][0-9]+|adv(?:antage)?(?:[+-][0-9]+)?|dis(?:advantage)?(?:[+-][0-9]+)?|优势(?:[+-][0-9]+)?|劣势(?:[+-][0-9]+)?)$"
+    },
+    {
+      "name": "dset",
+      "aliases": ["setdice", "set"],
+      "description": "设置当前群或私聊的默认骰式",
+      "scope": "all",
+      "permission": "member",
+      "allowAttachedArgs": true,
+      "attachedArgsPattern": "^(?:[0-9(+-]|[dbp](?:$|[0-9%()+*/^#-]))"
+    },
+    {
+      "name": "dicestats",
+      "aliases": ["骰娘统计"],
+      "description": "查看当前群或私聊的掷骰统计",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "dicehelp",
+      "aliases": ["骰娘帮助"],
+      "description": "查看骰娘命令",
+      "scope": "all",
+      "permission": "member"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultExpression": {
+        "type": "string",
+        "title": "默认骰式",
+        "default": "1d100"
+      },
+      "maxDice": {
+        "type": "integer",
+        "title": "单次最多骰子",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 20
+      },
+      "maxSides": {
+        "type": "integer",
+        "title": "骰子最大面数",
+        "minimum": 2,
+        "maximum": 10000,
+        "default": 1000
+      },
+      "maxRolls": {
+        "type": "integer",
+        "title": "单次最多重复次数",
+        "minimum": 1,
+        "maximum": 20,
+        "default": 10
+      },
+      "maxCardCount": {
+        "type": "integer",
+        "title": "单次最多制卡数",
+        "minimum": 1,
+        "maximum": 10,
+        "default": 3
+      },
+      "showDetails": {
+        "type": "boolean",
+        "title": "显示每颗骰子",
+        "default": true
+      },
+      "replyToSource": {
+        "type": "boolean",
+        "title": "引用触发消息",
+        "default": false
+      },
+      "statsEnabled": {
+        "type": "boolean",
+        "title": "记录本会话统计",
+        "default": true
+      }
+    }
+  }
+}

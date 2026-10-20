@@ -1,0 +1,7 @@
+{
+  "name": "openbot-plugins",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {"test": "node tests/explorer.cjs && node tests/catalog.cjs", "catalog": "node scripts/build-catalog.cjs"},
+  "engines": {"node": ">=22"}
+}

@@ -1,0 +1,24 @@
+{
+  "id": "random-toolbox",
+  "name": "随机工具箱",
+  "version": "1.0.0",
+  "description": "抛硬币、随机数、选项抽取和群成员抽取",
+  "main": "index.js",
+  "responseMode": "direct",
+  "commandPrefixes": ["/"],
+  "permissions": ["reply", "napcat:get_group_member_list"],
+  "commands": [
+    { "name": "coin", "aliases": ["硬币"], "description": "抛硬币", "scope": "all", "permission": "member" },
+    { "name": "random", "aliases": ["rand", "随机数"], "description": "生成范围内的随机整数", "scope": "all", "permission": "member" },
+    { "name": "choose", "aliases": ["pick", "选择"], "description": "从多个选项中抽取一个", "scope": "all", "permission": "member" },
+    { "name": "pickmember", "aliases": ["抽群友"], "description": "随机抽取一名群成员", "scope": "group", "permission": "member" }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "maxOptions": { "type": "integer", "title": "最多选项数", "minimum": 2, "maximum": 100, "default": 30 },
+      "maxRange": { "type": "integer", "title": "随机数最大跨度", "minimum": 1, "maximum": 1000000000, "default": 1000000 },
+      "allowPickMember": { "type": "boolean", "title": "允许抽取群成员", "default": true }
+    }
+  }
+}

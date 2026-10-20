@@ -1,0 +1,59 @@
+{
+  "id": "daily-checkin",
+  "name": "每日签到",
+  "version": "1.0.0",
+  "description": "按群或私聊记录每日签到、连续天数和积分排行",
+  "main": "index.js",
+  "responseMode": "direct",
+  "commandPrefixes": ["/"],
+  "permissions": ["reply", "state"],
+  "commands": [
+    {
+      "name": "checkin",
+      "aliases": ["sign", "签到"],
+      "description": "每日签到",
+      "scope": "all",
+      "permission": "member"
+    },
+    {
+      "name": "checkinrank",
+      "aliases": ["signrank", "签到排行"],
+      "description": "查看当前会话签到排行",
+      "scope": "all",
+      "permission": "member"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "timezoneOffsetMinutes": {
+        "type": "integer",
+        "title": "时区偏移（分钟）",
+        "minimum": -720,
+        "maximum": 840,
+        "default": 480
+      },
+      "minPoints": {
+        "type": "integer",
+        "title": "单次最少积分",
+        "minimum": 0,
+        "maximum": 10000,
+        "default": 5
+      },
+      "maxPoints": {
+        "type": "integer",
+        "title": "单次最多积分",
+        "minimum": 0,
+        "maximum": 10000,
+        "default": 15
+      },
+      "rankSize": {
+        "type": "integer",
+        "title": "排行显示人数",
+        "minimum": 1,
+        "maximum": 20,
+        "default": 10
+      }
+    }
+  }
+}

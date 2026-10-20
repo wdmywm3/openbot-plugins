@@ -1,0 +1,31 @@
+{
+  "id": "bilibili-explorer",
+  "name": "B站主动探索",
+  "version": "1.0.0",
+  "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
+  "main": "index.js",
+  "category": "automation",
+  "permissions": ["agent", "state", "push", "reply"],
+  "background": {"export": "poll", "intervalSeconds": 60, "startupDelaySeconds": 20, "jitterSeconds": 5},
+  "commands": [
+    {"name": "explore", "aliases": ["探索视频"], "description": "立即探索一次，仍遵守分享限额与去重", "scope": "all", "permission": "owner"},
+    {"name": "explorestatus", "aliases": ["探索状态"], "description": "查看上次探索、分享及下次运行时间", "scope": "all", "permission": "owner"},
+    {"name": "explorelike", "aliases": ["喜欢这个方向"], "description": "记录希望多看的主题：/explorelike 主题", "scope": "all", "permission": "owner"},
+    {"name": "exploreavoid", "aliases": ["少看这个方向"], "description": "记录希望避开的主题：/exploreavoid 主题", "scope": "all", "permission": "owner"}
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "targetChat": {"type": "string", "title": "推荐到 QQ 会话", "default": ""},
+      "interests": {"type": "string", "title": "感兴趣的话题", "default": ""},
+      "tools": {"type": "array", "title": "探索工具（名称数组）", "default": ["web_search", "web_fetch"]},
+      "intervalMinutes": {"type": "integer", "title": "探索间隔（分钟）", "minimum": 10, "maximum": 1440, "default": 60},
+      "maxToolCalls": {"type": "integer", "title": "每轮最多调用工具次数", "minimum": 1, "maximum": 20, "default": 8},
+      "minimumScore": {"type": "integer", "title": "最低推荐评分", "minimum": 0, "maximum": 100, "default": 75},
+      "dailyShareLimit": {"type": "integer", "title": "每天最多推荐数", "minimum": 0, "maximum": 20, "default": 3},
+      "mentionUserId": {"type": "string", "title": "提醒的 QQ 号（可留空）", "default": ""},
+      "quietStartHour": {"type": "integer", "title": "免打扰开始小时", "minimum": 0, "maximum": 23, "default": 23},
+      "quietEndHour": {"type": "integer", "title": "免打扰结束小时（相同则关闭）", "minimum": 0, "maximum": 23, "default": 8}
+    }
+  }
+}

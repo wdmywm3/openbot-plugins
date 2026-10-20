@@ -1,0 +1,21 @@
+{
+  "id": "meme-library",
+  "name": "表情素材库",
+  "version": "1.0.0",
+  "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
+  "main": "index.js",
+  "responseMode": "direct",
+  "commandPrefixes": ["/"],
+  "permissions": ["reply", "napcat:fetch_custom_face"],
+  "commands": [
+    { "name": "meme", "aliases": ["表情", "表情包"], "description": "随机或按关键词发送收藏表情", "scope": "all", "permission": "member" },
+    { "name": "memeinfo", "aliases": ["表情库"], "description": "查看收藏表情数量", "scope": "all", "permission": "member" }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "replyToSource": { "type": "boolean", "title": "引用触发消息", "default": false },
+      "emptyKeywordFallsBack": { "type": "boolean", "title": "关键词未命中时随机发送", "default": false }
+    }
+  }
+}

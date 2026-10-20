@@ -1,0 +1,57 @@
+{
+  "id": "content-monitor",
+  "name": "内容监控",
+  "version": "1.0.0",
+  "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+  "main": "index.js",
+  "responseMode": "direct",
+  "commandPrefixes": ["/"],
+  "permissions": ["reply", "state", "network", "push", "secret"],
+  "networkHosts": ["*"],
+  "background": {
+    "export": "poll",
+    "intervalSeconds": 120,
+    "startupDelaySeconds": 15,
+    "jitterSeconds": 20
+  },
+  "commands": [
+    {
+      "name": "monitorstatus",
+      "aliases": ["监控状态"],
+      "description": "查看内容监控状态",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "monitorcheck",
+      "aliases": ["立即检查监控"],
+      "description": "立即执行一次内容检查",
+      "scope": "private",
+      "permission": "owner"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "pollIntervalSeconds": {
+        "type": "integer",
+        "title": "轮询间隔（秒）",
+        "minimum": 30,
+        "maximum": 86400,
+        "default": 120
+      },
+      "requestIntervalMs": {
+        "type": "integer",
+        "title": "来源请求间隔（毫秒）",
+        "minimum": 0,
+        "maximum": 30000,
+        "default": 800
+      },
+      "subscriptions": {
+        "type": "array",
+        "title": "监控订阅",
+        "default": []
+      }
+    }
+  }
+}
