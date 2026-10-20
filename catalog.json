@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "plugins": [
+    {
+      "id": "bilibili-explorer",
+      "name": "B站主动探索",
+      "version": "1.0.0",
+      "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
+      "category": "automation",
+      "permissions": [
+        "agent",
+        "state",
+        "push",
+        "reply"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 7004,
+          "sha256": "a288798f86ee2a32d2f7e25c9e81748c1f0363f20d47c573be54d619195bed14"
+        },
+        {
+          "path": "plugin.json",
+          "size": 2342,
+          "sha256": "cee31132bc39613028000cadf3a5569e2a3c55904610379d68860159902b5d9c"
+        }
+      ]
+    },
+    {
+      "id": "content-monitor",
+      "name": "内容监控",
+      "version": "1.0.0",
+      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+      "category": "utility",
+      "permissions": [
+        "reply",
+        "state",
+        "network",
+        "push",
+        "secret"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 16990,
+          "sha256": "1f4b871f3c4f9612e8d0ac030e4ef1e1ca87a0d4ff75e14f159a36f5e1e9faa6"
+        },
+        {
+          "path": "plugin.json",
+          "size": 1427,
+          "sha256": "428b19ed634fe5ebe698a671e0d367bdecbe5713c0df5ecfb2857467f2fd1d8c"
+        }
+      ]
+    },
+    {
+      "id": "daily-checkin",
+      "name": "每日签到",
+      "version": "1.0.0",
+      "description": "按群或私聊记录每日签到、连续天数和积分排行",
+      "category": "utility",
+      "permissions": [
+        "reply",
+        "state"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 2271,
+          "sha256": "e30d19aaf9094086be067b8bad3fabebc631fa8732d4bff67c5aec02a09809aa"
+        },
+        {
+          "path": "plugin.json",
+          "size": 1404,
+          "sha256": "55aee48f0e2954b64e767a6ed58869c25373e2ae2324c94618ca6dc0fb1f1bca"
+        }
+      ]
+    },
+    {
+      "id": "dice-maiden",
+      "name": "骰娘",
+      "version": "1.3.0",
+      "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
+      "category": "utility",
+      "permissions": [
+        "reply",
+        "state",
+        "napcat:send_private_msg"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 4486,
+          "sha256": "4788f9f39cf9bdbe097fd3b48b9949433efc40990066b7d567bc4b60c8e58627"
+        },
+        {
+          "path": "index.js",
+          "size": 36148,
+          "sha256": "f373853a2c99aebc06adbbf83009ad652266e16c9ba41dfb0cb784c85d9e68b8"
+        },
+        {
+          "path": "plugin.json",
+          "size": 5163,
+          "sha256": "69aaec6ed32a7e0b0bde8f798d109a08185e147aa87a39caa249a20977aa8866"
+        }
+      ]
+    },
+    {
+      "id": "group-digest",
+      "name": "群聊总结",
+      "version": "1.0.0",
+      "description": "调用机器人 Agent 总结当前群聊中的近期消息",
+      "category": "utility",
+      "permissions": [
+        "agent"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 395,
+          "sha256": "9434158e8b94d3801eb52734ead9b193c924b23977f175f81cc39e9c553e8dc7"
+        },
+        {
+          "path": "plugin.json",
+          "size": 944,
+          "sha256": "25fb521216f4a5373e355ec253965ddfc000d3f2047e1bb118cff095cbcffcc4"
+        }
+      ]
+    },
+    {
+      "id": "meme-library",
+      "name": "表情素材库",
+      "version": "1.0.0",
+      "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
+      "category": "utility",
+      "permissions": [
+        "reply",
+        "napcat:fetch_custom_face"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 2337,
+          "sha256": "adc33ecfa533283876c01f6b451d75e2da4d2fdda2df2f77de3a15d75a662959"
+        },
+        {
+          "path": "plugin.json",
+          "size": 899,
+          "sha256": "a0969a926874a8923a8f7a3c3dfe72c94312321f164776a0661bae36e3c80465"
+        }
+      ]
+    },
+    {
+      "id": "random-toolbox",
+      "name": "随机工具箱",
+      "version": "1.0.0",
+      "description": "抛硬币、随机数、选项抽取和群成员抽取",
+      "category": "utility",
+      "permissions": [
+        "reply",
+        "napcat:get_group_member_list"
+      ],
+      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 2629,
+          "sha256": "a23020abb32584ccc5361960a9118a730089c5cab4d51602e5411c35e8809615"
+        },
+        {
+          "path": "plugin.json",
+          "size": 1286,
+          "sha256": "0204003fb0bb72df98483ed2a102dcc41cc724b32f709c1b62fef78a7d13600c"
+        }
+      ]
+    }
+  ]
+}
