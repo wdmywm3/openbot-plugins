@@ -1,31 +1,243 @@
 {
   "id": "bilibili-explorer",
-  "name": "B站主动探索",
-  "version": "1.0.1",
-  "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
+  "name": "B站管家",
+  "version": "1.1.0",
+  "description": "双账号收藏扫描、分类预览与整理，主动发现视频，支持评论草稿",
   "main": "index.js",
   "category": "automation",
-  "permissions": ["agent", "state", "push", "reply"],
-  "background": {"export": "poll", "intervalSeconds": 60, "startupDelaySeconds": 20, "jitterSeconds": 5},
+  "permissions": [
+    "agent",
+    "state",
+    "push",
+    "reply",
+    "network",
+    "secret"
+  ],
+  "background": {
+    "export": "poll",
+    "intervalSeconds": 60,
+    "startupDelaySeconds": 20,
+    "jitterSeconds": 5
+  },
   "commands": [
-    {"name": "explore", "aliases": ["探索视频"], "description": "立即探索一次，仍遵守分享限额与去重", "scope": "all", "permission": "owner"},
-    {"name": "explorestatus", "aliases": ["探索状态"], "description": "查看上次探索、分享及下次运行时间", "scope": "all", "permission": "owner"},
-    {"name": "explorelike", "aliases": ["喜欢这个方向"], "description": "记录希望多看的主题：/explorelike 主题", "scope": "all", "permission": "owner"},
-    {"name": "exploreavoid", "aliases": ["少看这个方向"], "description": "记录希望避开的主题：/exploreavoid 主题", "scope": "all", "permission": "owner"}
+    {
+      "name": "explore",
+      "aliases": [
+        "探索视频"
+      ],
+      "description": "立即探索一次，仍遵守分享限额与去重",
+      "scope": "all",
+      "permission": "owner"
+    },
+    {
+      "name": "explorestatus",
+      "aliases": [
+        "探索状态"
+      ],
+      "description": "查看上次探索、分享及下次运行时间",
+      "scope": "all",
+      "permission": "owner"
+    },
+    {
+      "name": "explorelike",
+      "aliases": [
+        "喜欢这个方向"
+      ],
+      "description": "记录希望多看的主题：/explorelike 主题",
+      "scope": "all",
+      "permission": "owner"
+    },
+    {
+      "name": "exploreavoid",
+      "aliases": [
+        "少看这个方向"
+      ],
+      "description": "记录希望避开的主题：/exploreavoid 主题",
+      "scope": "all",
+      "permission": "owner"
+    },
+    {
+      "name": "biliaccounts",
+      "description": "验证大号或小号登录：/biliaccounts main 或 browse",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "bilifolders",
+      "description": "列出大号收藏夹",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "biliscan",
+      "description": "分页扫描收藏；new 开始新扫描",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "biliplan",
+      "description": "分批生成收藏分类方案",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "bilipreview",
+      "description": "分页预览方案：/bilipreview 偏移量",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "biliapply",
+      "description": "应用已生成的收藏方案",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "bilidraft",
+      "description": "以小号拟评论：/bilidraft BV号 内容",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "bilipost",
+      "description": "发送指定评论草稿：/bilipost 草稿编号",
+      "scope": "private",
+      "permission": "owner"
+    }
   ],
   "configSchema": {
     "type": "object",
     "properties": {
-      "targetChat": {"type": "string", "title": "推荐到 QQ 会话", "default": ""},
-      "interests": {"type": "string", "title": "感兴趣的话题", "default": ""},
-      "tools": {"type": "array", "title": "探索工具（名称数组）", "default": ["web_search", "web_fetch"]},
-      "intervalMinutes": {"type": "integer", "title": "探索间隔（分钟）", "minimum": 10, "maximum": 1440, "default": 60},
-      "maxToolCalls": {"type": "integer", "title": "每轮最多调用工具次数", "minimum": 1, "maximum": 20, "default": 8},
-      "minimumScore": {"type": "integer", "title": "最低推荐评分", "minimum": 0, "maximum": 100, "default": 75},
-      "dailyShareLimit": {"type": "integer", "title": "每天最多推荐数", "minimum": 0, "maximum": 20, "default": 3},
-      "mentionUserId": {"type": "string", "title": "提醒的 QQ 号（可留空）", "default": ""},
-      "quietStartHour": {"type": "integer", "title": "免打扰开始小时", "minimum": 0, "maximum": 23, "default": 23},
-      "quietEndHour": {"type": "integer", "title": "免打扰结束小时（相同则关闭）", "minimum": 0, "maximum": 23, "default": 8}
+      "targetChat": {
+        "type": "string",
+        "title": "推荐到 QQ 会话",
+        "default": ""
+      },
+      "interests": {
+        "type": "string",
+        "title": "感兴趣的话题",
+        "default": ""
+      },
+      "tools": {
+        "type": "array",
+        "title": "探索工具（名称数组）",
+        "default": [
+          "web_search",
+          "web_fetch"
+        ]
+      },
+      "intervalMinutes": {
+        "type": "integer",
+        "title": "探索间隔（分钟）",
+        "minimum": 10,
+        "maximum": 1440,
+        "default": 60
+      },
+      "maxToolCalls": {
+        "type": "integer",
+        "title": "每轮最多调用工具次数",
+        "minimum": 1,
+        "maximum": 20,
+        "default": 8
+      },
+      "minimumScore": {
+        "type": "integer",
+        "title": "最低推荐评分",
+        "minimum": 0,
+        "maximum": 100,
+        "default": 75
+      },
+      "dailyShareLimit": {
+        "type": "integer",
+        "title": "每天最多推荐数",
+        "minimum": 0,
+        "maximum": 20,
+        "default": 3
+      },
+      "mentionUserId": {
+        "type": "string",
+        "title": "提醒的 QQ 号（可留空）",
+        "default": ""
+      },
+      "quietStartHour": {
+        "type": "integer",
+        "title": "免打扰开始小时",
+        "minimum": 0,
+        "maximum": 23,
+        "default": 23
+      },
+      "quietEndHour": {
+        "type": "integer",
+        "title": "免打扰结束小时（相同则关闭）",
+        "minimum": 0,
+        "maximum": 23,
+        "default": 8
+      },
+      "mainUid": {
+        "type": "string",
+        "title": "大号 UID",
+        "default": ""
+      },
+      "browseUid": {
+        "type": "string",
+        "title": "小号 UID",
+        "default": ""
+      },
+      "scanFolders": {
+        "type": "array",
+        "title": "待整理收藏夹 ID",
+        "default": []
+      },
+      "folderRules": {
+        "type": "array",
+        "title": "收藏分类规则",
+        "default": []
+      },
+      "organizeMode": {
+        "type": "string",
+        "title": "整理方式",
+        "enum": [
+          "copy",
+          "move"
+        ],
+        "default": "copy"
+      },
+      "commentMode": {
+        "type": "string",
+        "title": "评论功能",
+        "enum": [
+          "off",
+          "draft"
+        ],
+        "default": "off"
+      },
+      "dailyCommentLimit": {
+        "type": "integer",
+        "title": "每天最多评论数",
+        "minimum": 0,
+        "maximum": 20,
+        "default": 3
+      },
+      "autoOrganize": {
+        "type": "boolean",
+        "title": "按分类规则自动整理收藏",
+        "default": false
+      },
+      "organizeChat": {
+        "type": "string",
+        "title": "整理结果接收会话（主人私聊）",
+        "default": ""
+      },
+      "organizeIntervalHours": {
+        "type": "integer",
+        "title": "收藏扫描间隔（小时）",
+        "default": 24,
+        "minimum": 1,
+        "maximum": 168
+      }
     }
-  }
+  },
+  "networkHosts": [
+    "api.bilibili.com"
+  ]
 }

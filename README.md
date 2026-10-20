@@ -30,8 +30,28 @@ OpenBot 的独立插件仓库。插件列表由 `catalog.json` 提供，下载�
 
 插件入口为单个 JS 文件，导出 `handle(ctx)` 或 `poll(ctx)`，通过 `ctx.api` 使用宿主能力，不直接运行 Node/Python。`plugin.json` 声明权限、命令和配置。
 
-`ctx.api.runAgent({chatId, prompt, tools, maxToolCalls, timeoutMs})` 返回 `{text, toolCalls, observedUrls, usage}`，不会自动投递。`observedUrls` 是本轮工具返回的链接。宿主检查实例、会话、角色工具权限及插件启用状态。插件可用 `getState/setState` 保存实例状态，用 `push` 投递。按会话变化的数据应把会话 ID 纳入状态键；跨实例共享状态需要额外的 `state:global` 权限。
+`ctx.api.runAgent({taskId, chatId, prompt, tools, maxToolCalls, timeoutMs, maxActiveMs})` 返回 `{taskId, status, text, toolCalls, observedUrls, usage}`，不会自动投递。新版宿主按稳定 taskId 保存 Agent 检查点，自动压缩上下文；重试相同任务可恢复，已完成结果不会重跑。`ctx.api.getAgentTask({taskId, chatId})` 查询状态。`observedUrls` 是本任务工具返回的链接。宿主检查实例、会话、角色工具权限及插件启用状态。插件可用 `getState/setState` 保存实例状态，用 `push` 投递。按会话变化的数据应把会话 ID 纳入状态键；跨实例共享状态需要额外的 `state:global` 权限。
 
 运行 `npm test`。修改插件时提升其版本，先提交插件文件，再运行 `npm run catalog` 生成指向该提交的目录，提交目录并推送。不要在目录里填分支名或未经校验的下载地址。插件代码的版本和权限变更都应在发布说明中写清。
 
 现有六个插件从 OpenBot 项目迁移；主动探索为原生实现。实机模型与 QQ 推送验收仍需使用你自己的测试实例。
+
+## B站管家 1.1.0（待在线验收）
+
+沿用 `bilibili-explorer` 包 ID。需要支持持久化 Agent 的新版 OpenBot；新增 `network`、`secret` 权限。插件目录与发布目录仍分开管理，当前 `catalog.json` 未切换到本版本。
+
+在实例插件设置填写大号／小号 UID，分别保存 Cookie。凭据由宿主加密保存，不作为普通配置或模型输入。`/biliaccounts main`、`/biliaccounts browse` 检查账号是否一致；账号失效或 UID 不符时停止，不自动切换账号。
+
+收藏整理仅接受主人私聊命令：
+
+1. `/bilifolders` 查看收藏夹编号，在设置中选择源收藏夹及目标分类规则。
+2. `/biliscan` 分页扫描，每次最多 10 页，再次调用继续；`/biliscan new` 开始新扫描。
+3. `/biliplan` 分批分类，每次最多 3 页，重复调用继续。资料与规则未变化的视频复用原分类结果。
+4. `/bilipreview` 预览前 10 项，`/bilipreview 10` 查看下一页。
+5. `/biliapply` 每次执行最多 5 项，重复调用继续。默认复制；选择移动时，确认目标存在后才移除源收藏。请求结果不明时先查远端，不重发。
+
+也可配置主人私聊接收会话并开启自动整理，宿主轮询依次继续扫描、分类、应用方案，默认每天开始一轮。仅支持已有目标收藏夹；没有自动删除失效视频、自动新建收藏夹或撤销功能。
+
+配置小号后，探索会读取小号推荐流，并按小号 UID 分别保存探索记录。仍只根据实际取得的标题、简介或工具内容说明推荐依据。评论需先开启草稿功能：`/bilidraft BV号 想表达的内容` 生成草稿，`/bilipost 草稿编号` 提交；当前没有自动评论或自动回复。提交状态未知的草稿不能重复发送，接口接受也不等于已公开可见。
+
+离线测试覆盖账号绑定、扫描／分类／执行、默认复制、先复制后移除、请求结果不明、重复评论和定时整理。真实 B站接口、登录凭据与 QQ 投递仍需在测试账号上验收。
