@@ -4,7 +4,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站主动探索",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
       "category": "automation",
       "permissions": [
@@ -13,17 +13,17 @@
         "push",
         "reply"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
-          "size": 7004,
-          "sha256": "a288798f86ee2a32d2f7e25c9e81748c1f0363f20d47c573be54d619195bed14"
+          "size": 7198,
+          "sha256": "14abea73efd328aa4c6709a7035e1a1ff6c81f3674eaccbdd7b77ad9820dcde4"
         },
         {
           "path": "plugin.json",
           "size": 2342,
-          "sha256": "cee31132bc39613028000cadf3a5569e2a3c55904610379d68860159902b5d9c"
+          "sha256": "20b91c79f5cb49120b4e6f5c49e6a0541e64713afcc41e2fab98bd7ed521db9c"
         }
       ]
     },
@@ -40,7 +40,7 @@
         "push",
         "secret"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
@@ -64,7 +64,7 @@
         "reply",
         "state"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
@@ -89,7 +89,7 @@
         "state",
         "napcat:send_private_msg"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "README.md",
@@ -117,7 +117,7 @@
       "permissions": [
         "agent"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
@@ -141,7 +141,7 @@
         "reply",
         "napcat:fetch_custom_face"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
@@ -165,7 +165,7 @@
         "reply",
         "napcat:get_group_member_list"
       ],
-      "ref": "f876d3047b9239c5094b072caaa241c32cd3761a",
+      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
       "files": [
         {
           "path": "index.js",
