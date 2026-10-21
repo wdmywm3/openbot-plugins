@@ -1,7 +1,7 @@
 {
   "id": "bilibili-explorer",
   "name": "B站管家",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "双账号收藏整理、主动发现视频，支持评论草稿、自动评论和回复",
   "main": "index.js",
   "category": "automation",
@@ -11,7 +11,8 @@
     "push",
     "reply",
     "network",
-    "secret"
+    "secret",
+    "share"
   ],
   "background": {
     "export": "poll",
@@ -116,7 +117,7 @@
     "properties": {
       "targetChat": {
         "type": "string",
-        "title": "推荐到 QQ 会话",
+        "title": "优先分享会话（留空自动选择）",
         "default": ""
       },
       "interests": {
@@ -152,32 +153,6 @@
         "minimum": 0,
         "maximum": 100,
         "default": 75
-      },
-      "dailyShareLimit": {
-        "type": "integer",
-        "title": "每天最多推荐数",
-        "minimum": 0,
-        "maximum": 20,
-        "default": 3
-      },
-      "mentionUserId": {
-        "type": "string",
-        "title": "提醒的 QQ 号（可留空）",
-        "default": ""
-      },
-      "quietStartHour": {
-        "type": "integer",
-        "title": "免打扰开始小时",
-        "minimum": 0,
-        "maximum": 23,
-        "default": 23
-      },
-      "quietEndHour": {
-        "type": "integer",
-        "title": "免打扰结束小时（相同则关闭）",
-        "minimum": 0,
-        "maximum": 23,
-        "default": 8
       },
       "mainUid": {
         "type": "string",

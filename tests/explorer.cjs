@@ -20,19 +20,21 @@ function fixture(extra = {}) {
         candidate: { url: "https://www.bilibili.com/video/BV1234567890", title: "天文入门", reason: "根据简介推荐", score: 90 },
         nextQuery: "星空", 
       }) }; },
-      push: async (chat, blocks) => {
+      getShareTargets: async () => [{ chatId: "onebot:group:123456", interests: "天文" }],
+      proposeShare: async request => {
         assert.equal(state.seen.at(-1).status, "pending", "claim must precede delivery");
-        pushes.push({ chat, blocks }); return { id: "sent" };
+        pushes.push(request); return { shared: true };
       },
     },
   };
   return { ctx, calls, pushes, state: () => state };
 }
 (async () => {
-  const empty = fixture({ targetChat: "" }); await load().poll(empty.ctx); assert.equal(empty.calls.length, 0);
+  const empty = fixture(); empty.ctx.api.getShareTargets = async () => []; await load().poll(empty.ctx); assert.equal(empty.calls.length, 0);
   const first = fixture(); await load().poll(first.ctx);
   assert.equal(first.pushes.length, 1);
-  assert.equal(first.pushes[0].blocks[0].target, "100001");
+  assert.equal(first.pushes[0].chatId, "onebot:group:123456");
+  assert.equal(first.pushes[0].url, "https://www.bilibili.com/video/BV1234567890");
   assert.equal(first.state().seen[0].status, "sent");
   assert.equal(first.calls[0].maxToolCalls, 8);
   await load().poll(first.ctx); assert.equal(first.calls.length, 1, "restart retains deadline");
@@ -41,14 +43,14 @@ function fixture(extra = {}) {
   const secondInstance = fixture(); await load().poll(secondInstance.ctx);
   assert.equal(secondInstance.pushes.length, 1, "instance states do not share history");
   const failure = fixture();
-  failure.ctx.api.push = async () => { throw new Error("connection lost"); };
+  failure.ctx.api.proposeShare = async () => { throw new Error("connection lost"); };
   await load().poll(failure.ctx);
   assert.equal(failure.state().seen[0].status, "unknown");
-  failure.ctx.api.push = async () => { assert.fail("must not replay uncertain delivery"); };
+  failure.ctx.api.proposeShare = async () => { assert.fail("must not replay uncertain delivery"); };
   now += 61 * 60000; await load().poll(failure.ctx);
-  const networkFailure = fixture(); networkFailure.ctx.api.push = async () => ({ networkStatus: "error" });
+  const networkFailure = fixture(); networkFailure.ctx.api.proposeShare = async () => ({ shared: false, reason: "delivery_unknown" });
   await load().poll(networkFailure.ctx); assert.equal(networkFailure.state().seen[0].status, "unknown");
-  const disabled = fixture(); disabled.ctx.api.push = async () => ({ skipped: true });
+  const disabled = fixture(); disabled.ctx.api.proposeShare = async () => ({ skipped: true });
   await load().poll(disabled.ctx); assert.equal(disabled.state().sharedToday, 0);
   const noEvidence = fixture(); noEvidence.ctx.api.runAgent = async () => ({ toolCalls: 0, text: "{}" });
   await load().poll(noEvidence.ctx); assert.equal(noEvidence.pushes.length, 0);
@@ -66,5 +68,5 @@ function fixture(extra = {}) {
   await load().handle(first.ctx); assert.equal(first.state().feedback.at(-1).text, "宇宙");
   first.ctx.command.name = "explore"; first.ctx.message.chatId = "onebot:group:other";
   assert.match(await load().handle(first.ctx), /推荐会话/);
-  console.log("explorer: configuration, budget, delivery, mention, deduplication, restart, uncertain outcome, quota, quiet hours, feedback and isolation passed");
+  console.log("explorer: configuration, budget, share proposals, deduplication, restart, uncertain outcome, quota, quiet hours, feedback and isolation passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

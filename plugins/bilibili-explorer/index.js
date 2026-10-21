@@ -21,16 +21,22 @@ async function stateFor(ctx) {
 const explorationKey = ctx => ctx.config?.browseUid ? `exploration:${ctx.config.browseUid}` : "exploration";
 const saveExploration = (ctx, state) => ctx.api.setState(explorationKey(ctx), state, "channel");
 async function explore(ctx, manual) {
-  const config = ctx.config || {}, chatId = String(config.targetChat || "").trim();
-  if (!chatId || !String(config.interests || "").trim()) return manual ? "先配置推荐会话和感兴趣的话题。" : null;
+  const config = ctx.config || {};
+  if (typeof ctx.api.proposeShare !== "function" || typeof ctx.api.getShareTargets !== "function") return manual ? "请更新 OpenBot，以使用自主分享。" : null;
+  const targets = await ctx.api.getShareTargets();
+  const preferred = String(config.targetChat || "").trim();
+  const target = targets.find(item => item.chatId === preferred) || (!preferred ? targets[0] : null);
+  const chatId = target?.chatId || "";
+  if (!chatId) return manual ? "请在目标群或私聊设置中开启自主分享。" : null;
+  const interests = String(config.interests || target.interests || "自行发现有意思的公开内容");
   if (manual && ctx.message.chatId !== chatId) return "请在配置的推荐会话中运行探索命令。";
   const state = await stateFor(ctx), now = Date.now(), date = new Date(now);
   if (!manual && now < Number(state.nextAt || 0)) return null;
   const day = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
   if (day !== state.day) { state.day = day; state.sharedToday = 0; }
-  const start = number(config.quietStartHour, 23, 0, 23), end = number(config.quietEndHour, 8, 0, 23), hour = date.getHours();
+  const start = number(config.quietStartHour, 0, 0, 23), end = number(config.quietEndHour, 0, 0, 23), hour = date.getHours();
   const quiet = start !== end && (start < end ? hour >= start && hour < end : hour >= start || hour < end);
-  if (quiet || state.sharedToday >= number(config.dailyShareLimit, 3, 0, 20)) return manual ? "当前处于免打扰时段，或已达到今日推荐上限。" : null;
+  if (quiet || state.sharedToday >= number(config.dailyShareLimit, 20, 0, 20)) return manual ? "当前处于免打扰时段，或已达到今日推荐上限。" : null;
   // Save the next deadline before calling the model so restarts do not repeat an unfinished run.
   state.nextAt = now + number(config.intervalMinutes, 60, 10, 1440) * 60000;
   state.lastRunAt = now; state.lastError = "";
@@ -54,7 +60,7 @@ async function explore(ctx, manual) {
         "主动寻找适合当前角色和用户兴趣的 B 站视频。先搜索少量候选，阅读标题、简介；工具能取字幕时再阅读字幕。",
         "必须使用工具获得真实视频链接；只有标题/简介时不要声称看过视频。不要评论、点赞、私信，也不要操作 QQ。",
         "可以选择不推荐。最多推荐一个；避免已推荐或发送结果不明的视频。候选评分是对本次兴趣匹配的判断。",
-        `兴趣：${String(config.interests).slice(0, 2000)}`,
+        `兴趣：${interests.slice(0, 2000)}`,
         `用户反馈：${JSON.stringify((state.feedback || []).slice(-20))}`,
         `上一轮线索：${String(state.nextQuery || "").slice(0, 400)}`,
         `小号推荐流（只读取了标题和UP）：${JSON.stringify(state.agentCandidates || [])}`,
@@ -82,15 +88,11 @@ async function explore(ctx, manual) {
     state.seen = [...(state.seen || []), { id: chosen.id, at: now, status: "pending" }].slice(-300);
     state.sharedToday++;
     await saveExploration(ctx, state);
-    const mention = String(config.mentionUserId || "");
-    const blocks = [];
-    if (/^\d{5,20}$/.test(mention) && chatId.includes(":group:")) blocks.push({ type: "at", target: mention });
-    blocks.push({ type: "text", text: `${chosen.title}\n${chosen.reason}\n${chosen.url}` });
-    const sent = await ctx.api.push(chatId, blocks);
-    if (!sent || sent.networkStatus === "error") throw new Error("发送结果不明，已保留记录，避免重复推送");
+    const sent = await ctx.api.proposeShare({ chatId: preferred || undefined, content: `${chosen.title}\n${chosen.reason}`, url: chosen.url });
+    if (!sent || (!sent.skipped && sent.shared !== true)) throw new Error("发送结果不明，已保留记录，避免重复推送");
     if (sent?.skipped || sent === false) {
       state.seen = state.seen.filter(item => item.id !== chosen.id); state.sharedToday--;
-      state.lastOutcome = "会话暂未允许推送";
+      state.lastOutcome = `本轮未分享（${sent.reason || "会话未允许"}）`;
     } else {
       state.seen[state.seen.length - 1].status = "sent"; state.lastShareAt = Date.now(); state.lastOutcome = `已推荐：${chosen.title}`;
     }

@@ -12,6 +12,8 @@ function fixture() {
       getSecret: async () => "user=2; bili_jct=PRIVATE-COOKIE",
       getState: async key => structuredClone(states.get(key)),
       setState: async (key, value) => states.set(key, structuredClone(value)),
+      getShareTargets: async () => ctx.config.targetChat ? [{ chatId: "onebot:private:99", interests: "天文" }] : [],
+      proposeShare: async () => ({ shared: true }),
       sleep: async () => {}, push: async () => ({ id: "sent" }),
       runAgent: async args => {
         agents.push(args); assert.ok(!args.prompt.includes("PRIVATE-COOKIE"));
