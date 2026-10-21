@@ -92,7 +92,11 @@ async function explore(ctx, manual) {
     if (!sent || (!sent.skipped && sent.shared !== true)) throw new Error("发送结果不明，已保留记录，避免重复推送");
     if (sent?.skipped || sent === false) {
       state.seen = state.seen.filter(item => item.id !== chosen.id); state.sharedToday--;
-      state.lastOutcome = `本轮未分享（${sent.reason || "会话未允许"}）`;
+      state.lastOutcome = ({
+        not_worth_sharing: "暂时没有适合这个聊天的分享", quiet_hours: "当前是免打扰时段",
+        daily_limit: "已达到今天的分享上限", cooldown: "离上次分享太近", duplicate: "近期已分享过",
+        busy: "正在处理另一条分享", no_target: "没有可分享的会话", not_allowed: "会话未允许分享", expired: "这条发现已过时",
+      })[sent.reason] || "本轮暂不分享";
     } else {
       state.seen[state.seen.length - 1].status = "sent"; state.lastShareAt = Date.now(); state.lastOutcome = `已推荐：${chosen.title}`;
     }
