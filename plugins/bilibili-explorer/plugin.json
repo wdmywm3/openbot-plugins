@@ -2,7 +2,7 @@
   "id": "bilibili-explorer",
   "name": "B站管家",
   "version": "1.1.0",
-  "description": "双账号收藏扫描、分类预览与整理，主动发现视频，支持评论草稿",
+  "description": "双账号收藏整理、主动发现视频，支持评论草稿、自动评论和回复",
   "main": "index.js",
   "category": "automation",
   "permissions": [
@@ -101,6 +101,12 @@
     {
       "name": "bilipost",
       "description": "发送指定评论草稿：/bilipost 草稿编号",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
+      "name": "biliinteractions",
+      "description": "查看自动评论和回复的处理记录",
       "scope": "private",
       "permission": "owner"
     }
@@ -207,13 +213,14 @@
         "title": "评论功能",
         "enum": [
           "off",
-          "draft"
+          "draft",
+          "auto"
         ],
         "default": "off"
       },
       "dailyCommentLimit": {
         "type": "integer",
-        "title": "每天最多评论数",
+        "title": "每天最多评论与回复总数",
         "minimum": 0,
         "maximum": 20,
         "default": 3
@@ -234,6 +241,40 @@
         "default": 24,
         "minimum": 1,
         "maximum": 168
+      },
+      "commentChat": {
+        "type": "string",
+        "title": "评论管理会话（主人私聊）",
+        "default": ""
+      },
+      "autoComment": {
+        "type": "boolean",
+        "title": "自动评论新发现的视频",
+        "default": false
+      },
+      "autoReply": {
+        "type": "boolean",
+        "title": "自动回复小号收到的评论",
+        "default": false
+      },
+      "commentRules": {
+        "type": "string",
+        "title": "发言要求与禁止事项",
+        "default": ""
+      },
+      "commentIntervalMinutes": {
+        "type": "integer",
+        "title": "自动发言间隔（分钟）",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 1440
+      },
+      "threadReplyLimit": {
+        "type": "integer",
+        "title": "每个话题最多自动回复数",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 10
       }
     }
   },
