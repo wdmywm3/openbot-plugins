@@ -6,11 +6,13 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin.json"), "utf
 const load = () => { const sandbox = { module: { exports: {} } }; vm.runInNewContext(source, sandbox); return sandbox.module.exports; };
 function fixture() {
   let state, fail = false, cached = false, discovery = true;
+  const states = new Map();
   const calls = [], shares = [];
   const ctx = { command: { name: "roam" }, message: { id: "message-1", chatId: "private" }, args: "天文", config: { prohibitions: "不看直播" },
     api: {
       getAgentResources: async () => ["android"],
-      getState: async () => structuredClone(state), setState: async (key, value) => { state = structuredClone(value); },
+      getState: async (key, scope = "chat") => structuredClone(states.get(`${scope}:${key}`)),
+      setState: async (key, value, scope = "chat") => { state = structuredClone(value); states.set(`${scope}:${key}`, state); },
       getAgentTask: async () => ({ status: fail ? "blocked" : "suspended" }),
       runAgent: async request => {
         calls.push(request);
@@ -26,6 +28,8 @@ function fixture() {
   assert.ok(manifest.permissions.includes("resource:android"));
   assert.ok(!manifest.permissions.includes("push"));
   assert.ok(manifest.commands.every(c => c.scope === "private" && c.permission === "owner"));
+  assert.equal(manifest.configSchema.properties.autonomyEnabled.default, false);
+  assert.equal(manifest.background.export, "poll");
   const legacy = fixture(); delete legacy.ctx.api.getAgentResources;
   assert.match(await load().handle(legacy.ctx), /更新 OpenBot/); assert.equal(legacy.calls.length, 0);
   const unsupported = fixture(); unsupported.ctx.api.getAgentResources = async () => [];
@@ -53,5 +57,16 @@ function fixture() {
   changed.ctx.config.prohibitions = "不看视频"; assert.match(await load().handle(changed.ctx), /设置已改变/); assert.equal(changed.calls.length, 1);
   const unknown = fixture(); unknown.ctx.api.proposeShare = async () => ({ shared: false, reason: "delivery_unknown" });
   assert.match(await load().handle(unknown.ctx), /不会自动重发/); assert.equal(unknown.state().status, "completed");
+  const automatic = fixture(); automatic.ctx.config.autonomyEnabled = true; automatic.ordinary();
+  const checks = []; let ready = false;
+  automatic.ctx.api.considerAutonomy = async request => { checks.push(request); return { ready, opportunityId: "host-opportunity" }; };
+  await load().poll(automatic.ctx); assert.equal(automatic.calls.length, 0, "no draw means no model call");
+  ready = true; await load().poll(automatic.ctx);
+  assert.equal(automatic.calls[0].resource.opportunityId, "host-opportunity"); assert.equal(automatic.calls[0].chatId, undefined);
+  await load().poll(automatic.ctx); assert.equal(checks.at(-1).backoff, 2);
+  await load().poll(automatic.ctx); assert.equal(checks.at(-1).backoff, 4);
+  automatic.ctx.config.autonomyEnabled = false; const count = automatic.calls.length;
+  await load().poll(automatic.ctx); assert.equal(automatic.calls.length, count);
+  automatic.ctx.command.name = "roamstatus"; assert.ok(await load().handle(automatic.ctx), "owner can inspect the automatic report");
   console.log("android roamer: owner commands, plugin policy, shared Agent/resource/share API, evidence, abstention, resume and no replay passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

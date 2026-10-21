@@ -1,4 +1,5 @@
 const STATE_KEY = "last-roam";
+const AUTO_STATE_KEY = "last-autonomous-roam";
 const text = (value, max) => String(value || "").trim().slice(0, max);
 
 function policy(ctx) {
@@ -24,13 +25,18 @@ function promptFor(settings, interests) {
   ].join("\n");
 }
 
-module.exports.handle = async ctx => {
+async function roam(ctx, opportunityId) {
   if (typeof ctx.api.getAgentResources !== "function" || typeof ctx.api.runAgent !== "function"
     || typeof ctx.api.proposeShare !== "function") return "请更新 OpenBot，以使用手机闲逛插件。";
   if (!(await ctx.api.getAgentResources()).includes("android")) return "安卓任务不可用，请检查 OpenBot 版本及插件权限。";
-  const command = ctx.command?.name || "roam";
-  const prior = await ctx.api.getState(STATE_KEY);
+  const command = opportunityId ? "roam" : ctx.command?.name || "roam";
+  const stateKey = opportunityId ? AUTO_STATE_KEY : STATE_KEY;
+  const scope = opportunityId ? "channel" : "chat";
+  const prior = await ctx.api.getState(stateKey, scope);
+  const save = async job => { job.updatedAt = Date.now(); await ctx.api.setState(stateKey, job, scope); };
   if (command === "roamstatus") {
+    const automatic = await ctx.api.getState(AUTO_STATE_KEY, "channel");
+    if (automatic && (!prior || automatic.updatedAt > prior.updatedAt)) return automatic.report || "自主闲逛正在进行。";
     if (!prior) return "还没有闲逛记录。";
     const current = await ctx.api.getAgentTask({ taskId: prior.taskId });
     if (current?.status === "blocked") return "上次设备操作结果未确认，请先检查手机，再决定是否开始新的闲逛。";
@@ -47,15 +53,17 @@ module.exports.handle = async ctx => {
     job = { taskId: `roam-${Date.now()}-${suffix}`, status: "running", policy: settings,
       prompt: promptFor(settings, text(ctx.args, 2000) || settings.interests) };
   }
-  await ctx.api.setState(STATE_KEY, job);
+  await save(job);
   try {
     const result = await ctx.api.runAgent({ taskId: job.taskId, prompt: job.prompt, maxToolCalls: settings.maxSteps,
-      timeoutMs: 900000, resource: { type: "android", mode: "explore", captureScreenshot: settings.share && settings.screenshots } });
+      timeoutMs: 900000, resource: { type: "android", mode: "explore", captureScreenshot: settings.share && settings.screenshots,
+        ...(opportunityId ? { opportunityId } : {}) } });
     const parsed = JSON.parse(String(result.text || "").trim());
     if (typeof parsed.report !== "string") throw new Error("闲逛没有返回完整报告");
     job.status = "completed"; job.report = text(parsed.report, 2000) || "这次没有新的发现。";
+    job.uninterestingRounds = parsed.discovery?.content ? 0 : Math.min(2, (prior?.uninterestingRounds || 0) + 1);
     // Save completion before considering a share. Plugin restarts never replay delivery.
-    await ctx.api.setState(STATE_KEY, job);
+    await save(job);
     if (settings.share && !result.cached && result.resultId && parsed.discovery?.content) {
       try {
         const url = (result.observedUrls || []).includes(parsed.discovery.url) ? parsed.discovery.url : undefined;
@@ -65,13 +73,24 @@ module.exports.handle = async ctx => {
         if (shared.shared === true) job.report += "\n已向允许接收分享的聊天分享这次发现。";
         else if (shared.reason === "delivery_unknown") job.report += "\n分享结果未确认，不会自动重发。";
       } catch { job.report += "\n这次分享未完成，不会自动重发。"; }
-      await ctx.api.setState(STATE_KEY, job);
+      await save(job);
     }
     return job.report;
   } catch (error) {
     job.status = "interrupted";
+    job.uninterestingRounds = Math.min(2, (prior?.uninterestingRounds || 0) + 1);
     job.report = `闲逛已停止：${text(error.message || error, 300)}。可用 /roamstatus 查看状态。`;
-    await ctx.api.setState(STATE_KEY, job);
+    await save(job);
     return job.report;
   }
+}
+module.exports.handle = ctx => roam(ctx);
+module.exports.poll = async ctx => {
+  if (typeof ctx.api.considerAutonomy !== "function") return { skipped: true, reason: "host_update_required" };
+  const prior = await ctx.api.getState(AUTO_STATE_KEY, "channel");
+  // Always consult the host, including when disabled, so re-enabling starts a new rest period.
+  const opportunity = await ctx.api.considerAutonomy({ resource: "android",
+    backoff: 2 ** Math.min(2, Math.max(0, Number(prior?.uninterestingRounds) || 0)) });
+  if (!opportunity.ready || ctx.config?.autonomyEnabled !== true) return { skipped: true, reason: opportunity.reason || "disabled" };
+  return roam(ctx, opportunity.opportunityId);
 };

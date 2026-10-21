@@ -1,11 +1,12 @@
 {
   "id": "android-roamer",
   "name": "手机闲逛",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "在授权应用里自主游玩，发现有趣内容时向 OpenBot 提议分享",
   "main": "index.js",
   "category": "automation",
-  "permissions": ["agent", "resource:android", "state", "reply", "share"],
+  "permissions": ["agent", "resource:android", "resource:android:autonomous", "state", "reply", "share"],
+  "background": { "export": "poll", "intervalSeconds": 60, "startupDelaySeconds": 60 },
   "commands": [
     { "name": "roam", "aliases": ["手机闲逛"], "description": "闲逛一会儿：/roam [兴趣]", "scope": "private", "permission": "owner" },
     { "name": "roamstatus", "description": "查看上次闲逛结果", "scope": "private", "permission": "owner" },
@@ -14,6 +15,10 @@
   "configSchema": {
     "type": "object",
     "properties": {
+      "autonomyEnabled": { "type": "boolean", "title": "自主闲逛", "scope": "instance", "default": false },
+      "autonomyRestMinutes": { "type": "integer", "title": "空闲后先休息（分钟）", "scope": "instance", "minimum": 1, "maximum": 1440, "default": 10 },
+      "autonomyMeanMinutes": { "type": "integer", "title": "休息后平均等待（分钟）", "scope": "instance", "minimum": 1, "maximum": 1440, "default": 30 },
+      "autonomyDailyLimit": { "type": "integer", "title": "每天最多自主启动次数", "scope": "instance", "minimum": 1, "maximum": 48, "default": 6 },
       "interests": { "type": "string", "title": "游玩兴趣", "default": "自行寻找有意思的公开内容" },
       "prohibitions": { "type": "string", "title": "不希望做的事情", "default": "" },
       "maxSteps": { "type": "integer", "title": "每轮最多操作次数", "minimum": 1, "maximum": 100, "default": 20 },
