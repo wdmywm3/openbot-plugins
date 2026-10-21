@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "test": "node tests/explorer.cjs && node tests/butler.cjs && node tests/interactions.cjs && node tests/catalog.cjs",
+    "test": "node tests/explorer.cjs && node tests/butler.cjs && node tests/interactions.cjs && node tests/android-roamer.cjs && node tests/catalog.cjs",
     "catalog": "node scripts/build-catalog.cjs"
   },
   "engines": {

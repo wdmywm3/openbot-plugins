@@ -30,7 +30,7 @@ OpenBot 的独立插件仓库。插件列表由 `catalog.json` 提供，下载�
 
 插件入口为单个 JS 文件，导出 `handle(ctx)` 或 `poll(ctx)`，通过 `ctx.api` 使用宿主能力，不直接运行 Node/Python。`plugin.json` 声明权限、命令和配置。
 
-`ctx.api.runAgent({taskId, chatId, prompt, tools, maxToolCalls, timeoutMs, maxActiveMs})` 返回 `{taskId, status, text, toolCalls, observedUrls, usage}`，不会自动投递。新版宿主按稳定 taskId 保存 Agent 检查点，自动压缩上下文；重试相同任务可恢复，已完成结果不会重跑。`ctx.api.getAgentTask({taskId, chatId})` 查询状态。`observedUrls` 是本任务工具返回的链接。宿主检查实例、会话、角色工具权限及插件启用状态。插件可用 `getState/setState` 保存实例状态，用 `push` 投递。按会话变化的数据应把会话 ID 纳入状态键；跨实例共享状态需要额外的 `state:global` 权限。
+`ctx.api.runAgent({taskId, chatId, prompt, tools, maxToolCalls, timeoutMs, maxActiveMs, resource?})` 返回 `{taskId, status, text, toolCalls, observedUrls, usage}`，不会自动投递。新版宿主按稳定 taskId 保存 Agent 检查点，自动压缩上下文；重试相同任务可恢复，已完成结果不会重跑。`ctx.api.getAgentTask({taskId, chatId})` 查询状态。`observedUrls` 是本任务工具返回的链接。宿主检查实例、会话、角色工具权限及插件启用状态。插件可用 `getState/setState` 保存状态，用 `proposeShare` 提议自主分享，订阅及任务通知使用独立的 `push` 权限。状态默认按聊天隔离；选择 `channel` 范围存放多聊天数据时，键中应包含聊天 ID；跨实例共享状态需要额外的 `state:global` 权限。
 
 运行 `npm test`。修改插件时提升其版本，先提交插件文件，再运行 `npm run catalog` 生成指向该提交的目录，提交目录并推送。不要在目录里填分支名或未经校验的下载地址。插件代码的版本和权限变更都应在发布说明中写清。
 
@@ -69,3 +69,17 @@ OpenBot 的独立插件仓库。插件列表由 `catalog.json` 提供，下载�
 探索兴趣、来源采集、候选筛选和探索预算属于插件；接收许可、频率、聊天上下文、最终发送和去重属于本体。`push` 仍仅用于原有收藏整理结果通知。截图分享由安卓宿主控制，B 站插件不能通过此接口上传任意文件或桌面截图。奖励学习尚未实现。
 
 目录仍指向已发布版本；本分支的新版需要与支持自主分享的宿主完成真实模型和 QQ 测试后，再更新目录。
+
+## 手机闲逛 1.0.0（待实机验收）
+
+独立包 `plugins/android-roamer`，需要支持 Agent 资源协议的新版 OpenBot。可从本分支下载该目录后，通过插件页导入并启用；当前正式 `catalog.json` 尚未收录。宿主中的旧 `/android play` 会提示迁移。
+
+先配置实例主人、Mobile MCP 设备、可游玩的应用和角色工具权限。在主人私聊使用 `/roam [兴趣]` 开始一轮；`/roamstatus` 查询上次任务，`/roamresume` 继续尚未完成的任务。设备队列、取消、待机与恢复继续用 `/android`。主人任务可优先打断闲逛，完成后恢复；本版不会在一轮结束后无限自动开始下一轮。
+
+插件设置包含游玩兴趣、禁止事项、每轮操作上限、是否提议分享及是否允许附图。没有有趣发现时可以结束。当前策略禁止付款、发送评论或消息、点赞和修改账号设置；没有增加自动安装应用。要向群或私聊分享，须在那里开启“允许自主分享”，并让该聊天启用这个插件。
+
+接口与 B 站探索共用 `runAgent`、`getState/setState` 和 `proposeShare`。手机任务额外声明 `resource:android`，通过 `getAgentResources()` 检查支持情况，然后调用 `runAgent({resource:{type:"android",mode:"explore",captureScreenshot:true}, ...})`。宿主绑定真实主人、队列和工具，插件不操作 ADB 进程或锁。
+
+任务返回临时 `resultId`、`hasScreenshot`；插件用 `proposeShare({resultId,content,includeScreenshot})` 提交发现。截图由宿主持有，凭据只在本次执行内有效，最长 5 分钟。`getShareTargets({resultId})` 可查询该结果允许考虑的目标。未获准、旧宿主或分享失败均不降级为直接发送。已完成任务不重截当前屏幕、不重发旧发现。
+
+离线测试覆盖宿主能力缺失、策略配置、资源请求、结果凭据、分享取舍、恢复及配置变化。MuMu、真实模型和 QQ 分享仍需联合验收后再发布。

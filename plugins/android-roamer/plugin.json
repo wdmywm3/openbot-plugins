@@ -1,0 +1,24 @@
+{
+  "id": "android-roamer",
+  "name": "手机闲逛",
+  "version": "1.0.0",
+  "description": "在授权应用里自主游玩，发现有趣内容时向 OpenBot 提议分享",
+  "main": "index.js",
+  "category": "automation",
+  "permissions": ["agent", "resource:android", "state", "reply", "share"],
+  "commands": [
+    { "name": "roam", "aliases": ["手机闲逛"], "description": "闲逛一会儿：/roam [兴趣]", "scope": "private", "permission": "owner" },
+    { "name": "roamstatus", "description": "查看上次闲逛结果", "scope": "private", "permission": "owner" },
+    { "name": "roamresume", "description": "继续尚未完成的闲逛；结果不明时须先核对设备", "scope": "private", "permission": "owner" }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "interests": { "type": "string", "title": "游玩兴趣", "default": "自行寻找有意思的公开内容" },
+      "prohibitions": { "type": "string", "title": "不希望做的事情", "default": "" },
+      "maxSteps": { "type": "integer", "title": "每轮最多操作次数", "minimum": 1, "maximum": 100, "default": 20 },
+      "shareDiscoveries": { "type": "boolean", "title": "发现有趣内容时提议分享", "default": true },
+      "screenshots": { "type": "boolean", "title": "分享时可附当前画面", "default": true }
+    }
+  }
+}
