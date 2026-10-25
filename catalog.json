@@ -2,37 +2,153 @@
   "schemaVersion": 1,
   "plugins": [
     {
-      "id": "bilibili-explorer",
-      "name": "B站主动探索",
-      "version": "1.0.1",
-      "description": "按兴趣主动发现视频，筛选后分享到指定 QQ 会话，保存探索线索并避免重复推荐",
+      "id": "android-roamer",
+      "name": "bPhone",
+      "version": "2.2.0",
+      "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "automation",
+      "main": "index.js",
+      "permissions": [
+        "agent",
+        "resource:android",
+        "resource:android:autonomous",
+        "hook:context",
+        "state",
+        "reply",
+        "share",
+        "resource:android:self"
+      ],
+      "metadata": {
+        "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
+        "platforms": [],
+        "requirements": [
+          "配置并通过截图确认手机连接",
+          "角色启用插件工具与技能"
+        ],
+        "changelog": "",
+        "components": [
+          "commands",
+          "hooks",
+          "tools",
+          "background",
+          "skills"
+        ],
+        "hasBackgroundAgent": true
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "files": [
+        {
+          "path": "index.js",
+          "size": 40592,
+          "sha256": "13ba5a99b7140a6a65de276d524c1e45c5c1722b9290bd2a9deb447893b51c42"
+        },
+        {
+          "path": "plugin.json",
+          "size": 15247,
+          "sha256": "e862009257b5d36c0db1decaa6299986c325548a6421fcea5855ffed30d8a16c"
+        },
+        {
+          "path": "skills/android-roaming/SKILL.md",
+          "size": 5996,
+          "sha256": "f3556dc5601083726856e5b40de362d5411d3e81ce7d41477de8710e9ca93a46"
+        }
+      ]
+    },
+    {
+      "id": "bilibili-explorer",
+      "name": "B站小管家",
+      "version": "1.9.0",
+      "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
+      "category": "automation",
+      "main": "./index.js",
       "permissions": [
         "agent",
         "state",
         "push",
-        "reply"
+        "reply",
+        "network",
+        "secret",
+        "share",
+        "media",
+        "browser",
+        "browser:write",
+        "hook:context"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/explore 立即浏览一次，有适合当前聊天的发现时再分享\n/explorestatus 查看上次探索、分享及下次运行时间\n/explorelike 记录希望多看的主题：/explorelike 主题\n/exploreavoid 记录希望避开的主题：/exploreavoid 主题\n/biliaccounts 验证大号或小号登录：/biliaccounts main 或 browse\n/bilifolders 列出大号收藏夹\n/biliscan 分页扫描收藏；new 开始新扫描\n/biliplan 分批生成收藏分类方案\n/bilipreview 分页预览方案：/bilipreview 偏移量\n/biliapply 应用已生成的收藏方案\n/bilidraft 以小号拟评论：/bilidraft BV号 内容\n/bilipost 发送指定评论草稿：/bilipost 草稿编号\n/biliinteractions 查看自动评论和回复的处理记录\n/bilianalyze 分段分析视频：/bilianalyze BV号 [分P序号] [new]\n/bilisummary 读取分析总结：/bilisummary BV号 [分P序号] [页码]",
+        "platforms": [],
+        "requirements": [],
+        "changelog": "统一名称为 B站小管家。字幕不足时默认通过 Watch 补充语音和画面，沿用现有媒体绑定、收藏规则、账号和笔记；Watch 需在当前实例启用并授权。",
+        "components": [
+          "commands",
+          "hooks",
+          "tools",
+          "background",
+          "skills"
+        ],
+        "hasBackgroundAgent": true
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
+          "path": "MEDIA.md",
+          "size": 10049,
+          "sha256": "fd405f46da8db738b8d9605ae6a28b09ac6054beb05cae7baba39112eca3f329"
+        },
+        {
           "path": "index.js",
-          "size": 7198,
-          "sha256": "14abea73efd328aa4c6709a7035e1a1ff6c81f3674eaccbdd7b77ad9820dcde4"
+          "size": 174426,
+          "sha256": "3d85e43df5c98ae544851c45141f231c633752b27a31704b2f5d064149a02356"
+        },
+        {
+          "path": "media-mcp/launch.py",
+          "size": 1718,
+          "sha256": "79235cc8e2e7d30edeaa149589ec88e1d00accd8bc50ffd45183e30fae5690c1"
+        },
+        {
+          "path": "media-mcp/requirements.txt",
+          "size": 138,
+          "sha256": "be97a5fec0a392bc9c7229670ed582eda5906b6e809f0ff65677a5cef450c9d3"
+        },
+        {
+          "path": "media-mcp/server.py",
+          "size": 17342,
+          "sha256": "dfaba005d35e530e109000b0e8c4f5cfd6513aa76cee6a05edb03fdc48aac9e3"
         },
         {
           "path": "plugin.json",
-          "size": 2342,
-          "sha256": "20b91c79f5cb49120b4e6f5c49e6a0541e64713afcc41e2fab98bd7ed521db9c"
+          "size": 47910,
+          "sha256": "659e522e96bb0d4bece665107a7d6ee85212a6aa67170c952a27fe34e49c53ef"
+        },
+        {
+          "path": "skills/bilibili-butler/SKILL.md",
+          "size": 6212,
+          "sha256": "27314356f1594a6857d90f3396c3da19310316c7f1ebf0f24eca73eeeb5adb90"
+        },
+        {
+          "path": "skills/bilibili-butler/references/commands.md",
+          "size": 1260,
+          "sha256": "f01f363ac95a9976b33230ee1764db3fb2c4b3abc472f8209a4d842140ada47f"
+        },
+        {
+          "path": "skills/bilibili-butler/references/organizing.md",
+          "size": 6900,
+          "sha256": "41f1220b97fa3bf90c21adbeb0e7021ca172d17478872f0b5ee19a5fdbb4ee13"
+        },
+        {
+          "path": "skills/explore-videos/SKILL.md",
+          "size": 5238,
+          "sha256": "97a4198e84d17d10854bd14e8f04c52a46804f9e2e53f7eaf1b372f7691268e3"
         }
       ]
     },
     {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "reply",
         "state",
@@ -40,56 +156,102 @@
         "push",
         "secret"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/monitorresolve 核对聊天记录后确认或重试结果不明的推送\n/monitorstatus 查看内容监控状态\n/monitorcheck 立即执行一次内容检查",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [],
+        "changelog": "支持官方 QQ 会话 ID；未发送的消息保留待办，结果不明的消息暂停重试；恢复后清除旧错误。 监控进度按订阅保存到插件专属数据库，继承待确认推送，避免迁移后重复发送。",
+        "components": [
+          "commands",
+          "background"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
-          "size": 16990,
-          "sha256": "1f4b871f3c4f9612e8d0ac030e4ef1e1ca87a0d4ff75e14f159a36f5e1e9faa6"
+          "size": 23244,
+          "sha256": "3db8919704a48bc09d2ba0fe6aa1541189bc51ba3021f77a4e6fb0be2fb1733c"
         },
         {
           "path": "plugin.json",
-          "size": 1427,
-          "sha256": "428b19ed634fe5ebe698a671e0d367bdecbe5713c0df5ecfb2857467f2fd1d8c"
+          "size": 6136,
+          "sha256": "8bf23993a0977b521ce26e88ab07893a3f14736bcfd519b02292242604d100c6"
         }
       ]
     },
     {
       "id": "daily-checkin",
       "name": "每日签到",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "按群或私聊记录每日签到、连续天数和积分排行",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "reply",
         "state"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/checkin 每日签到\n/checkinrank 查看当前会话签到排行",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "需要支持 api.updateState 的 OpenBot 版本"
+        ],
+        "changelog": "签到按用户保存，积分与排行通过原子更新避免多人签到互相覆盖。 签到积分与排行可保存到插件专属数据库，并在首次使用时继承旧记录。",
+        "components": [
+          "commands"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
-          "size": 2271,
-          "sha256": "e30d19aaf9094086be067b8bad3fabebc631fa8732d4bff67c5aec02a09809aa"
+          "size": 7269,
+          "sha256": "e18983ba6c956cc69afaf0bfee57d60600381812412e31e1e77e6d3c99b6bc44"
         },
         {
           "path": "plugin.json",
-          "size": 1404,
-          "sha256": "55aee48f0e2954b64e767a6ed58869c25373e2ae2324c94618ca6dc0fb1f1bca"
+          "size": 2148,
+          "sha256": "e291d3abbd50239f52ee65423de875e1eb4a68ee504cba1dae2fa7237ee53eb3"
         }
       ]
     },
     {
       "id": "dice-maiden",
       "name": "骰娘",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "reply",
         "state",
         "napcat:send_private_msg"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/roll 通用掷骰，例如 .d50、.rd50、.rd 50、/r2d6+1 攻击或 .r3#d20\n/ra CoC 7 版检定，例如 .ra 侦查 60 或 .ra b1 侦查\n/rh 暗骰；群聊中将结果私聊发送给掷骰者\n/rav CoC 对抗检定，例如 .rav 侦查 60 潜行 45\n/coc 兼容的 CoC 百分骰检定，例如 /coc 60 b1\n/sc 理智检定，例如 .sc 1/1d6 60\n/st 设置或查看本群角色卡，例如 .st 侦查 60 SAN 70\n/en CoC 技能成长检定，例如 .en 侦查\n/ti 抽取临时疯狂症状\n/li 抽取总结性疯狂症状\n/cocchar 生成 CoC 7 版角色属性\n/d20 D20 优势或劣势检定，例如 /d20 adv +3；直接 .d20 会返回基础骰点\n/dset 设置当前群或私聊的默认骰式\n/dicestats 查看当前群或私聊的掷骰统计\n/dicehelp 查看骰娘命令",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "统计需要支持 api.updateState 的 OpenBot 版本；从群聊发送私聊暗骰仅支持 NapCat"
+        ],
+        "changelog": "统计使用原子更新；官方 QQ 实例的暗骰提供私聊使用提示。 角色卡、统计与默认骰式可保存到插件专属数据库，保留原有会话和用户隔离。",
+        "components": [
+          "commands"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "README.md",
@@ -98,26 +260,42 @@
         },
         {
           "path": "index.js",
-          "size": 36148,
-          "sha256": "f373853a2c99aebc06adbbf83009ad652266e16c9ba41dfb0cb784c85d9e68b8"
+          "size": 38986,
+          "sha256": "e98ab6651843588d45c3ef11d677eeaa34b1c82ca6a2eaff6ec4ad4f83ee0f69"
         },
         {
           "path": "plugin.json",
-          "size": 5163,
-          "sha256": "69aaec6ed32a7e0b0bde8f798d109a08185e147aa87a39caa249a20977aa8866"
+          "size": 6214,
+          "sha256": "4d21064333e70f5b17470baea61ffe4b2d65c3f8d4f7a43fa5bb04ee30927a9a"
         }
       ]
     },
     {
       "id": "group-digest",
       "name": "群聊总结",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "调用机器人 Agent 总结当前群聊中的近期消息",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "agent"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/groupsummary [关注点]：由当前聊天的 Agent 根据已有上下文总结主要话题、结论与待办。",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "使用实例或群聊当前 Agent 与模型；不单独运行后台模型"
+        ],
+        "changelog": "明确沿用当前聊天上下文与模型。",
+        "components": [
+          "commands"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -126,22 +304,34 @@
         },
         {
           "path": "plugin.json",
-          "size": 944,
-          "sha256": "25fb521216f4a5373e355ec253965ddfc000d3f2047e1bb118cff095cbcffcc4"
+          "size": 1635,
+          "sha256": "accae8d0ba4ada102b9590dc4fa1fe2c9a9d5ad17f74544313d92b8bef22868b"
         }
       ]
     },
     {
       "id": "meme-library",
       "name": "表情素材库",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "reply",
         "napcat:fetch_custom_face"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/meme 随机或按关键词发送收藏表情\n/memeinfo 查看收藏表情数量",
+        "platforms": [],
+        "requirements": [],
+        "changelog": "",
+        "builtinFeature": "stickers",
+        "components": [
+          "commands"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -150,32 +340,145 @@
         },
         {
           "path": "plugin.json",
-          "size": 899,
-          "sha256": "a0969a926874a8923a8f7a3c3dfe72c94312321f164776a0661bae36e3c80465"
+          "size": 1407,
+          "sha256": "0d016befdbb3a117f5e16a26c9772a8e0713a4def822574a6bd4eada3c4626a3"
         }
       ]
     },
     {
       "id": "random-toolbox",
       "name": "随机工具箱",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "抛硬币、随机数、选项抽取和群成员抽取",
       "category": "utility",
+      "main": "index.js",
       "permissions": [
         "reply",
         "napcat:get_group_member_list"
       ],
-      "ref": "05a67a2fef509c34d8585510d7f926f6b26b04cd",
+      "metadata": {
+        "usage": "/coin 抛硬币\n/random 生成范围内的随机整数\n/choose 从多个选项中抽取一个\n/pickmember 随机抽取一名群成员",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "群成员抽取仅支持 NapCat；其他随机命令支持两种实例"
+        ],
+        "changelog": "官方 QQ 实例的群成员抽取显示能力说明，其他随机命令继续可用。",
+        "components": [
+          "commands"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
-          "size": 2629,
-          "sha256": "a23020abb32584ccc5361960a9118a730089c5cab4d51602e5411c35e8809615"
+          "size": 2817,
+          "sha256": "eaf0ffd486f7de7c10089f00f4d3ab8656f51914ad1e03c04e63b1bf95e751fe"
         },
         {
           "path": "plugin.json",
-          "size": 1286,
-          "sha256": "0204003fb0bb72df98483ed2a102dcc41cc724b32f709c1b62fef78a7d13600c"
+          "size": 2216,
+          "sha256": "a4010fef4963845685abd0f502dba05774f54aa500847b359a367eb01cc66d15"
+        }
+      ]
+    },
+    {
+      "id": "watch",
+      "name": "Watch 视频阅读",
+      "version": "0.4.0",
+      "description": "结合画面、字幕和时间戳理解视频，按问题继续补看。",
+      "category": "utility",
+      "main": "",
+      "permissions": [],
+      "metadata": {
+        "usage": "在启用插件的会话或任务中提供 B 站、YouTube 视频链接，或主动导入本地视频后交给 Bot 阅读。",
+        "platforms": [],
+        "requirements": [
+          "Python 3.10 或更新版本、ffmpeg、ffprobe，以及 requirements-media.txt 中的下载依赖",
+          "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
+          "无字幕时可配置本地 faster-whisper 模型进行转写"
+        ],
+        "changelog": "优先获取 1080p 视频，整帧保留至 1920 像素长边；需要读小字时可从原视频局部补看，并标明实际尺寸和裁剪位置。",
+        "components": [
+          "skills",
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 10392,
+          "sha256": "84c6c700068f22efc923b90fd3b9e3323e38bcf37b9f41d8c157899850239fd0"
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "size": 1738,
+          "sha256": "ddde73dc0f67dff43d14f320910cb9000f99638ee44372bd29fac7c896110df0"
+        },
+        {
+          "path": "mcp.json",
+          "size": 395,
+          "sha256": "acbde04601037d48772e3179631e2c201f9086b55aafe3ee47b8265804a831db"
+        },
+        {
+          "path": "plugin.json",
+          "size": 1027,
+          "sha256": "b3d59471e1c6d689f403cfa48e6f38bd6144e87a2e7b08d2d9ea3cdcaee20b26"
+        },
+        {
+          "path": "requirements-asr.txt",
+          "size": 106,
+          "sha256": "9c1c279d718735c5a646cac4e049bd8e25cd29bbceaa49cd45bd35c46841d73d"
+        },
+        {
+          "path": "requirements-media.txt",
+          "size": 187,
+          "sha256": "59e20a4ecf79f845a50f86054bc91e8d28b2b1e532492f012637200f42966f23"
+        },
+        {
+          "path": "skills/watch/SKILL.md",
+          "size": 8540,
+          "sha256": "0df62fef30e67a3a9509511a08f4a0a2b9c27b79bc363eb4772dd20d5855ed94"
+        },
+        {
+          "path": "tools/common.py",
+          "size": 9407,
+          "sha256": "3be2afb1b7de2bb30cf89cdbd92d08e8b26981b83d5391fa0e9064c85a47994e"
+        },
+        {
+          "path": "tools/download_info.py",
+          "size": 4330,
+          "sha256": "bf96502d8ac95c0dc0a688a7cd7d95e079ead6f7fa8acc43c14da64a0fb9326e"
+        },
+        {
+          "path": "tools/jobs.py",
+          "size": 16719,
+          "sha256": "8c728da0b195c4988c39fc47ca6a1aea4c352fc4ae6f685f65151359bc1952f1"
+        },
+        {
+          "path": "tools/media.py",
+          "size": 20467,
+          "sha256": "fcb1c181c5306188e325fec6780cd99797e36ceb3140eb48ea0673667492abc6"
+        },
+        {
+          "path": "tools/media_bridge.py",
+          "size": 5900,
+          "sha256": "cfda8cd725c1117f2280833171347d2204b220910fb514e04f5092fd2b312397"
+        },
+        {
+          "path": "tools/server.py",
+          "size": 10992,
+          "sha256": "a749a775da194362a90731d1b49d0f6352d27f5d42b56e76e291328a1c4ab213"
+        },
+        {
+          "path": "tools/transcribe.py",
+          "size": 2394,
+          "sha256": "522388981072284fe587a3a91bec01d48a3cb1c3f1c26fc6a89f4dddda41b932"
         }
       ]
     }
