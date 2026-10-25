@@ -29,6 +29,7 @@ module.exports.handle = async function handle({ command, args, principal, api, c
     return { text: `选择：${options[Math.floor(Math.random() * options.length)]}` };
   }
   if (config.allowPickMember === false) return { text: "当前机器人已关闭群成员抽取" };
+  if (api.getCapabilities && !(await api.getCapabilities()).groupMemberList) return { text: "当前实例不支持读取群成员；抛硬币、随机数和选项抽取仍可使用。" };
   const groupId = String(principal.groupId || "");
   if (!groupId) return { text: "该命令只能在群聊中使用" };
   const data = resultData(await api.callNapCat("get_group_member_list", { group_id: groupId }));

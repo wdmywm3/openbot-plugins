@@ -1,16 +1,40 @@
 {
   "id": "dice-maiden",
   "name": "骰娘",
-  "version": "1.3.0",
+  "version": "1.3.1",
+  "metadata": {
+    "platforms": [
+      "napcat",
+      "qqbot"
+    ],
+    "requirements": [
+      "统计需要支持 api.updateState 的 OpenBot 版本；从群聊发送私聊暗骰仅支持 NapCat"
+    ],
+    "changelog": "统计使用原子更新；官方 QQ 实例的暗骰提供私聊使用提示。 角色卡、统计与默认骰式可保存到插件专属数据库，保留原有会话和用户隔离。"
+  },
   "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
   "main": "index.js",
   "responseMode": "direct",
-  "commandPrefixes": ["/", ".", "!", "。"],
-  "permissions": ["reply", "state", "napcat:send_private_msg"],
+  "commandPrefixes": [
+    "/",
+    ".",
+    "!",
+    "。"
+  ],
+  "permissions": [
+    "reply",
+    "state",
+    "napcat:send_private_msg"
+  ],
   "commands": [
     {
       "name": "roll",
-      "aliases": ["r", "rd", "d", "掷骰"],
+      "aliases": [
+        "r",
+        "rd",
+        "d",
+        "掷骰"
+      ],
       "description": "通用掷骰，例如 .d50、.rd50、.rd 50、/r2d6+1 攻击或 .r3#d20",
       "scope": "all",
       "permission": "member",
@@ -22,7 +46,10 @@
     },
     {
       "name": "ra",
-      "aliases": ["rc", "检定"],
+      "aliases": [
+        "rc",
+        "检定"
+      ],
       "description": "CoC 7 版检定，例如 .ra 侦查 60 或 .ra b1 侦查",
       "scope": "all",
       "permission": "member",
@@ -31,7 +58,11 @@
     },
     {
       "name": "rh",
-      "aliases": ["rhd", "rdh", "暗骰"],
+      "aliases": [
+        "rhd",
+        "rdh",
+        "暗骰"
+      ],
       "description": "暗骰；群聊中将结果私聊发送给掷骰者",
       "scope": "all",
       "permission": "member",
@@ -44,7 +75,10 @@
     },
     {
       "name": "rav",
-      "aliases": ["rcv", "对抗检定"],
+      "aliases": [
+        "rcv",
+        "对抗检定"
+      ],
       "description": "CoC 对抗检定，例如 .rav 侦查 60 潜行 45",
       "scope": "all",
       "permission": "member"
@@ -89,7 +123,9 @@
     },
     {
       "name": "cocchar",
-      "aliases": ["coc7"],
+      "aliases": [
+        "coc7"
+      ],
       "description": "生成 CoC 7 版角色属性",
       "scope": "all",
       "permission": "member",
@@ -106,7 +142,10 @@
     },
     {
       "name": "dset",
-      "aliases": ["setdice", "set"],
+      "aliases": [
+        "setdice",
+        "set"
+      ],
       "description": "设置当前群或私聊的默认骰式",
       "scope": "all",
       "permission": "member",
@@ -115,14 +154,18 @@
     },
     {
       "name": "dicestats",
-      "aliases": ["骰娘统计"],
+      "aliases": [
+        "骰娘统计"
+      ],
       "description": "查看当前群或私聊的掷骰统计",
       "scope": "all",
       "permission": "member"
     },
     {
       "name": "dicehelp",
-      "aliases": ["骰娘帮助"],
+      "aliases": [
+        "骰娘帮助"
+      ],
       "description": "查看骰娘命令",
       "scope": "all",
       "permission": "member"
@@ -180,5 +223,26 @@
         "default": true
       }
     }
+  },
+  "ui": {
+    "version": 1,
+    "layout": "settings",
+    "sections": [
+      {
+        "id": "settings",
+        "title": "设置",
+        "fields": [
+          "defaultExpression",
+          "maxDice",
+          "maxSides",
+          "maxRolls",
+          "maxCardCount",
+          "showDetails",
+          "replyToSource",
+          "statsEnabled"
+        ],
+        "widgets": []
+      }
+    ]
   }
 }

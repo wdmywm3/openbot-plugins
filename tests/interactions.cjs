@@ -8,19 +8,22 @@ function fixture() {
   const load = () => { const sandbox = { module: { exports: {} }, Date: Clock }; vm.runInNewContext(code, sandbox); return sandbox.module.exports; };
   const ctx = { config: { browseUid: "2", commentMode: "auto", autoComment: true, autoReply: true,
     commentChat: "onebot:private:99", dailyCommentLimit: 10, threadReplyLimit: 3, commentIntervalMinutes: 1 },
-    message: { chatId: "onebot:private:99" }, api: {
+    message: { chatId: "" }, api: {
       getSecret: async () => "user=2; bili_jct=PRIVATE-COOKIE",
       getState: async key => structuredClone(states.get(key)),
       setState: async (key, value) => states.set(key, structuredClone(value)),
+      updateState: async (key, reducer) => { const value = reducer(structuredClone(states.get(key))); states.set(key, structuredClone(value)); return structuredClone(value); },
       getShareTargets: async () => ctx.config.targetChat ? [{ chatId: "onebot:private:99", interests: "天文" }] : [],
-      proposeShare: async () => ({ shared: true }),
+      submitShare: async request => ({ accepted: true, chatId: request.chatId, submissionId: "accepted" }),
       sleep: async () => {}, push: async () => ({ id: "sent" }),
       runAgent: async args => {
-        agents.push(args); assert.ok(!args.prompt.includes("PRIVATE-COOKIE"));
-        assert.equal(args.chatId, "onebot:private:99"); assert.equal(args.tools.length, 0);
-        if (args.taskId.startsWith("explore-")) return { toolCalls: 0, text: JSON.stringify({ candidate: {
+        if (!args.taskId.startsWith("explore-") && !args.taskId.startsWith("bili-share-")) agents.push(args);
+        assert.ok(!JSON.stringify(args).includes("PRIVATE-COOKIE"));
+        assert.equal(args.chatId, args.taskId.startsWith("explore-") ? undefined : "onebot:private:99");
+        if (!args.taskId.startsWith("explore-")) assert.equal(args.tools.length, 0);
+        if (args.taskId.startsWith("explore-")) return { toolCalls: 0, text: JSON.stringify({ candidate: ctx.config.exploreCandidate ? {
           url: "https://www.bilibili.com/video/BV1234567890", title: "天文入门", reason: "根据标题推荐", score: 90,
-        } }) };
+        } : null }) };
         if (failModel) throw Error("interrupted model");
         return { text: JSON.stringify({ respond: !noReply, text: "这个问题值得继续了解。" }) };
       },
@@ -61,16 +64,18 @@ function fixture() {
   const comment = id => { const job = { id: `auto-comment-${id}`, kind: "comment", bvid: id, createdAt: now };
     const s = state() || { queue: [], recent: [], verify: [], nextAt: 0 }; s.queue.push(job); s.recent.push(job.id); states.set("bili:2:interactions", s);
   };
-  return { ctx, states, state, posts, agents, reads, incoming, poll, tick, comment,
+  return { ctx, states, state, posts, agents, reads, incoming, poll, tick, comment, notifications, replies,
     failSend: value => { failSend = value; }, noReply: value => { noReply = value; }, failModel: value => { failModel = value; }, hideTarget: value => { hideTarget = value; } };
 }
-(async () => {
+module.exports = { fixture };
+if (require.main === module) (async () => {
   const f = fixture(); f.incoming("600", { time: 1799999900 }); await f.poll(); assert.equal(f.posts.length, 0);
   f.tick(); f.incoming("601"); await f.poll();
   assert.equal(f.posts.length, 1); assert.equal(f.posts[0].root, "500"); assert.equal(f.posts[0].parent, "601", "nested reply targets the source, not the root");
   f.tick(); await f.poll(); assert.equal(f.posts.length, 1, "restarting the worker never duplicates a reply");
   assert.equal(f.states.get("bili:2:auto-reply-601").status, "visible");
-  assert.ok(f.agents[0].prompt.includes("我的回复"));
+  assert.ok(JSON.stringify(f.agents[0].externalContent).includes("我的回复"));
+  assert.ok(!f.agents[0].prompt.includes("我的回复"), "comments are data, not task instructions");
   f.incoming("602", { mid: "2" }); f.incoming("603", { type: 17 }); f.tick(); await f.poll(); assert.equal(f.posts.length, 1);
 
   const unknown = fixture(); await unknown.poll(); unknown.tick(); unknown.incoming("601"); unknown.failSend(true); await unknown.poll();
@@ -91,6 +96,7 @@ function fixture() {
   const restart = fixture(); restart.comment("BV1234567890"); restart.failModel(true); await restart.poll();
   restart.failModel(false); restart.tick(301); await restart.poll();
   assert.equal(restart.posts.length, 1); assert.equal(restart.agents[0].prompt, restart.agents[1].prompt, "resumed Agent sees its frozen input");
+  assert.equal(JSON.stringify(restart.agents[0].externalContent), JSON.stringify(restart.agents[1].externalContent), "resumed external evidence is also frozen");
   assert.equal(restart.agents[0].taskId, restart.agents[1].taskId);
   const policy = fixture(); policy.comment("BV1234567890"); policy.failModel(true); await policy.poll();
   policy.ctx.config.commentRules = "暂停这个话题的发言"; policy.failModel(false); policy.tick(301); await policy.poll();
@@ -109,7 +115,7 @@ function fixture() {
 
   const disabled = fixture(); disabled.ctx.config.commentMode = "draft"; disabled.comment("BV1234567890"); await disabled.poll(); assert.equal(disabled.posts.length, 0);
   disabled.ctx.config.commentMode = "auto"; disabled.ctx.config.commentChat = "onebot:group:99"; await disabled.poll(); assert.equal(disabled.agents.length, 0);
-  const discovery = fixture(); Object.assign(discovery.ctx.config, { targetChat: "onebot:private:99", interests: "天文", tools: [], quietStartHour: 0, quietEndHour: 0 });
+  const discovery = fixture(); Object.assign(discovery.ctx.config, { exploreCandidate: true, interests: "天文", tools: [], quietStartHour: 0, quietEndHour: 0 });
   await discovery.poll(); assert.equal(discovery.state().queue[0].id, "auto-comment-BV1234567890", "a real exploration candidate creates the public-comment job");
   discovery.tick(); await discovery.poll(); assert.equal(discovery.posts.length, 1); assert.equal(discovery.posts[0].root, undefined);
   discovery.tick(3601); await discovery.poll(); assert.equal(discovery.posts.length, 1, "the same recommended video is not commented twice");

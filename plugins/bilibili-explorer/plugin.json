@@ -1,259 +1,1593 @@
 {
-  "id": "bilibili-explorer",
-  "name": "B站管家",
-  "version": "1.2.0",
-  "description": "双账号收藏整理、主动发现视频，支持评论草稿、自动评论和回复",
-  "main": "index.js",
-  "category": "automation",
-  "permissions": [
-    "agent",
-    "state",
-    "push",
-    "reply",
-    "network",
-    "secret",
-    "share"
-  ],
-  "background": {
-    "export": "poll",
-    "intervalSeconds": 60,
-    "startupDelaySeconds": 20,
-    "jitterSeconds": 5
-  },
-  "commands": [
-    {
-      "name": "explore",
-      "aliases": [
-        "探索视频"
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "bilibili-explorer",
+  "version": "1.9.0",
+  "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
+  "extensions": {
+    "com.openbot": {
+      "main": "./index.js",
+      "category": "automation",
+      "permissions": [
+        "agent",
+        "state",
+        "push",
+        "reply",
+        "network",
+        "secret",
+        "share",
+        "media",
+        "browser",
+        "browser:write",
+        "hook:context"
       ],
-      "description": "立即探索一次，仍遵守分享限额与去重",
-      "scope": "all",
-      "permission": "owner"
-    },
-    {
-      "name": "explorestatus",
-      "aliases": [
-        "探索状态"
-      ],
-      "description": "查看上次探索、分享及下次运行时间",
-      "scope": "all",
-      "permission": "owner"
-    },
-    {
-      "name": "explorelike",
-      "aliases": [
-        "喜欢这个方向"
-      ],
-      "description": "记录希望多看的主题：/explorelike 主题",
-      "scope": "all",
-      "permission": "owner"
-    },
-    {
-      "name": "exploreavoid",
-      "aliases": [
-        "少看这个方向"
-      ],
-      "description": "记录希望避开的主题：/exploreavoid 主题",
-      "scope": "all",
-      "permission": "owner"
-    },
-    {
-      "name": "biliaccounts",
-      "description": "验证大号或小号登录：/biliaccounts main 或 browse",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "bilifolders",
-      "description": "列出大号收藏夹",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "biliscan",
-      "description": "分页扫描收藏；new 开始新扫描",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "biliplan",
-      "description": "分批生成收藏分类方案",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "bilipreview",
-      "description": "分页预览方案：/bilipreview 偏移量",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "biliapply",
-      "description": "应用已生成的收藏方案",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "bilidraft",
-      "description": "以小号拟评论：/bilidraft BV号 内容",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "bilipost",
-      "description": "发送指定评论草稿：/bilipost 草稿编号",
-      "scope": "private",
-      "permission": "owner"
-    },
-    {
-      "name": "biliinteractions",
-      "description": "查看自动评论和回复的处理记录",
-      "scope": "private",
-      "permission": "owner"
-    }
-  ],
-  "configSchema": {
-    "type": "object",
-    "properties": {
-      "targetChat": {
-        "type": "string",
-        "title": "优先分享会话（留空自动选择）",
-        "default": ""
+      "background": {
+        "agent": true,
+        "export": "poll",
+        "intervalSeconds": 60,
+        "startupDelaySeconds": 20,
+        "jitterSeconds": 5
       },
-      "interests": {
-        "type": "string",
-        "title": "感兴趣的话题",
-        "default": ""
+      "hooks": [
+        {
+          "type": "context",
+          "export": "context",
+          "tools": [
+            "channelPlugin",
+            "useSkill"
+          ],
+          "scope": "all",
+          "permission": "member"
+        }
+      ],
+      "commands": [
+        {
+          "name": "explore",
+          "aliases": [
+            "探索视频"
+          ],
+          "description": "立即浏览一次，有适合当前聊天的发现时再分享",
+          "scope": "all",
+          "permission": "owner"
+        },
+        {
+          "name": "explorestatus",
+          "aliases": [
+            "探索状态"
+          ],
+          "description": "查看上次探索、分享及下次运行时间",
+          "scope": "all",
+          "permission": "owner"
+        },
+        {
+          "name": "explorelike",
+          "aliases": [
+            "喜欢这个方向"
+          ],
+          "description": "记录希望多看的主题：/explorelike 主题",
+          "scope": "all",
+          "permission": "owner"
+        },
+        {
+          "name": "exploreavoid",
+          "aliases": [
+            "少看这个方向"
+          ],
+          "description": "记录希望避开的主题：/exploreavoid 主题",
+          "scope": "all",
+          "permission": "owner"
+        },
+        {
+          "name": "biliaccounts",
+          "description": "验证大号或小号登录：/biliaccounts main 或 browse",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilifolders",
+          "description": "列出大号收藏夹",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "biliscan",
+          "description": "分页扫描收藏；new 开始新扫描",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "biliplan",
+          "description": "分批生成收藏分类方案",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilipreview",
+          "description": "分页预览方案：/bilipreview 偏移量",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "biliapply",
+          "description": "应用已生成的收藏方案",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilidraft",
+          "description": "以小号拟评论：/bilidraft BV号 内容",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilipost",
+          "description": "发送指定评论草稿：/bilipost 草稿编号",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "biliinteractions",
+          "description": "查看自动评论和回复的处理记录",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilianalyze",
+          "description": "分段分析视频：/bilianalyze BV号 [分P序号] [new]",
+          "scope": "private",
+          "permission": "owner"
+        },
+        {
+          "name": "bilisummary",
+          "description": "读取分析总结：/bilisummary BV号 [分P序号] [页码]",
+          "scope": "private",
+          "permission": "owner"
+        }
+      ],
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "targetChat": {
+            "type": "string",
+            "title": "分享会话（留空自动选择）",
+            "default": ""
+          },
+          "interests": {
+            "type": "string",
+            "title": "感兴趣的话题",
+            "default": ""
+          },
+          "tools": {
+            "type": "array",
+            "title": "限定探索工具（留空使用实例授权）",
+            "default": [],
+            "ui": {
+              "widget": "tools"
+            }
+          },
+          "intervalMinutes": {
+            "type": "integer",
+            "title": "探索间隔（分钟）",
+            "minimum": 10,
+            "maximum": 1440,
+            "default": 60
+          },
+          "minimumScore": {
+            "type": "integer",
+            "title": "最低推荐评分",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 75
+          },
+          "accountMode": {
+            "type": "string",
+            "title": "登录方式",
+            "enum": [
+              "browser",
+              "cookie"
+            ],
+            "ui": {
+              "enumLabels": [
+                "浏览器登录",
+                "Cookie"
+              ]
+            },
+            "default": "browser"
+          },
+          "mainUid": {
+            "type": "string",
+            "title": "大号 UID",
+            "default": ""
+          },
+          "browseUid": {
+            "type": "string",
+            "title": "小号 UID",
+            "default": ""
+          },
+          "scanFolders": {
+            "type": "array",
+            "title": "待整理收藏夹 ID",
+            "default": []
+          },
+          "folderRules": {
+            "type": "array",
+            "title": "收藏分类规则",
+            "default": [],
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "folderId": {
+                  "type": "string",
+                  "title": "收藏夹 ID",
+                  "pattern": "^[1-9]\\d{0,29}$",
+                  "maxLength": 30
+                },
+                "description": {
+                  "type": "string",
+                  "title": "分类说明",
+                  "minLength": 1,
+                  "maxLength": 600
+                }
+              },
+              "required": [
+                "folderId",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "organizeMode": {
+            "type": "string",
+            "title": "整理方式",
+            "enum": [
+              "copy",
+              "move"
+            ],
+            "ui": {
+              "enumLabels": [
+                "复制到目标收藏夹",
+                "移动到目标收藏夹"
+              ]
+            },
+            "default": "copy"
+          },
+          "commentMode": {
+            "type": "string",
+            "title": "评论功能",
+            "enum": [
+              "off",
+              "draft",
+              "auto"
+            ],
+            "ui": {
+              "enumLabels": [
+                "关闭",
+                "手动发送",
+                "自动评论与回复"
+              ]
+            },
+            "default": "off"
+          },
+          "dailyCommentLimit": {
+            "type": "integer",
+            "title": "每天最多评论与回复总数",
+            "minimum": 0,
+            "maximum": 20,
+            "default": 3
+          },
+          "autoOrganize": {
+            "type": "boolean",
+            "title": "按分类规则自动整理收藏",
+            "default": false
+          },
+          "organizeChat": {
+            "type": "string",
+            "title": "整理结果接收会话（主人私聊）",
+            "default": ""
+          },
+          "organizeIntervalHours": {
+            "type": "integer",
+            "title": "收藏扫描间隔（小时）",
+            "default": 24,
+            "minimum": 1,
+            "maximum": 168
+          },
+          "commentChat": {
+            "type": "string",
+            "title": "评论管理会话（主人私聊）",
+            "default": ""
+          },
+          "autoComment": {
+            "type": "boolean",
+            "title": "自动评论新发现的视频",
+            "default": false
+          },
+          "autoReply": {
+            "type": "boolean",
+            "title": "自动回复小号收到的评论",
+            "default": false
+          },
+          "commentRules": {
+            "type": "string",
+            "title": "发言要求与禁止事项",
+            "default": ""
+          },
+          "commentIntervalMinutes": {
+            "type": "integer",
+            "title": "自动发言间隔（分钟）",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "threadReplyLimit": {
+            "type": "integer",
+            "title": "每个话题最多自动回复数",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 10
+          },
+          "mediaServices": {
+            "type": "object",
+            "title": "视频阅读与备份",
+            "default": {
+              "transcribe": {
+                "pluginId": "watch",
+                "pluginServer": "watch",
+                "toolName": "watch_media",
+                "arguments": {
+                  "kind": "transcribe",
+                  "url": "$url",
+                  "start": "$start",
+                  "end": "$end",
+                  "namespace": "$requestScope",
+                  "request_id": "$requestId"
+                },
+                "poll": {
+                  "toolName": "watch_media",
+                  "arguments": {
+                    "kind": "transcribe",
+                    "url": "$url",
+                    "start": "$start",
+                    "end": "$end",
+                    "namespace": "$requestScope",
+                    "request_id": "$requestId",
+                    "job_id": "$jobId"
+                  }
+                }
+              },
+              "frames": {
+                "pluginId": "watch",
+                "pluginServer": "watch",
+                "toolName": "watch_media",
+                "arguments": {
+                  "kind": "frames",
+                  "url": "$url",
+                  "start": "$start",
+                  "end": "$end",
+                  "namespace": "$requestScope",
+                  "request_id": "$requestId"
+                },
+                "poll": {
+                  "toolName": "watch_media",
+                  "arguments": {
+                    "kind": "frames",
+                    "url": "$url",
+                    "start": "$start",
+                    "end": "$end",
+                    "namespace": "$requestScope",
+                    "request_id": "$requestId",
+                    "job_id": "$jobId"
+                  }
+                }
+              }
+            },
+            "scope": "instance",
+            "ui": {
+              "widget": "media-services",
+              "advanced": true
+            }
+          },
+          "backupEnabled": {
+            "type": "boolean",
+            "title": "自动备份收藏视频到本地",
+            "default": false,
+            "scope": "instance"
+          },
+          "backupIntervalHours": {
+            "type": "integer",
+            "title": "备份扫描间隔（小时）",
+            "default": 24,
+            "minimum": 1,
+            "maximum": 168,
+            "scope": "instance"
+          },
+          "commentSampleLimit": {
+            "type": "integer",
+            "title": "每个视频最多读取评论数",
+            "default": 30,
+            "minimum": 0,
+            "maximum": 50
+          },
+          "likeEnabled": {
+            "type": "boolean",
+            "title": "允许小号点赞",
+            "default": false
+          },
+          "dailyLikeLimit": {
+            "type": "integer",
+            "title": "每天最多点赞操作数",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 20
+          },
+          "socialIntervalSeconds": {
+            "type": "integer",
+            "title": "点赞和私信最短间隔（秒）",
+            "minimum": 1,
+            "maximum": 3600,
+            "default": 60
+          },
+          "messageMode": {
+            "type": "string",
+            "title": "站内私信",
+            "enum": [
+              "off",
+              "draft",
+              "auto"
+            ],
+            "ui": {
+              "enumLabels": [
+                "关闭",
+                "手动发送",
+                "自动回复"
+              ]
+            },
+            "default": "off"
+          },
+          "dailyMessageLimit": {
+            "type": "integer",
+            "title": "每天最多发送私信数",
+            "minimum": 0,
+            "maximum": 20,
+            "default": 3
+          },
+          "messageAllowedUids": {
+            "type": "array",
+            "title": "自动回复的私信联系人 UID",
+            "default": [],
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,29}$",
+              "maxLength": 30
+            }
+          },
+          "messageRules": {
+            "type": "string",
+            "title": "私信发言要求",
+            "default": "",
+            "maxLength": 2000
+          },
+          "autoLike": {
+            "type": "boolean",
+            "title": "自主点赞",
+            "description": "浏览时可按实际收获决定点赞，仍遵守点赞额度。",
+            "default": false
+          },
+          "autoMention": {
+            "type": "boolean",
+            "title": "回应评论提及",
+            "description": "处理开启后收到的评论区 @ 通知。",
+            "default": false
+          },
+          "browseFavoriteFolders": {
+            "type": "array",
+            "title": "小号可收藏到",
+            "description": "填写允许自主收藏的已有小号收藏夹 ID；留空不自动收藏。",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,29}$"
+            },
+            "maxItems": 20,
+            "default": []
+          },
+          "dailyFavoriteLimit": {
+            "type": "integer",
+            "title": "每天最多收藏",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 5
+          }
+        }
       },
-      "tools": {
-        "type": "array",
-        "title": "探索工具（名称数组）",
-        "default": [
-          "web_search",
-          "web_fetch"
+      "networkHosts": [
+        "api.bilibili.com",
+        "*.hdslb.com",
+        "*.bilibili.com"
+      ],
+      "displayName": "B站小管家",
+      "tools": [
+        {
+          "name": "folders",
+          "description": "读取大号已有收藏夹。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "scan",
+          "description": "分页扫描指定收藏夹；未完成时继续调用，复用返回的 folderIds。默认只分类。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "folderIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "收藏夹 ID",
+                  "maxLength": 160
+                },
+                "maxItems": 30
+              },
+              "reset": {
+                "type": "boolean"
+              },
+              "previewOnly": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "folderIds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "classify",
+          "description": "继续为已完成扫描生成分类方案。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "scanId": {
+                "type": "string",
+                "description": "扫描 ID",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "scanId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "preview",
+          "description": "分页查看分类方案及待确认项。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "planId": {
+                "type": "string",
+                "description": "方案 ID",
+                "maxLength": 160
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "planId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "apply",
+          "description": "按用户明确要求执行当前方案，使用配置中的复制或移动方式。只分类方案不可执行。每次有限批次，检查返回进度后继续。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "planId": {
+                "type": "string",
+                "description": "已查看的方案 ID",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "planId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "analyze",
+          "description": "按字幕、音频、画面顺序分析视频；需要时再次调用继续。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "description": "BV号",
+                "maxLength": 160
+              },
+              "part": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "question": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "需要核实的具体问题；与普通全片分析分别保存进度。"
+              },
+              "ranges": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "可选时间段，合计不超过900秒。"
+              }
+            },
+            "required": [
+              "bvid"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "summary",
+          "description": "查看已保存的视频总结。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "description": "BV号",
+                "maxLength": 160
+              },
+              "part": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "question": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "需要核实的具体问题；与普通全片分析分别保存进度。"
+              },
+              "ranges": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "可选时间段，合计不超过900秒。"
+              }
+            },
+            "required": [
+              "bvid"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "explore",
+          "description": "按兴趣浏览并记笔记，有合适发现时选择分享",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "all",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "name": "explore_status",
+          "description": "查看最近探索状态",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "all",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "name": "remove",
+          "description": "移除一个收藏关系，记录编号与理由，可撤销。仅按用户明确要求执行。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "maxLength": 150
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "bvid": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "folderId": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "operationId",
+              "reason",
+              "bvid",
+              "folderId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "create_folder",
+          "description": "新建收藏夹，默认私密。记录可撤销；同一操作沿用 operationId。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "maxLength": 150
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "intro": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "private": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "operationId",
+              "reason",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "delete_folder",
+          "description": "先分页保存完整清单，再删除收藏夹。preparing/backing_up 时继续同一 operationId。撤销会重建为新编号。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "maxLength": 150
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "folderId": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "operationId",
+              "reason",
+              "folderId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "undo",
+          "description": "恢复指定操作；restoring 时继续，已完成的撤销不会重复执行。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "maxLength": 150
+              },
+              "accountUid": {
+                "type": "string",
+                "maxLength": 30
+              }
+            },
+            "required": [
+              "operationId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "review",
+          "description": "中级：字幕/必要的转写与限量评论，评价内容价值；高级再看画面并总结。返回 analyzing 时继续。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "part": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "medium",
+                  "advanced"
+                ]
+              },
+              "refresh": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "bvid",
+              "level"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "backup",
+          "description": "本地备份一个 BV 的所有分P，或已完成扫描的全部收藏。需要已开启备份及配置媒体工具。未完成时继续。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "scanId": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "retry": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "notes",
+          "description": "查阅当前聊天或自主浏览的公开视频笔记，以及实际取得的资料范围。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "part": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "content": {
+                "type": "boolean",
+                "description": "查询公开资料范围；省略时查当前聊天笔记。"
+              },
+              "public": {
+                "type": "boolean",
+                "description": "读取自主浏览的公开笔记；省略时读取当前聊天笔记。"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4194304,
+                "description": "继续读取指定视频的 Markdown 笔记。"
+              },
+              "cursor": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "draft_comment",
+          "description": "以公开视频笔记和指定评论串拟稿，不发送；同一草稿沿用 operationId。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,80}$",
+                "maxLength": 80
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "part": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "intent": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "root": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$",
+                "maxLength": 30
+              },
+              "parent": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$",
+                "maxLength": 30
+              },
+              "emotes": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "string",
+                  "maxLength": 82
+                }
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid",
+              "intent"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "post_comment",
+          "description": "发布已有小号评论草稿；遵守评论开关和每日额度，返回实际状态。结果不明不能另换编号重发。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "draftId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,80}$",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "draftId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "like_video",
+          "description": "将指定视频设为点赞或取消点赞；只用小号，遵守点赞开关、间隔和额度。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,100}$",
+                "maxLength": 100
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "liked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid",
+              "liked"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "like_comment",
+          "description": "将指定视频的一条评论设为点赞或取消点赞；rpid 必须来自实际评论记录。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,100}$",
+                "maxLength": 100
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "rpid": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$",
+                "maxLength": 30
+              },
+              "liked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid",
+              "rpid",
+              "liked"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "emotes",
+          "description": "查当前小号可用原生评论表情；把返回的 token 交给 draft_comment.emotes。私信场景返回明确能力状态。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "scene": {
+                "type": "string",
+                "enum": [
+                  "reply",
+                  "message"
+                ]
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "inbox",
+          "description": "读取小号站内私信会话列表；仅向主人私聊提供，不向公开浏览或分享任务注入私信。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "before": {
+                "type": "string",
+                "pattern": "^\\d{1,30}$"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "messages",
+          "description": "按 UID 读取私信；after 为增量下界。hasMore 时固定 after，以 nextBefore 作为 before 继续向旧翻页；扫完后才用 next 更新水位。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "uid": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$",
+                "maxLength": 30
+              },
+              "after": {
+                "type": "string",
+                "pattern": "^\\d{1,30}$"
+              },
+              "before": {
+                "type": "string",
+                "pattern": "^\\d{1,30}$",
+                "description": "向旧消息翻页的排除上界，使用 nextBefore；同一翻页过程保持 after 不变。"
+              }
+            },
+            "required": [
+              "uid"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "send_message",
+          "description": "向指定 UID 发送一条纯文本私信，遵守私信开关、每日额度与间隔；同一消息沿用 operationId，结果不明禁止重发。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,100}$",
+                "maxLength": 100
+              },
+              "uid": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$",
+                "maxLength": 30
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 5000
+              }
+            },
+            "required": [
+              "operationId",
+              "uid",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "interaction_status",
+          "description": "查看点赞或私信操作的已接受、待核对状态；不能把未知结果当成未发送。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,100}$",
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "operationId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "learning",
+          "description": "按主题检索经验、查阅来源与修订历史，或列出待解决问题。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "query",
+                  "get",
+                  "history",
+                  "questions"
+                ]
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "id": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "cursor": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "public": {
+                "type": "boolean",
+                "description": "读取自主浏览的公开经验；省略时仅当前聊天。"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "revise_learning",
+          "description": "根据已保存的来源修订经验，或撤回过时认识；先读取当前版本。",
+          "export": "agentTool",
+          "scope": "private",
+          "permission": "owner",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "revise",
+                  "retract"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "expectedRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "topic": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "understanding": {
+                "type": "string",
+                "maxLength": 1200
+              },
+              "application": {
+                "type": "string",
+                "maxLength": 800
+              },
+              "uncertainty": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "evidence": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "quote": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "quote"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "public": {
+                "type": "boolean",
+                "description": "读取自主浏览的公开经验；省略时仅当前聊天。"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "expectedRevision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "browse_folders",
+          "description": "列出当前小号已有收藏夹。",
+          "export": "agentTool",
+          "scope": "private",
+          "permission": "owner",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "favorite_video",
+          "description": "把视频加入已授权的小号收藏夹，沿用稳定操作编号查询和重试。",
+          "export": "agentTool",
+          "scope": "private",
+          "permission": "owner",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,100}$",
+                "maxLength": 100
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "folderId": {
+                "type": "string",
+                "pattern": "^[1-9]\\d{0,29}$"
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid",
+              "folderId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "layout": "settings",
+        "resourceType": "",
+        "labels": {},
+        "sections": [
+          {
+            "id": "settings",
+            "title": "通用",
+            "fields": [],
+            "widgets": []
+          },
+          {
+            "id": "accounts",
+            "title": "账号",
+            "fields": [
+              "accountMode",
+              "mainUid",
+              "browseUid"
+            ],
+            "widgets": [
+              {
+                "type": "browser-account",
+                "title": "大号",
+                "profile": "main",
+                "identityField": "mainUid",
+                "url": "https://www.bilibili.com/",
+                "statusUrl": "https://api.bilibili.com/x/web-interface/nav",
+                "status": {
+                  "authenticated": "data.isLogin",
+                  "identity": "data.mid",
+                  "label": "data.uname"
+                },
+                "when": {
+                  "field": "accountMode",
+                  "equals": "browser"
+                }
+              },
+              {
+                "type": "browser-account",
+                "title": "小号",
+                "profile": "browse",
+                "identityField": "browseUid",
+                "url": "https://www.bilibili.com/",
+                "statusUrl": "https://api.bilibili.com/x/web-interface/nav",
+                "status": {
+                  "authenticated": "data.isLogin",
+                  "identity": "data.mid",
+                  "label": "data.uname"
+                },
+                "when": {
+                  "field": "accountMode",
+                  "equals": "browser"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "bilibiliMainCookie",
+                "title": "大号 Cookie",
+                "when": {
+                  "field": "accountMode",
+                  "equals": "cookie"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "bilibiliBrowseCookie",
+                "title": "小号 Cookie",
+                "when": {
+                  "field": "accountMode",
+                  "equals": "cookie"
+                }
+              }
+            ]
+          },
+          {
+            "id": "explore",
+            "title": "浏览与分享",
+            "fields": [
+              "targetChat",
+              "interests",
+              "tools",
+              "intervalMinutes",
+              "minimumScore"
+            ],
+            "widgets": []
+          },
+          {
+            "id": "organize",
+            "title": "收藏整理",
+            "fields": [
+              "scanFolders",
+              "folderRules",
+              "organizeMode",
+              "autoOrganize",
+              "organizeChat",
+              "organizeIntervalHours"
+            ],
+            "widgets": []
+          },
+          {
+            "id": "comments",
+            "title": "评论与回复",
+            "fields": [
+              "commentMode",
+              "dailyCommentLimit",
+              "commentChat",
+              "autoComment",
+              "autoReply",
+              "commentRules",
+              "commentIntervalMinutes",
+              "threadReplyLimit",
+              "autoMention"
+            ],
+            "widgets": []
+          },
+          {
+            "id": "social",
+            "title": "点赞、收藏与私信",
+            "fields": [
+              "likeEnabled",
+              "dailyLikeLimit",
+              "autoLike",
+              "browseFavoriteFolders",
+              "dailyFavoriteLimit",
+              "socialIntervalSeconds",
+              "messageMode",
+              "dailyMessageLimit",
+              "messageAllowedUids",
+              "messageRules"
+            ],
+            "widgets": []
+          },
+          {
+            "id": "media",
+            "title": "视频阅读与备份",
+            "fields": [
+              "mediaServices",
+              "backupEnabled",
+              "backupIntervalHours",
+              "commentSampleLimit"
+            ],
+            "widgets": []
+          }
         ]
       },
-      "intervalMinutes": {
-        "type": "integer",
-        "title": "探索间隔（分钟）",
-        "minimum": 10,
-        "maximum": 1440,
-        "default": 60
-      },
-      "maxToolCalls": {
-        "type": "integer",
-        "title": "每轮最多调用工具次数",
-        "minimum": 1,
-        "maximum": 20,
-        "default": 8
-      },
-      "minimumScore": {
-        "type": "integer",
-        "title": "最低推荐评分",
-        "minimum": 0,
-        "maximum": 100,
-        "default": 75
-      },
-      "mainUid": {
-        "type": "string",
-        "title": "大号 UID",
-        "default": ""
-      },
-      "browseUid": {
-        "type": "string",
-        "title": "小号 UID",
-        "default": ""
-      },
-      "scanFolders": {
-        "type": "array",
-        "title": "待整理收藏夹 ID",
-        "default": []
-      },
-      "folderRules": {
-        "type": "array",
-        "title": "收藏分类规则",
-        "default": []
-      },
-      "organizeMode": {
-        "type": "string",
-        "title": "整理方式",
-        "enum": [
-          "copy",
-          "move"
-        ],
-        "default": "copy"
-      },
-      "commentMode": {
-        "type": "string",
-        "title": "评论功能",
-        "enum": [
-          "off",
-          "draft",
-          "auto"
-        ],
-        "default": "off"
-      },
-      "dailyCommentLimit": {
-        "type": "integer",
-        "title": "每天最多评论与回复总数",
-        "minimum": 0,
-        "maximum": 20,
-        "default": 3
-      },
-      "autoOrganize": {
-        "type": "boolean",
-        "title": "按分类规则自动整理收藏",
-        "default": false
-      },
-      "organizeChat": {
-        "type": "string",
-        "title": "整理结果接收会话（主人私聊）",
-        "default": ""
-      },
-      "organizeIntervalHours": {
-        "type": "integer",
-        "title": "收藏扫描间隔（小时）",
-        "default": 24,
-        "minimum": 1,
-        "maximum": 168
-      },
-      "commentChat": {
-        "type": "string",
-        "title": "评论管理会话（主人私聊）",
-        "default": ""
-      },
-      "autoComment": {
-        "type": "boolean",
-        "title": "自动评论新发现的视频",
-        "default": false
-      },
-      "autoReply": {
-        "type": "boolean",
-        "title": "自动回复小号收到的评论",
-        "default": false
-      },
-      "commentRules": {
-        "type": "string",
-        "title": "发言要求与禁止事项",
-        "default": ""
-      },
-      "commentIntervalMinutes": {
-        "type": "integer",
-        "title": "自动发言间隔（分钟）",
-        "default": 10,
-        "minimum": 1,
-        "maximum": 1440
-      },
-      "threadReplyLimit": {
-        "type": "integer",
-        "title": "每个话题最多自动回复数",
-        "default": 3,
-        "minimum": 1,
-        "maximum": 10
+      "metadata": {
+        "changelog": "统一名称为 B站小管家。字幕不足时默认通过 Watch 补充语音和画面，沿用现有媒体绑定、收藏规则、账号和笔记；Watch 需在当前实例启用并授权。"
       }
     }
-  },
-  "networkHosts": [
-    "api.bilibili.com"
-  ]
+  }
 }

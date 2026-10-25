@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "watch",
+  "version": "0.4.0",
+  "description": "结合画面、字幕和时间戳理解视频，按问题继续补看。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "Watch 视频阅读",
+      "category": "utility",
+      "permissions": [],
+      "metadata": {
+        "usage": "在启用插件的会话或任务中提供 B 站、YouTube 视频链接，或主动导入本地视频后交给 Bot 阅读。",
+        "requirements": [
+          "Python 3.10 或更新版本、ffmpeg、ffprobe，以及 requirements-media.txt 中的下载依赖",
+          "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
+          "无字幕时可配置本地 faster-whisper 模型进行转写"
+        ],
+        "changelog": "优先获取 1080p 视频，整帧保留至 1920 像素长边；需要读小字时可从原视频局部补看，并标明实际尺寸和裁剪位置。"
+      }
+    }
+  }
+}

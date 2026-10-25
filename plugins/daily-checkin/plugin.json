@@ -1,23 +1,44 @@
 {
   "id": "daily-checkin",
   "name": "每日签到",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "metadata": {
+    "platforms": [
+      "napcat",
+      "qqbot"
+    ],
+    "requirements": [
+      "需要支持 api.updateState 的 OpenBot 版本"
+    ],
+    "changelog": "签到按用户保存，积分与排行通过原子更新避免多人签到互相覆盖。 签到积分与排行可保存到插件专属数据库，并在首次使用时继承旧记录。"
+  },
   "description": "按群或私聊记录每日签到、连续天数和积分排行",
   "main": "index.js",
   "responseMode": "direct",
-  "commandPrefixes": ["/"],
-  "permissions": ["reply", "state"],
+  "commandPrefixes": [
+    "/"
+  ],
+  "permissions": [
+    "reply",
+    "state"
+  ],
   "commands": [
     {
       "name": "checkin",
-      "aliases": ["sign", "签到"],
+      "aliases": [
+        "sign",
+        "签到"
+      ],
       "description": "每日签到",
       "scope": "all",
       "permission": "member"
     },
     {
       "name": "checkinrank",
-      "aliases": ["signrank", "签到排行"],
+      "aliases": [
+        "signrank",
+        "签到排行"
+      ],
       "description": "查看当前会话签到排行",
       "scope": "all",
       "permission": "member"
@@ -55,5 +76,22 @@
         "default": 10
       }
     }
+  },
+  "ui": {
+    "version": 1,
+    "layout": "settings",
+    "sections": [
+      {
+        "id": "settings",
+        "title": "设置",
+        "fields": [
+          "timezoneOffsetMinutes",
+          "minPoints",
+          "maxPoints",
+          "rankSize"
+        ],
+        "widgets": []
+      }
+    ]
   }
 }

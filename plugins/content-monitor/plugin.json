@@ -1,13 +1,30 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "metadata": {
+    "platforms": [
+      "napcat",
+      "qqbot"
+    ],
+    "changelog": "支持官方 QQ 会话 ID；未发送的消息保留待办，结果不明的消息暂停重试；恢复后清除旧错误。 监控进度按订阅保存到插件专属数据库，继承待确认推送，避免迁移后重复发送。"
+  },
   "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
   "main": "index.js",
   "responseMode": "direct",
-  "commandPrefixes": ["/"],
-  "permissions": ["reply", "state", "network", "push", "secret"],
-  "networkHosts": ["*"],
+  "commandPrefixes": [
+    "/"
+  ],
+  "permissions": [
+    "reply",
+    "state",
+    "network",
+    "push",
+    "secret"
+  ],
+  "networkHosts": [
+    "*"
+  ],
   "background": {
     "export": "poll",
     "intervalSeconds": 120,
@@ -16,24 +33,36 @@
   },
   "commands": [
     {
+      "name": "monitorresolve",
+      "description": "核对聊天记录后确认或重试结果不明的推送",
+      "scope": "private",
+      "permission": "owner"
+    },
+    {
       "name": "monitorstatus",
-      "aliases": ["监控状态"],
+      "aliases": [
+        "监控状态"
+      ],
       "description": "查看内容监控状态",
       "scope": "private",
       "permission": "owner"
     },
     {
       "name": "monitorcheck",
-      "aliases": ["立即检查监控"],
+      "aliases": [
+        "立即检查监控"
+      ],
       "description": "立即执行一次内容检查",
       "scope": "private",
-      "permission": "owner"
+      "permission": "owner",
+      "execution": "background"
     }
   ],
   "configSchema": {
     "type": "object",
     "properties": {
       "pollIntervalSeconds": {
+        "scope": "instance",
         "type": "integer",
         "title": "轮询间隔（秒）",
         "minimum": 30,
@@ -41,6 +70,7 @@
         "default": 120
       },
       "requestIntervalMs": {
+        "scope": "instance",
         "type": "integer",
         "title": "来源请求间隔（毫秒）",
         "minimum": 0,
@@ -49,9 +79,166 @@
       },
       "subscriptions": {
         "type": "array",
+        "scope": "instance",
         "title": "监控订阅",
-        "default": []
+        "default": [],
+        "maxItems": 100,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "title": "订阅标识",
+              "maxLength": 128,
+              "format": "uuid",
+              "ui": {
+                "readOnly": true
+              }
+            },
+            "name": {
+              "type": "string",
+              "title": "名称",
+              "maxLength": 120
+            },
+            "enabled": {
+              "type": "boolean",
+              "title": "启用",
+              "default": true
+            },
+            "provider": {
+              "type": "string",
+              "title": "来源类型",
+              "enum": [
+                "bilibili",
+                "rss"
+              ],
+              "default": "bilibili",
+              "ui": {
+                "enumLabels": [
+                  "Bilibili",
+                  "RSS / Atom"
+                ]
+              }
+            },
+            "source": {
+              "type": "string",
+              "title": "UP 主 UID 或订阅地址",
+              "maxLength": 2048
+            },
+            "targetChatIds": {
+              "type": "array",
+              "title": "接收会话",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "pattern": "^onebot:(group|private):[A-Za-z0-9_-]+$",
+                "maxLength": 256
+              },
+              "default": []
+            },
+            "events": {
+              "type": "array",
+              "title": "监控事件",
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "post",
+                  "video",
+                  "liveStart",
+                  "liveEnd"
+                ],
+                "ui": {
+                  "enumLabels": [
+                    "动态",
+                    "视频",
+                    "直播开始",
+                    "直播结束"
+                  ]
+                }
+              },
+              "default": [],
+              "ui": {
+                "widget": "choices"
+              }
+            },
+            "include": {
+              "type": "array",
+              "title": "包含关键词",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "default": []
+            },
+            "exclude": {
+              "type": "array",
+              "title": "排除关键词",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "default": []
+            },
+            "template": {
+              "type": "string",
+              "title": "推送模板",
+              "maxLength": 4000,
+              "ui": {
+                "widget": "multiline"
+              }
+            }
+          }
+        },
+        "ui": {
+          "widget": "collection",
+          "itemLabel": "name"
+        }
       }
     }
-  }
+  },
+  "ui": {
+    "version": 1,
+    "layout": "settings",
+    "resourceType": "",
+    "labels": {},
+    "sections": [
+      {
+        "id": "settings",
+        "title": "设置",
+        "fields": [
+          "pollIntervalSeconds",
+          "requestIntervalMs",
+          "subscriptions"
+        ],
+        "widgets": [
+          {
+            "type": "secret",
+            "key": "bilibiliCookie",
+            "title": "Bilibili Cookie"
+          },
+          {
+            "type": "action",
+            "action": "check"
+          }
+        ]
+      }
+    ]
+  },
+  "actions": [
+    {
+      "id": "check",
+      "kind": "background",
+      "title": "立即检查",
+      "resultTemplate": "已检查 {checked} 项，推送 {pushed} 条",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
 }

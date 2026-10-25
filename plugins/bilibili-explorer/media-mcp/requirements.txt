@@ -1,0 +1,5 @@
+mcp>=1.12,<2
+faster-whisper>=1.2,<2
+# faster-whisper 1.2 passes metadata_errors to av.open; PyAV 19 removed it.
+av>=11,<17
+yt-dlp>=2025.1

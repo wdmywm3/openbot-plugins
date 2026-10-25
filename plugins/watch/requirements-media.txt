@@ -1,0 +1,3 @@
+# Install in the Python environment that runs this plugin's MCP service.
+# default includes the YouTube EJS component; Deno is installed separately.
+yt-dlp[default,curl-cffi]>=2026.10.21

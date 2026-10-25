@@ -348,6 +348,46 @@ function isCompleteExpression(value, config = {}, defaultSides = 100) {
   }
 }
 
+function dataBackedApi(ctx) {
+  const original = ctx.api;
+  if (typeof original.database !== "function") return original;
+  const oldValues = new Map();
+  const location = (key, scope = "chat") => {
+    if (key === "character" && scope === "groupUser") {
+      const userId = String(ctx.principal?.senderId || ctx.message?.sender?.id || "");
+      if (!userId) throw new Error("无法识别角色卡所属用户");
+      return { collection: "characters", key: userId };
+    }
+    if (scope === "chat" && key === "stats") return { collection: "statistics", key: "total" };
+    if (scope === "chat" && key === "defaultExpression") return { collection: "settings", key };
+    throw new Error("骰娘数据范围无效");
+  };
+  const update = async (key, reducer, scope = "chat", read = false) => {
+    const target = location(key, scope);
+    for (let attempt = 0; attempt < 64; attempt++) {
+      const { record } = await original.database({ name: "dice", scope: "chat", action: "get", ...target });
+      if (read && record) return record.value;
+      const cacheKey = `${scope}:${key}`;
+      if (!record && !oldValues.has(cacheKey)) oldValues.set(cacheKey, original.getState(key, scope));
+      const previous = record ? record.value : await oldValues.get(cacheKey) ?? null;
+      const value = read ? previous : reducer(previous);
+      try {
+        const saved = await original.database({ name: "dice", scope: "chat", action: "put", ...target,
+          value, expectedRevision: record?.revision || 0 });
+        return saved.record.value;
+      } catch (error) {
+        if (!String(error?.message).includes("记录已改变")) throw error;
+      }
+    }
+    throw new Error("骰娘数据更新繁忙，请稍后重试");
+  };
+  return { ...original,
+    getState: (key, scope) => update(key, null, scope, true),
+    setState: (key, value, scope) => update(key, () => value, scope),
+    updateState: (key, reducer, scope) => update(key, reducer, scope),
+  };
+}
+
 function response(config, text) {
   const blocks = [];
   if (config.replyToSource === true) blocks.push({ type: "reply", messageId: "current" });
@@ -357,16 +397,18 @@ function response(config, text) {
 
 async function record(api, config, kind, diceCount, expression, total) {
   if (config.statsEnabled === false) return;
-  const saved = await api.getState("stats");
-  const current = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
-  const byKind = current.byKind && typeof current.byKind === "object" && !Array.isArray(current.byKind) ? current.byKind : {};
-  await api.setState("stats", {
+  if (typeof api.updateState !== "function") throw new Error("请更新 OpenBot 后使用骰娘统计，或暂时关闭统计");
+  await api.updateState("stats", saved => {
+    const current = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    const byKind = current.byKind && typeof current.byKind === "object" && !Array.isArray(current.byKind) ? current.byKind : {};
+    return {
     commands: Number(current.commands || 0) + 1,
     dice: Number(current.dice || 0) + diceCount,
     byKind: { ...byKind, [kind]: Number(byKind[kind] || 0) + 1 },
     lastPublicExpression: kind === "hidden" ? String(current.lastPublicExpression || "") : expression,
     lastPublicTotal: kind === "hidden" ? current.lastPublicTotal : total,
     updatedAt: Date.now(),
+    };
   });
 }
 
@@ -415,8 +457,14 @@ function characterStat(character, name) {
   return key ? { key, value: Number(character[key]) } : null;
 }
 
-async function saveCharacter(api, character) {
-  await api.setState("character", character, "groupUser");
+async function saveCharacter(api, change) {
+  if (typeof api.updateState === "function") return api.updateState("character", saved => {
+    const current = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    return typeof change === "function" ? change(current) : change;
+  }, "groupUser");
+  const value = typeof change === "function" ? change(await characterFor(api)) : change;
+  await api.setState("character", value, "groupUser");
+  return value;
 }
 
 function statPairs(args) {
@@ -437,18 +485,18 @@ async function characterCommand(api, args) {
   if (deleteMatch) {
     const stat = characterStat(character, deleteMatch[1]);
     if (!stat) throw new Error(`角色卡中没有 ${deleteMatch[1]}`);
-    character = { ...character };
-    delete character[stat.key];
-    await saveCharacter(api, character);
+    character = await saveCharacter(api, current => {
+      const next = { ...current }; delete next[stat.key]; return next;
+    });
   } else if (input && !/^(show|list|查看)$/i.test(input)) {
     const pairs = statPairs(input);
     if (!pairs.length) throw new Error("用法：.st 侦查 60 SAN 70");
-    character = { ...character };
+    const changes = {};
     for (const pair of pairs) {
       if (pair.value < 0 || pair.value > 999) throw new Error(`${pair.name} 必须在 0 到 999 之间`);
-      character[pair.name] = pair.value;
+      changes[pair.name] = pair.value;
     }
-    await saveCharacter(api, character);
+    character = await saveCharacter(api, current => ({ ...current, ...changes }));
   }
   const entries = Object.entries(character);
   return entries.length ? `当前群内角色卡：${entries.map(([name, value]) => `${name} ${value}`).join("，")}` : "当前群内还没有角色卡；使用 .st 侦查 60 SAN 70 设置";
@@ -661,7 +709,7 @@ async function sanityCheck(api, config, args) {
   const lossExpression = lossParts.length === 1 ? (success ? "0" : lossParts[0]) : (success ? lossParts[0] : lossParts[1]);
   const lossRoll = parseExpression(lossExpression, config, defaultSides);
   const nextSan = Math.max(0, currentSan - Math.max(0, lossRoll.total));
-  await saveCharacter(api, { ...character, SAN: nextSan });
+  await saveCharacter(api, current => ({ ...current, SAN: nextSan }));
   return {
     roll: result.roll,
     diceCount: result.diceCount + lossRoll.diceCount,
@@ -682,7 +730,7 @@ async function growthCheck(api, args) {
   const success = roll > skill || roll >= 96;
   const gain = success ? die(10) : 0;
   const next = Math.min(99, skill + gain);
-  if (success) await saveCharacter(api, { ...character, [saved?.key || normalizedStatName(name)]: next });
+  if (success) await saveCharacter(api, current => ({ ...current, [saved?.key || normalizedStatName(name)]: next }));
   return {
     roll,
     diceCount: success ? 2 : 1,
@@ -739,6 +787,7 @@ module.exports.handle = async function handle(ctx) {
   const command = String(ctx.command?.name || "roll").toLowerCase();
   const args = normalizedDiceText(ctx.args).trim();
   try {
+    ctx = { ...ctx, api: dataBackedApi(ctx) };
     if (command === "dicehelp") return response(config, HELP);
     if (command === "dicestats") {
       if (config.statsEnabled === false) return response(config, "当前已关闭掷骰统计");
@@ -805,11 +854,14 @@ module.exports.handle = async function handle(ctx) {
     }
 
     if (command === "rh") {
+      const isGroup = String(ctx.message?.chatId || "").startsWith("onebot:group:");
+      if (isGroup && ctx.api.getCapabilities && !(await ctx.api.getCapabilities()).groupMemberPrivateMessage) {
+        return response(config, "当前实例无法从群聊向成员发起私聊，请在与机器人的私聊中使用暗骰。");
+      }
       const result = await generalRoll(ctx.api, config, args, ctx.command);
       if (result.help) return response(config, result.text);
       await record(ctx.api, config, "hidden", result.diceCount, result.expression, result.total);
       const senderId = String(ctx.principal?.senderId || ctx.message?.sender?.id || "");
-      const isGroup = String(ctx.message?.chatId || "").startsWith("onebot:group:");
       if (isGroup) {
         if (!senderId) throw new Error("无法识别暗骰用户");
         await ctx.api.callNapCat("send_private_msg", { user_id: senderId, message: [{ type: "text", data: { text: `暗骰结果：${result.text}` } }] });

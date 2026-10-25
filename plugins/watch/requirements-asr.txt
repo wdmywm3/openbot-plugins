@@ -1,0 +1,2 @@
+# Optional; the MCP service and subtitle/frame path use only the standard library.
+faster-whisper>=1.2,<2

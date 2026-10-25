@@ -14,7 +14,7 @@ if (fs.existsSync(filename)) {
     }
     const manifest = JSON.parse(execFileSync("git", ["show", `${entry.ref}:plugins/${entry.id}/plugin.json`], { cwd: root }));
     assert.equal(entry.version, manifest.version);
-    assert.deepEqual(entry.permissions, manifest.permissions);
+    assert.deepEqual(entry.permissions, manifest.extensions?.["com.openbot"]?.permissions || manifest.permissions);
   }
   console.log(`catalog: ${catalog.plugins.length} immutable packages verified`);
 } else console.log("catalog not generated yet");

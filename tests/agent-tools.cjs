@@ -1,0 +1,23 @@
+"use strict";
+const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
+const { fixture } = require("./butler.cjs");
+const sandbox = { module: { exports: {} } }; vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/bilibili-explorer/index.js"), "utf8"), sandbox);
+(async () => {
+  const f = fixture(); f.ctx.principal = { role: "owner", messageType: "private" };
+  const call = (tool, input = {}) => sandbox.module.exports.agentTool({ ...f.ctx, tool, input });
+  assert.equal((await call("folders")).folders.length, 2);
+  const scan = await call("scan", { folderIds: ["10"] }); assert.equal(scan.previewOnly, true);
+  const classified = await call("classify", { scanId: scan.scanId });
+  const plan = await call("preview", { planId: classified.planId }); assert.equal(plan.total, 1); assert.equal(plan.previewOnly, true);
+  await assert.rejects(call("apply", { planId: plan.planId }), /只分类/); assert.equal(f.writes.length, 0);
+  const live = await call("scan", { folderIds: ["10"], previewOnly: false }); assert.notEqual(live.scanId, scan.scanId);
+  await assert.rejects(call("classify", { scanId: scan.scanId }), /扫描已变化/);
+  const executable = await call("classify", { scanId: live.scanId });
+  await assert.rejects(call("apply", { planId: plan.planId }), /方案已变化/);
+  assert.equal((await call("apply", { planId: executable.planId })).remaining, 0);
+  const count = f.writes.length; await call("apply", { planId: executable.planId }); assert.equal(f.writes.length, count);
+  const readonly = await call("scan", { folderIds: ["10"] }); assert.notEqual(readonly.scanId, live.scanId); assert.equal(readonly.previewOnly, true);
+  f.ctx.principal = { role: "member", messageType: "private" }; await assert.rejects(call("folders"), /主人私聊/);
+  f.ctx.principal = { role: "owner", messageType: "group" }; await assert.rejects(call("folders"), /主人私聊/);
+  console.log("Bilibili Agent tools: structured workflow, preview-only, plan binding, permissions, idempotent apply passed (fixtures only)");
+})().catch(e => { console.error(e); process.exitCode = 1; });

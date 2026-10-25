@@ -3,3 +3,5 @@ node_modules/
 .env
 .env.*
 test-results/
+__pycache__/
+*.py[cod]

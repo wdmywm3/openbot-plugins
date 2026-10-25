@@ -145,7 +145,7 @@ function normalizeSubscription(value, index) {
     provider,
     source: text(item.source),
     events: events.length ? events : (provider === "rss" ? ["post"] : ["post", "video", "liveStart"]),
-    targetChatIds: list(item.targetChatIds).filter((chatId) => /^onebot:(?:group|private):\d+$/.test(chatId)),
+    targetChatIds: list(item.targetChatIds).filter((chatId) => /^onebot:(?:group|private):[A-Za-z0-9_-]+$/.test(chatId)),
     include: list(item.include),
     exclude: list(item.exclude),
     template: text(item.template),
@@ -200,13 +200,90 @@ async function pushEvent(ctx, subscription, delivery, commit) {
   for (const chatId of [...new Set(subscription.targetChatIds)]) {
     if (delivered.has(chatId)) continue;
     if (!hasBudget(ctx, 30000)) return false;
+    if (list(delivery.uncertainChatIds).includes(chatId)) throw new Error(`推送到 ${chatId} 的结果尚未确认，已暂停这条更新以避免重复发送`);
+    // Save an in-flight marker before the side effect. A worker interruption
+    // must not silently resend a message whose delivery is unknown.
+    delivery.uncertainChatIds = [...list(delivery.uncertainChatIds), chatId];
+    await commit();
     const result = await ctx.api.push(chatId, blocks);
-    if (result?.networkStatus === "error") throw new Error(`推送到 ${chatId} 失败：${result.note || "unknown"}`);
+    if (result?.skipped || result?.networkStatus === "canceled") {
+      delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
+      await commit();
+      throw new Error(`推送到 ${chatId} 尚未发送：${result.note || result.reason || "已取消"}`);
+    }
+    if (!result || ["error", "failed", "pending"].includes(result.networkStatus)) throw new Error(`推送到 ${chatId} 结果未确认：${result?.note || "请检查聊天记录"}`);
+    delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
     delivered.add(chatId);
     delivery.deliveredChatIds = [...delivered];
     await commit();
   }
   return true;
+}
+
+function cursorParts(value) {
+  const json = JSON.stringify(value), chunks = [];
+  let start = 0, bytes = 0;
+  for (let index = 0; index < json.length; index++) {
+    const code = json.charCodeAt(index), pair = code >= 0xd800 && code <= 0xdbff;
+    const size = code < 0x80 ? 1 : code < 0x800 ? 2 : pair ? 4 : 3;
+    // A chunk is itself JSON-encoded by the SDK. Leave room for escaping and
+    // keep a legacy 1 MiB cursor plus its old chunks within one 50-op batch.
+    if (bytes + size > 48 * 1024) { chunks.push(json.slice(start, index)); start = index; bytes = 0; }
+    bytes += size;
+    if (pair) index++;
+  }
+  chunks.push(json.slice(start));
+  if (chunks.length > 24) throw new Error("单条订阅进度过大，已保留原记录，请先处理待确认推送");
+  return chunks;
+}
+
+async function cursorStorage(api, subscriptionIds) {
+  const asMap = value => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  if (typeof api.database !== "function") {
+    const cursors = asMap(await api.getState("cursors", "channel"));
+    return { cursors,
+      save: async (id, value) => { cursors[id] = value; await api.setState("cursors", cursors, "channel"); },
+      finish: () => api.setState("cursors", cursors, "channel"),
+    };
+  }
+  const cursors = {}, revisions = new Map(), storedParts = new Map();
+  const database = input => api.database({ name: "subscriptions", scope: "channel", ...input });
+  let oldCursors;
+  for (const id of new Set(subscriptionIds)) {
+    const { record } = await database({ action: "get", collection: "cursors", key: id });
+    if (!record && !oldCursors) oldCursors = api.getState("cursors", "channel");
+    // Do not mutate or delete the old map. It remains a recovery copy, including
+    // disabled subscriptions that have not been used on the new host yet.
+    const parts = [];
+    if (record?.value?.storageFormat === "cursor-parts-v1") {
+      if (!Array.isArray(record.value.parts) || !record.value.parts.length || record.value.parts.length > 24) throw new Error("订阅进度分块索引无效");
+      for (const key of record.value.parts) {
+        const part = (await database({ action: "get", collection: "cursor_parts", key })).record;
+        if (!part || typeof part.value?.text !== "string") throw new Error("订阅进度分块缺失，已暂停检查以保留发送记录");
+        parts.push(part);
+      }
+      cursors[id] = asMap(JSON.parse(parts.map(part => part.value.text).join("")));
+    } else cursors[id] = record ? asMap(record.value) : JSON.parse(JSON.stringify(asMap(asMap(await oldCursors)[id])));
+    storedParts.set(id, parts);
+    revisions.set(id, record?.revision || 0);
+  }
+  return { cursors,
+    save: async (id, value) => {
+      const chunks = cursorParts(value), generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      const additions = chunks.length === 1 ? [] : chunks.map((text, index) => ({ action: "put", collection: "cursor_parts",
+        key: `${generation}:${index}`, expectedRevision: 0, value: { text } }));
+      const saved = await database({ action: "batch", operations: [
+        ...additions,
+        { action: "put", collection: "cursors", key: id, expectedRevision: revisions.get(id) || 0,
+          value: additions.length ? { storageFormat: "cursor-parts-v1", parts: additions.map(part => part.key) } : value },
+        ...(storedParts.get(id) || []).map(part => ({ action: "delete", collection: "cursor_parts", key: part.key, expectedRevision: part.revision })),
+      ] });
+      revisions.set(id, saved.results[additions.length].record.revision);
+      storedParts.set(id, saved.results.slice(0, additions.length).map(result => result.record));
+      cursors[id] = value;
+    },
+    finish: async () => {},
+  };
 }
 
 async function poll(ctx, options = {}) {
@@ -215,8 +292,8 @@ async function poll(ctx, options = {}) {
     .slice(0, 100)
     .map(normalizeSubscription)
     .filter((item) => item.enabled && item.source && item.targetChatIds.length);
-  const saved = await ctx.api.getState("cursors", "channel");
-  const cursors = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  const storage = await cursorStorage(ctx.api, subscriptions.map(item => item.id));
+  const cursors = storage.cursors;
   subscriptions.sort((a, b) => {
     const aCursor = cursors[a.id] || {};
     const bCursor = cursors[b.id] || {};
@@ -238,7 +315,7 @@ async function poll(ctx, options = {}) {
     let cursor = { ...previous, pendingDeliveries: pendingDeliveries(previous.pendingDeliveries) };
     const commit = async () => {
       cursors[subscription.id] = cursor;
-      await ctx.api.setState("cursors", cursors, "channel");
+      await storage.save(subscription.id, cursor);
     };
     checked += 1;
     try {
@@ -332,6 +409,7 @@ async function poll(ctx, options = {}) {
         liveStatus: fetched.live?.status || cursor.liveStatus || "unknown",
         lastCheckedAt: checkedAt,
         lastSuccessAt: checkedAt,
+        lastError: "",
         consecutiveFailures: 0,
         nextRetryAt: 0,
       };
@@ -355,24 +433,39 @@ async function poll(ctx, options = {}) {
     }
   }
 
-  await ctx.api.setState("cursors", cursors, "channel");
+  await storage.finish();
   return { checked, pushed, subscriptions: subscriptions.length, summaries, budgetReached };
 }
 
 async function handle(ctx) {
+  if (ctx.command?.name === "monitorresolve") {
+    const [subscriptionId, encodedKey, chatId, action] = String(ctx.args || "").trim().split(/\s+/);
+    if (!subscriptionId || !encodedKey || !chatId || !["delivered", "retry"].includes(action)) return { text: "确认聊天记录后使用：/monitorresolve 订阅ID 事件ID 会话ID delivered（已送达）或 retry（未送达，允许重试）" };
+    let key; try { key = decodeURIComponent(encodedKey); } catch { return { text: "事件ID无效，请从监控状态中复制" }; }
+    const storage = await cursorStorage(ctx.api, [subscriptionId]);
+    const cursors = storage.cursors;
+    const cursor = cursors[subscriptionId], delivery = cursor?.pendingDeliveries?.[key];
+    if (!delivery || !list(delivery.uncertainChatIds).includes(chatId)) return { text: "没有找到这条待确认推送，请查看 /monitorstatus" };
+    delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
+    if (action === "delivered") delivery.deliveredChatIds = [...new Set([...list(delivery.deliveredChatIds), chatId])];
+    cursor.nextRetryAt = 0; cursor.lastError = "";
+    await storage.save(subscriptionId, cursor);
+    return { text: action === "delivered" ? "已标记送达，下一轮继续检查" : "已允许这条推送在下一轮重试" };
+  }
   if (ctx.command?.name === "monitorcheck") {
     const result = await poll(ctx, { force: true });
     return { text: `已检查 ${result.checked}/${result.subscriptions} 个订阅，推送 ${result.pushed} 条\n${result.summaries.join("\n")}`.trim() };
   }
   const config = ctx.config || {};
   const subscriptions = (Array.isArray(config.subscriptions) ? config.subscriptions : []).map(normalizeSubscription);
-  const saved = await ctx.api.getState("cursors", "channel");
-  const cursors = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+  const cursors = (await cursorStorage(ctx.api, subscriptions.map(item => item.id))).cursors;
   if (!subscriptions.length) return { text: "还没有内容监控订阅，请在桌面端机器人插件配置中添加" };
   return { text: subscriptions.map((subscription) => {
     const cursor = cursors[subscription.id] || {};
     const status = cursor.lastError ? `失败：${cursor.lastError}` : (cursor.initializedAt ? "运行中" : "等待首次检查");
-    return `${subscription.enabled ? "启用" : "停用"} · ${subscription.name} · ${status}`;
+    const unresolved = Object.entries(pendingDeliveries(cursor.pendingDeliveries)).flatMap(([key, item]) => list(item.uncertainChatIds)
+      .map(chatId => `${subscription.id} ${encodeURIComponent(key)} ${chatId}`)).slice(0, 5);
+    return `${subscription.enabled ? "启用" : "停用"} · ${subscription.name} · ${status}${unresolved.length ? `\n待确认：\n${unresolved.join("\n")}\n核对聊天记录后用 /monitorresolve 加上述一行及 delivered 或 retry` : ""}`;
   }).join("\n") };
 }
 
