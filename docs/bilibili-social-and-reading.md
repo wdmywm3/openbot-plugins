@@ -1,8 +1,28 @@
 # B站阅读与互动
 
-1.9.0 统一对外名称为“B站小管家”，包 ID `bilibili-explorer`、账号字段、数据库、Skill 标识及原工具保持兼容。浏览、互动、收藏管理和 QQ 分享共用这一安装入口。视频补读默认接入同实例的 Watch 0.3.0；已有媒体绑定继续优先，未安装或未授权时明确返回缺失能力。配置与恢复方式见插件 `MEDIA.md`。
+当前工作区版本为 1.11.0，活动轨迹迁入独立 SQLite，列表先取摘要、详情按需读取。1.10.0 增加了投币、一键三连和带图评论；1.9.0 起统一对外名称为“B站小管家”，包 ID `bilibili-explorer`、账号字段、数据库、Skill 标识及原工具保持兼容。浏览、互动、收藏管理和 QQ 分享共用这一安装入口。视频补读默认接入同实例的 Watch 0.3.0；已有媒体绑定继续优先，未安装或未授权时明确返回缺失能力。配置与恢复方式见插件 `MEDIA.md`。
 
-插件市场的“点赞、收藏与私信”集中配置小号点赞、收藏、私信模式、联系人与额度。互动功能默认关闭；`messageMode=draft` 允许主人私聊调用读写工具，`auto` 另外开启指定联系人的自动回复。评论仍使用原有“评论与回复”设置。点赞取消也计入点赞操作额度，点赞、收藏与私信分别计时，自动评论沿用评论间隔。
+插件市场的“站内互动”集中配置小号点赞、投币、收藏、三连、私信及额度。新增开关默认关闭，不改变现有实例设置。`messageMode=draft` 允许主人私聊调用私信读写工具，`auto` 另外开启指定联系人的自动回复。评论仍使用“评论与回复”设置。取消点赞也计入点赞操作额度，各类动作分别计时，自动评论沿用评论间隔。
+
+## 投币、三连与图片评论
+
+`coin_video(bvid,coins,operationId)` 指定投 1 或 2 枚，使用小号。插件先核对已投数量，按枚数占用 `dailyCoinLimit`，同时检查 `coinEnabled`。`triple_video(bvid,operationId)` 调用平台三连接口，收藏到默认收藏夹；需要 `tripleEnabled`、`coinEnabled` 和 `likeEnabled` 同时开启，一次预留 1 次点赞、最多 2 枚硬币、1 次收藏的额度。结果分别保留点赞、投币、收藏及返回的投币数量；任一项未完成时标为 `partial`，不把接口返回成功当作三项全部成功，也不自动补发整次三连。额度对结果不明和部分完成保守保留，不自动退还。
+
+`favorite_video` 继续收藏到明确授权的小号收藏夹；大号收藏分类、复制、移动、移除与撤销流程保持原入口。自主浏览可独立选择 `actions.coin`；`actions.triple=true` 与单独的 like、coin、favoriteFolderId 互斥。自主投币须再开启 `autoCoin`，自主三连还需开启 `autoLike`；两者都以实际内容笔记和阅读范围为前提。
+
+`draft_comment.images` 接受实际取得、且用户要求公开发送的 QQ 或 B站图床 HTTPS 图片链接，最多 9 张，每张最多 10 MiB，支持 JPEG、PNG、GIF。拟稿只保存链接；`post_comment` 才上传，并把返回的地址、尺寸、大小放进评论。原生表情仍可同时使用。上传中途失败保留已经上传的结果，使用原草稿继续；不会悄悄去掉图片只发文字。评论提交结果不明时不重发。当前不接收任意本地文件路径，也没有自动搜索 QQ 表情包库；用户提供的图片表情包可以作为配图发送。
+
+图片上传使用新版宿主的通用 multipart 请求能力，兼容浏览器登录与 Cookie 登录。宿主只负责受限下载、表单传输、取消和登录身份检查；上传地址、图片限制、响应校验及评论流程由插件负责。源图片下载不携带 B站 Cookie，来源域名仍须在插件声明中，拒绝重定向和内网来源。旧宿主不支持 multipart 时上传会失败，需要一起更新。
+
+## 浏览经历保存在哪里
+
+原有 `bilibili-history` 数据库的 `contents` 保存 BV、分 P 和实际取得的资料范围，`evidence` 保存字幕等证据，`notes` 保存理解与判断，`interactions` 保存评论正文、根评论、直接回复对象及提交状态。Markdown 笔记位于插件数据空间的 `files/notes/<BV>-p<分P>.md`。点赞、收藏和私信另有按 B站账号保存的状态记录；收藏整理使用自身的视频记录和恢复日志。
+
+1.10.0 在同一数据库新增 `activities`，按每次浏览、阅读或公开互动保存时间、视频、分 P、正文、配图及结果。一次操作从待核对变为成功时更新同一条记录，不重复追加。阅读保留资料来源与覆盖范围，浏览初筛不会写成已看完视频。记录摘要同步到插件现有的“操作记录”，可以搜索视频编号或正文；完整正文和配图地址可通过 `activity` 查询。主人私聊可按 bvid、kind、status 筛选，使用 cursor 翻页；默认查小号自主浏览与公开互动，`public:false` 查当前聊天发起的阅读，`account:main` 查大号阅读。查询不需要重新登录 B站。
+
+实例、账号以及公开/聊天范围分别保留。私信正文不会写入公开浏览经历。旧笔记、评论与状态记录原样保留，不凭空补造旧活动的时间线；新流程产生的活动才进入统一列表。宿主“操作记录”按条持久保存，旧记录不会因为超过 500 条被环形覆盖。
+
+1.11.0 把上面的 activities 从普通记录集合迁到同名轨迹库：按时间、账号、视频和动作建立索引，正文无损压缩和去重。迁移分批复制、读回校验，再移除普通集合中的旧行；中断可以继续。activity 的列表返回摘要，eventId 使用列表的 key 来读取完整正文和配图。旧笔记和 interactions 集合不因这一存储调整删除。宿主旧状态接口也已改存每个插件自己的 state.sqlite，接口名和原键保持兼容。
 
 ## 工具与自动流程
 
@@ -42,6 +62,10 @@ bPhone 在宿主授予闲时机会后，从同设备最近二十项公开活动�
 
 ## 验证与接口参考
 
+1.10.0 新增 `tests/bilibili-actions.cjs`，覆盖投币按枚数限额、重复调用与结果不明不重发、三连部分完成、收藏记录、图文评论两种登录模式、上传失败停止评论，以及公开/私聊和账号记录隔离。所有发送使用模拟接口，本轮没有花费真实账号硬币或发布真实评论。宿主的 `check-plugin-multipart.cjs` 与浏览器测试检查文件大小、来源权限、登录隔离、取消和重定向限制。发布前仍需真实账号验收。
+
+接口参数对照了[投币与三连说明](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/video/action.md)、[图片上传说明](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/dynamic/publish.md)及[带图评论实现](https://github.com/inorilzy/bilibili-api/blob/main/bilibili_api/comment.py)。插件自行实现请求与记录，没有引入参考项目的运行依赖。
+
 `node tests/bilibili-social.cjs` 使用受控接口与模型返回，覆盖真实导出的手动工具和自动 poll 路径：拟稿/发送、点赞、表情、结果不明不重发、并发配额、账号切换、多人私信隔离、反向分页、首次水位、模型恢复以及发现→字幕/画面→笔记→自动评论。`tests/butler.cjs` 另外检查 folderRules 声明及非法输入。测试不访问 B站，不发送真实评论、点赞或私信；发布前仍需按项目流程完成对应真实账号与模型验收。
 
 接口核对参考了 [dsh-bili-pond 固定版本](https://github.com/YOYOLnFu/dsh-bili-pond/tree/46a377fae4140c77f2850126926192f3f9949555) 和项目已记录的 AstrBot B站实现；私信序号上下界另对照 [私信接口资料](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/message/private_msg.md)，评论表情目录对照 [表情接口资料](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/emoji/list.md)。只采用接口语义，没有引入这些项目的运行依赖、账号状态或模型配置。
@@ -49,3 +73,15 @@ bPhone 在宿主授予闲时机会后，从同设备最近二十项公开活动�
 逐句文字降级与 WBI 路径参考 [dsh-bili-humanism reader](https://github.com/InariNGT-Ofiicial/dsh-bili-humanism/blob/22cbb1d8d44a95d325bf4fcf916792b773cf1e17/lib/reader.mjs)，通知合并参考 [AstrBot B站插件固定版本](https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot/blob/8ba359e5c3b9e4909475690bafa739ab5c114244/core/reply.py)。新实现保留 OpenBot 现有存储与账号隔离，不引入外部项目运行依赖。
 
 `npm test` 加入经验引文/修订/撤回、事务冲突、公开与私人隔离、WBI 标准向量、字幕区间、局部阅读、独立动作、评论补读、@ 去重和私信批次恢复测试。`npm run sync:shared` 更新两个插件的内联辅助代码，测试会校验同步。正式目录仍指向已发布版本；真实账号接口、真实模型的阅读效果及设备体验需在发布前验收。
+
+## 直播与弹幕调研（2026-10-26）
+
+这一部分是可行性结论，尚未加入插件工具。
+
+视频弹幕可以指定出现时刻。`/x/v2/dm/post` 接受分 P 对应的 `cid` 和毫秒单位的 `progress`，例如第2P的02:15对应 `135000`。发送时直接登记这个视频时间点，不必等待播放器播到那里；若用户要求未来某个现实时间才发送，则另外需要定时任务。实施时先读取视频分 P、时长并验证范围，再用账号登录态及 WBI 签名提交，保存 BV、分 P、cid、毫秒位置、正文和返回的弹幕编号。依据：[视频弹幕接口](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/danmaku/action.md)。
+
+直播间发弹幕也可实现。`https://api.live.bilibili.com/msg/send` 使用真实房间号、正文、时间戳及账号登录态；平台还提供当前账号在房间内可用的弹幕配置。直播弹幕是发给当前直播间，不能像视频弹幕一样指定录像播放时间。需要查看正在讨论什么时，可接入带认证和心跳的直播信息流，维护每个房间的短期上下文及己方发送记录；重连去重、禁言、频率限制与发送结果不明都由插件处理。依据：[直播弹幕](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/live/danmaku.md)、[直播信息流](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/live/message_stream.md)。
+
+看直播画面和声音需要增加媒体流程。房间接口可以取得 HLS/FLV 播放源，Streamlink 的 B站适配器已有读取 HLS 的实现；当前 OpenBot 的 Watch 在 `tools/media.py` 中明确拒绝 `is_live` 等直播状态。建议在媒体插件增加有时长和容量上限的直播片段采集，沿用转写、抽帧和视觉理解；B站小管家负责选择房间、决定何时观察或发言。记录同时保存现实时间、房间号、采样区间和实际收获。长连接弹幕与视频流采集需要可持续运行的插件组件，不能塞进一次有限时长的 JS 工具执行。依据：[房间播放信息](https://github.com/pskdje/bilibili-API-collect/blob/main/docs/live/info.md)、[Streamlink B站实现](https://github.com/streamlink/streamlink/blob/master/src/streamlink/plugins/bilibili.py)。
+
+开发顺序建议先做视频定点弹幕，再做直播间读取和手动发弹幕，最后接持续观看与自主互动。每一步都可以复用本轮的活动记录和按账号防重流程；本轮只核对代码与接口资料，没有进入真实直播间发送消息。

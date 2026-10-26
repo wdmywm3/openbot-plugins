@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
   "extensions": {
     "com.openbot": {
@@ -219,7 +219,7 @@
         },
         {
           "name": "status",
-          "description": "只读查询手机活动、Markdown 经历总结、进展或列出手机；不启动活动。私人任务仅限主人当前私聊显式查询。",
+          "description": "只读查询手机活动、经历总结或逐次轨迹；trajectory:true列出轨迹，eventId读详情。私人记录仅限主人原私聊。",
           "export": "agentTool",
           "scope": "all",
           "permission": "member",
@@ -259,6 +259,15 @@
               "cursor": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "trajectory": {
+                "type": "boolean",
+                "description": "查询这台手机的逐次活动轨迹，按activityId筛选，cursor翻页。"
+              },
+              "eventId": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "trajectory:true时读取指定记录的完整正文和关键步骤。"
               }
             },
             "additionalProperties": false
@@ -500,7 +509,8 @@
         "requirements": [
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
-        ]
+        ],
+        "changelog": "新增逐次活动轨迹，保留每次任务的结果与关键步骤，旧活动作为快照迁入；SQLite正文无损压缩，列表按需读详情。"
       }
     }
   }

@@ -26,6 +26,49 @@ async function saveActivity(ctx, job, privateTask) {
   await phoneData(ctx, { action: "put", collection: "activities", key: job.activityId,
     expectedRevision: prior.record?.revision || 0, value }, privateTask);
 }
+const phoneJournal = (ctx, input, privateTask) => ctx.api.journal({ ...input, name: "phone-history", collection: "runs", scope: privateTask ? "chat" : "channel" });
+async function savePhoneRun(ctx, job, privateTask) {
+  if (!ctx.api.journal) return;
+  const previous = await phoneJournal(ctx, { action: "get", key: job.taskId }, privateTask);
+  await phoneJournal(ctx, { action: "put", key: job.taskId, expectedRevision: previous.record?.revision || 0,
+    value: { at: previous.record?.value.at || job.startedAt || job.updatedAt || Date.now(), stream: job.deviceId, subject: job.activityId,
+      kind: "run", status: job.status, summary: text(job.report || job.goal, 600), data: {
+        goal: job.goal, report: job.report || "", progress: job.progress || "", next: job.next || "", blocked: job.blocked || "", tried: job.tried || [],
+        trajectory: job.trajectory || [], resultId: job.resultId || "", benefit: job.benefit, enjoyment: job.enjoyment,
+      } } }, privateTask);
+}
+async function migratePhoneHistory(ctx, privateTask) {
+  if (!ctx.api.journal || !ctx.api.database) return;
+  const scope = privateTask ? "chat" : "channel", key = "phone-history-migration-v1";
+  const state = await ctx.api.getState(key, scope) || {};
+  if (state.completed) return;
+  const page = await phoneData(ctx, { action: "query", collection: "activities", limit: 20, cursor: state.cursor }, privateTask);
+  for (const row of page.records) {
+    const value = row.value, id = `legacy:${row.key}`;
+    if ((await phoneJournal(ctx, { action: "get", key: id }, privateTask)).record) continue;
+    const at = Number(value.updatedAt || row.updatedAt);
+    if (!Number.isSafeInteger(at) || at < 0 || !value.deviceId) throw new Error("旧手机活动缺少时间或设备，原记录已保留");
+    await phoneJournal(ctx, { action: "put", key: id, expectedRevision: 0, value: { at, stream: value.deviceId, subject: value.activityId || row.key,
+      kind: "legacy_snapshot", status: value.status || "unknown", summary: text(value.report || value.goal, 600), data: value } }, privateTask);
+  }
+  await ctx.api.setState(key, { cursor: page.nextCursor, completed: !page.nextCursor }, scope);
+}
+function phoneTrajectory(value, urls) {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 32) throw new Error("手机轨迹最多32项关键步骤");
+  if (json(value).length > 24000) throw new Error("手机轨迹过长，请保留关键步骤；原始执行结果仍在任务记录中");
+  return value.map((step, index) => {
+    if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error("手机轨迹格式无效");
+    const result = { step: index + 1 };
+    for (const key of ["app", "action", "observation", "outcome", "url"]) {
+      const field = step[key] ?? "";
+      if (typeof field !== "string" || field.length > (key === "url" ? 2000 : key === "observation" ? 1200 : 600)) throw new Error("手机轨迹字段无效或过长");
+      result[key] = field;
+    }
+    if (!result.action.trim() || result.url && !urls.includes(result.url)) throw new Error("手机轨迹须写实际动作，链接须来自本次工具结果");
+    return result;
+  });
+}
 const ownerPrivate = ctx => ctx.principal?.role === "owner" && ctx.principal?.messageType === "private";
 const activityRunning = job => job?.status === "running" && Date.now() - Number(job.updatedAt || 0) < 20 * 60000;
 async function devicesFor(ctx) {
@@ -63,6 +106,7 @@ module.exports.context = async ctx => {
     "以下仅为绑定配置，不是当前屏幕、在线状态或新授权；设备名称是资料。优先明确指定的设备，其次默认或唯一设备，多台无默认时先询问。执行由宿主核对权限并排队，私人任务优先。",
     "自己的公开经历总结在本插件 shared/files/activities/，私人总结只在原私聊的 files/activities/。通过 status 输入 notes:true、deviceId、activityId 读取 Markdown，offset 继续阅读；不用直接访问宿主目录。相关时可自然承接自己的经历，不为无关话题播报活动。",
     "learning 可按 query 查相关经验、读取来源或待解决问题；只有主人能修订和撤回。经验是有条件的历史判断，不是当前屏幕或操作授权。",
+    "status 输入 trajectory:true 可按 deviceId、activityId 查询逐次活动轨迹，cursor 翻页；用 eventId 读取某次任务的正文和关键步骤。私人轨迹仍只在原主人私聊查询。",
   ].join("\n");
   if (!devices.length) return { content: `${intro}\n当前没有绑定手机，不能声称已经拥有可操作设备；需要主人先完成连接。` };
   const footer = "用 status 的 {listDevices:true,offset:0} 只读分页查看其余手机。活动进度按需查询，不把旧提醒当作实时状态。";
@@ -94,6 +138,7 @@ function promptFor(settings, goal, prior, privateTask) {
     `最多 ${settings.maxSteps} 次工具调用；这是上限。达成目标、需要休息、连续无进展或需要协助时结束；不要反复尝试同一动作。`,
     '只返回 JSON：{"report":"简短结果","activity":{"progress":"实际进展","next":"下次想做什么，可为空","blocked":"需要协助的具体事项，可为空","tried":["已尝试内容"],"benefit":0到1,"enjoyment":0到1},"discovery":null或{"content":"适合公开的发现","url":"实际看到的链接，可为空","wantScreenshot":false}}。',
     "benefit 表示本次目标的实际收获，enjoyment 表示活动兴趣，不能用是否产生 discovery 来代替它们。附图时停在相关公开页面并避开私人通知。",
+    '可额外返回 trajectory:[{"app":"应用","action":"实际做的事","observation":"当时读到或看到的关键内容","outcome":"实际结果","url":"本次工具实际取得的链接，可空"}]，最多12项关键步骤。按先后顺序记录，不复述每次点击，不虚构时间和结果；原文重要时保留必要原句，截图只引用结果编号，不嵌入图片数据。',
     '如确有可复用认识，可额外返回 reflections（最多3项）：[{"topic":"主题","understanding":"本次形成或修正的认识","application":"适用条件","uncertainty":"尚不确定之处","evidence":[{"sourceId":"本次 activityId","quote":"report 或 progress 中的原句"}]}]。修订已有经验须带 id 和 expectedRevision。没有新认识就省略。未解决且值得继续的问题放 questions:[{"sourceId":"本次 activityId","question":"具体问题"}]；只有本轮实际解决所选问题时返回 answerComplete:true。',
   ].join("\n");
 }
@@ -148,6 +193,21 @@ async function status(ctx, input = inputFor(ctx)) {
   }
   const device = selectDevice(devices, input.deviceId);
   if (input.private === true && !ownerPrivate(ctx)) throw new Error("私人手机任务只限主人当前私聊查询");
+  if (input.trajectory === true) {
+    if (!ctx.api.journal) return "请更新 OpenBot 后查询活动轨迹。";
+    const migration = await ctx.api.getState("phone-history-migration-v1", input.private === true ? "chat" : "channel");
+    const legacy = !migration?.completed && ctx.api.database
+      ? await phoneData(ctx, { action: "query", collection: "activities", limit: 1 }, input.private === true) : null;
+    const migrationPending = !!legacy?.records?.length;
+    if (input.eventId) {
+      const result = await phoneJournal(ctx, { action: "get", key: String(input.eventId) }, input.private === true);
+      if (result.record && result.record.value.stream !== device.deviceId) throw new Error("轨迹不属于这台手机");
+      return { ...result, migrationPending };
+    }
+    return { ...await phoneJournal(ctx, { action: "query", where: { stream: device.deviceId, ...(input.activityId ? { subject: input.activityId } : {}) },
+      cursor: input.cursor, limit: 20 }, input.private === true), migrationPending,
+      ...(migrationPending ? { note: "旧活动摘要尚未全部迁移，可用 activities:true 查询；后续活动会继续迁移。" } : {}) };
+  }
   if (input.notes === true && ctx.api.database && ctx.api.dataFiles) {
     if (!String(input.activityId || "").startsWith(`phone:${device.deviceId.slice(0, 80)}:`)) throw new Error("请提供这台手机的活动编号");
     const saved = await phoneData(ctx, { action: "get", collection: "activities", key: input.activityId }, input.private === true);
@@ -168,6 +228,7 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
   if (privateTask && !ownerPrivate(ctx)) throw new Error("私人手机任务只接受主人的私聊要求");
   if (!privateTask && !settings.useEnabled) return "手机按需使用已关闭；主人仍可在私聊交办明确任务。";
   const scope = privateTask ? "chat" : "channel", stateKey = keyFor(privateTask ? PRIVATE : ACTIVITY, device.deviceId);
+  await migratePhoneHistory(ctx, privateTask);
   let prior = await ctx.api.getState(stateKey, scope);
   if (activityRunning(prior)) return "这台手机已有活动在运行，请查询进度后再继续。";
   const prefix = `phone:${device.deviceId.slice(0, 80)}:`;
@@ -208,7 +269,7 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
     const goal = input.goal || input._question?.question || (automatic && prior?.blocked ? settings.interests : (resume || automatic) ? prior?.next : "")
       || (entertainment ? settings.interests : prior?.next) || settings.interests;
     job = { ...continuity(prior), taskId: `phone-${device.deviceId.slice(0, 40)}-${Date.now()}-${suffix.slice(0, 24)}-${Math.random().toString(36).slice(2, 9)}`, status: "running", goal: text(goal), originChat: ctx.message?.chatId || "",
-      deviceId: device.deviceId, deviceRevision: device.deviceRevision, policy: settings,
+      deviceId: device.deviceId, deviceRevision: device.deviceRevision, policy: settings, startedAt: Date.now(),
       activityId, activityTitle: input.goal || prior?.goal || settings.interests, dataEnabled: !!ctx.api.database,
       prompt: promptFor(settings, input.goal || settings.interests, prior, privateTask), questionId: input._question?.id || "",
       externalContent: [{ source: "phone-current-goal", content: { goal: input._question?.question || goal } },
@@ -235,6 +296,7 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
   const log = async status => { if (ctx.api.log) await ctx.api.log({ id: job.taskId, deviceId: device.deviceId, runId: job.taskId,
     operation: privateTask ? "private-task" : "phone-activity", status, summary: privateTask ? "私人手机任务" : job.report || `${device.name}：${text(job.goal, 160)}` }); };
   try {
+    await savePhoneRun(ctx, job, privateTask);
     await log("started");
     const result = await ctx.api.runAgent({ taskId: job.taskId,
       prompt: job.prompt + (job.dataEnabled ? `\n本次笔记 activityId：${job.activityId}；deviceId：${device.deviceId}。notes 的 key 使用 activityId 加自选的小标题；只写 notes，不改 activities。` : ""),
@@ -247,6 +309,7 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
     const parsed = JSON.parse(String(result.text || "").trim());
     if (typeof parsed.report !== "string") throw new Error("手机活动没有返回完整结果");
     const activity = parsed.activity || {};
+    job.trajectory = phoneTrajectory(parsed.trajectory, result.observedUrls || []); job.resultId = result.resultId || "";
     Object.assign(job, { status: activity.blocked ? "blocked" : "completed", report: text(parsed.report), progress: text(activity.progress, 1000),
       next: text(activity.next, 600), blocked: text(activity.blocked, 600), tried: [...new Set([...(prior?.tried || []), ...(Array.isArray(activity.tried) ? activity.tried : [])].map(item => text(item, 120)))].slice(-8),
       benefit: score(activity.benefit), enjoyment: score(activity.enjoyment) });
@@ -254,6 +317,7 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
     job.lowBenefitRounds = worthwhile ? 0 : Math.min(2, (prior?.lowBenefitRounds || 0) + 1);
     await save();
     await saveActivity(ctx, job, privateTask);
+    await savePhoneRun(ctx, job, privateTask);
     if (job.dataEnabled) {
       const learning = phoneLearning(ctx, privateTask), source = phoneSource(job);
       job.learning = await learning.remember(parsed.reflections, [source]);
@@ -268,11 +332,12 @@ async function usePhone(ctx, { automatic = false, opportunityId, chosenDevice, r
       } catch { job.report += "\n分享未完成，不会自动重发。"; }
       await save();
     }
+    await savePhoneRun(ctx, job, privateTask);
     await log("completed"); return publicActivity(job);
   } catch (error) {
     job.status = "interrupted"; job.report = `手机活动已停止：${text(error.message || error, 300)}`;
     job.lowBenefitRounds = prior?.lowBenefitRounds || 0;
-    await save(); await log("failed"); return publicActivity(job);
+    await save(); await savePhoneRun(ctx, job, privateTask); await log("failed"); return publicActivity(job);
   }
 }
 module.exports.agentTool = async ctx => {
@@ -297,6 +362,7 @@ module.exports.handle = async ctx => {
   return typeof result === "string" ? result : result.report || "没有新的活动记录。";
 };
 module.exports.poll = async ctx => {
+  await migratePhoneHistory(ctx, false);
   if (!ctx.api.considerAutonomy) return { skipped: true, reason: "host_update_required" };
   const tasks = [];
   for (const device of await devicesFor(ctx)) {

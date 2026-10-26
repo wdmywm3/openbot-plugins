@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.9.0",
+  "version": "1.11.0",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -497,13 +497,39 @@
             "minimum": 0,
             "maximum": 100,
             "default": 5
+          },
+          "coinEnabled": {
+            "type": "boolean",
+            "title": "允许投币",
+            "default": false
+          },
+          "dailyCoinLimit": {
+            "type": "integer",
+            "title": "每天最多投币（枚）",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 5
+          },
+          "autoCoin": {
+            "type": "boolean",
+            "title": "自主投币",
+            "default": false
+          },
+          "tripleEnabled": {
+            "type": "boolean",
+            "title": "允许一键三连",
+            "description": "同时点赞、投币并收藏到默认收藏夹；需要开启点赞和投币。",
+            "default": false
           }
         }
       },
       "networkHosts": [
         "api.bilibili.com",
         "*.hdslb.com",
-        "*.bilibili.com"
+        "*.bilibili.com",
+        "*.biliimg.com",
+        "*.qpic.cn",
+        "*.qlogo.cn"
       ],
       "displayName": "B站小管家",
       "tools": [
@@ -997,7 +1023,7 @@
         },
         {
           "name": "draft_comment",
-          "description": "以公开视频笔记和指定评论串拟稿，不发送；同一草稿沿用 operationId。",
+          "description": "以公开视频笔记和指定评论串拟稿，可附实际取得的QQ或B站图片链接；拟稿不上传，发送时上传图片。",
           "export": "agentTool",
           "permission": "owner",
           "scope": "private",
@@ -1041,6 +1067,16 @@
                   "type": "string",
                   "maxLength": 82
                 }
+              },
+              "images": {
+                "type": "array",
+                "maxItems": 9,
+                "items": {
+                  "type": "string",
+                  "maxLength": 4096,
+                  "pattern": "^https://"
+                },
+                "description": "实际取得且用户要求公开发送的图片链接（QQ或B站图床），支持JPEG、PNG、GIF；最多9张，每张10MiB。"
               }
             },
             "required": [
@@ -1258,7 +1294,7 @@
         },
         {
           "name": "interaction_status",
-          "description": "查看点赞或私信操作的已接受、待核对状态；不能把未知结果当成未发送。",
+          "description": "查看点赞、投币、收藏、三连或私信操作的实际结果；待核对及部分完成不得换编号重试。",
           "export": "agentTool",
           "permission": "owner",
           "scope": "private",
@@ -1437,6 +1473,133 @@
             ],
             "additionalProperties": false
           }
+        },
+        {
+          "name": "coin_video",
+          "description": "给视频投1或2枚硬币。只用小号，消耗每日投币额度；沿用同一operationId，结果不明不重发。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,80}$",
+                "maxLength": 80
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "coins": {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2
+                ]
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid",
+              "coins"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "triple_video",
+          "description": "平台一键三连：点赞、投币并收藏到默认收藏夹。最多预留2枚硬币，分别返回各项结果，部分成功不重复提交。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "operationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,80}$",
+                "maxLength": 80
+              },
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              }
+            },
+            "required": [
+              "operationId",
+              "bvid"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "activity",
+          "description": "分页查询活动轨迹摘要；eventId读取完整正文、配图和结果。可按视频、账号、动作筛选，旧活动自动迁入。",
+          "export": "agentTool",
+          "permission": "owner",
+          "scope": "private",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bvid": {
+                "type": "string",
+                "pattern": "^BV[A-Za-z0-9]{10}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "browse",
+                  "reading",
+                  "comment",
+                  "reply",
+                  "like",
+                  "coin",
+                  "triple",
+                  "favorite"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "accepted",
+                  "visible",
+                  "pending",
+                  "unknown",
+                  "partial",
+                  "failed"
+                ]
+              },
+              "public": {
+                "type": "boolean",
+                "description": "默认查询自主浏览和公开互动；false查询当前私聊发起的阅读。"
+              },
+              "cursor": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "account": {
+                "type": "string",
+                "enum": [
+                  "browse",
+                  "main"
+                ],
+                "description": "默认小号；main查询大号的阅读记录。"
+              },
+              "eventId": {
+                "type": "string",
+                "maxLength": 256,
+                "description": "列表返回的key，用来读取一条轨迹的完整内容。"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
         }
       ],
       "ui": {
@@ -1557,11 +1720,15 @@
           },
           {
             "id": "social",
-            "title": "点赞、收藏与私信",
+            "title": "站内互动",
             "fields": [
               "likeEnabled",
               "dailyLikeLimit",
               "autoLike",
+              "coinEnabled",
+              "dailyCoinLimit",
+              "autoCoin",
+              "tripleEnabled",
               "browseFavoriteFolders",
               "dailyFavoriteLimit",
               "socialIntervalSeconds",
@@ -1586,7 +1753,7 @@
         ]
       },
       "metadata": {
-        "changelog": "统一名称为 B站小管家。字幕不足时默认通过 Watch 补充语音和画面，沿用现有媒体绑定、收藏规则、账号和笔记；Watch 需在当前实例启用并授权。"
+        "changelog": "活动轨迹迁入独立SQLite，按账号、视频、时间检索；正文无损压缩与去重，列表只取摘要，旧活动校验后迁入。"
       }
     }
   }

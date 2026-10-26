@@ -36,6 +36,10 @@ review(level=medium) 用于中级整理；review(level=advanced) 用于高级整
 
 评论、点赞与私信使用小号，均只向主人私聊提供工具。用 draft_comment 按 BV、分P和意图拟稿；回复还需实际取得的 root、parent。草稿会读取公开浏览笔记与目标评论串，不读取 QQ 私聊笔记。用 emotes 查询当前账号可用评论表情，把 token 放进 draft_comment.emotes；当前不支持发送私信贴纸。主人要求发送时用 post_comment，原 draftId 重试；返回 accepted 仅表示平台接受提交。
 
+图片评论在 draft_comment.images 中指定实际取得、且用户要求公开发送的 QQ/B站图片 HTTPS 链接，最多9张，JPEG/PNG/GIF，每张10MiB。不得编造链接、把私聊图片擅自公开或填写本地路径。拟稿不上传，post_comment 时逐张上传后随正文一起发送；失败保留原草稿继续，不改成缺图文字。工具返回的 pictures 是实际上传结果。普通图片表情包可以这样附图，原生表情仍使用 emotes。
+
+coin_video 使用 bvid、coins（1或2）和 operationId；投币按枚数受每日额度限制。triple_video 调用平台一键三连，收藏到默认收藏夹，需允许三连、点赞和投币；partial 表示仅部分完成，要分别报告 like、coin、favorite 和 coins，不重发整次三连。指定其他收藏夹继续用 favorite_video。投币、三连和收藏同样沿用 operationId，并用 interaction_status 查询；结果不明不更换编号重试。
+
 like_video、like_comment 必须明确 liked=true 或 false；评论 ID 须来自实际读取。inbox 列站内联系人，messages 读取指定 UID 的会话。hasMore 时固定 after，用 nextBefore 作为 before 继续向旧翻页，全部读完再把 next 作为新水位。send_message 发送一条纯文本私信；同一条消息或点赞沿用 operationId，以 interaction_status 核对状态。pending、unknown 都不得更换编号重新发送。私信只用于当前联系人，不带入公开评论、浏览笔记或 QQ 分享。
 
 仅在工具入口不可用且用户需要备用操作方式时，读取 [命令说明](references/commands.md)。不要要求用户输入命令来替代已经可调用的工具。
@@ -43,5 +47,9 @@ like_video、like_comment 必须明确 liked=true 或 false；评论 ID 须来�
 ## 记录与报告
 
 在插件市场对应实例的“操作记录”查看每个视频的分类、分析、备份及收藏变更，失败显示在对应记录中。支持撤销的操作直接在记录中撤销；不另设运行日志。报告应区分：取得了什么资料、建议如何归类、是否实际修改收藏。给出 BV 号和简短依据；失败时保留进度，不把失败记录当成功结果。
+
+浏览、阅读、留言、回复、点赞、投币、收藏与三连也进入同一“操作记录”。完整活动用 activity 按 bvid、kind、status 查询，cursor 翻页；默认查询小号的公开活动，public:false 查询当前聊天阅读，account:main 查询大号。记录含时间、视频、正文、配图和实际结果；只有浏览资料不代表看完视频。旧记录保留在原笔记与评论集合，不假造历史时间线。私信内容不混入公开活动记录。
+
+1.11.0 起活动使用独立 SQLite 轨迹库。activity 列表只返回摘要，用列表的 key 作为 eventId 读取正文与配图；不需要每次把整批正文加载到上下文。旧 activities 逐条无损迁入，migrationPending 为 true 时继续查询；字幕证据、笔记和收藏恢复仍使用原入口。
 
 测试报告区分本地模拟、真实网站读取与真实模型调用。首页或部分分页的测试应报告实际样本量，不代表整个收藏夹已经分析。置信度是模型判断，不是正确率；同名收藏夹用途未明确时不能仅凭置信度决定具体目标。
