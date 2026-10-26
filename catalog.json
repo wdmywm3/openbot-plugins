@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "automation",
       "main": "index.js",
@@ -25,7 +25,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "",
+        "changelog": "新增逐次活动轨迹，保留每次任务的结果与关键步骤，旧活动作为快照迁入；SQLite正文无损压缩，列表按需读详情。",
         "components": [
           "commands",
           "hooks",
@@ -35,29 +35,29 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
-          "size": 40592,
-          "sha256": "13ba5a99b7140a6a65de276d524c1e45c5c1722b9290bd2a9deb447893b51c42"
+          "size": 45992,
+          "sha256": "aa955c81b4e64b75a0acba0e9f9449a302424b0b1370663b378dda9a57059d18"
         },
         {
           "path": "plugin.json",
-          "size": 15247,
-          "sha256": "e862009257b5d36c0db1decaa6299986c325548a6421fcea5855ffed30d8a16c"
+          "size": 15833,
+          "sha256": "16b1586c1e960de5817e2ccb80f5ddd7d112645e6a66d89d506e9896a31c5838"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
-          "size": 5996,
-          "sha256": "f3556dc5601083726856e5b40de362d5411d3e81ce7d41477de8710e9ca93a46"
+          "size": 6790,
+          "sha256": "c6161a0ca2fbc89adef7fef4c4bee0f5234d56a2a181be0955616207e032d969"
         }
       ]
     },
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.9.0",
+      "version": "1.11.0",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "automation",
       "main": "./index.js",
@@ -78,7 +78,7 @@
         "usage": "/explore 立即浏览一次，有适合当前聊天的发现时再分享\n/explorestatus 查看上次探索、分享及下次运行时间\n/explorelike 记录希望多看的主题：/explorelike 主题\n/exploreavoid 记录希望避开的主题：/exploreavoid 主题\n/biliaccounts 验证大号或小号登录：/biliaccounts main 或 browse\n/bilifolders 列出大号收藏夹\n/biliscan 分页扫描收藏；new 开始新扫描\n/biliplan 分批生成收藏分类方案\n/bilipreview 分页预览方案：/bilipreview 偏移量\n/biliapply 应用已生成的收藏方案\n/bilidraft 以小号拟评论：/bilidraft BV号 内容\n/bilipost 发送指定评论草稿：/bilipost 草稿编号\n/biliinteractions 查看自动评论和回复的处理记录\n/bilianalyze 分段分析视频：/bilianalyze BV号 [分P序号] [new]\n/bilisummary 读取分析总结：/bilisummary BV号 [分P序号] [页码]",
         "platforms": [],
         "requirements": [],
-        "changelog": "统一名称为 B站小管家。字幕不足时默认通过 Watch 补充语音和画面，沿用现有媒体绑定、收藏规则、账号和笔记；Watch 需在当前实例启用并授权。",
+        "changelog": "活动轨迹迁入独立SQLite，按账号、视频、时间检索；正文无损压缩与去重，列表只取摘要，旧活动校验后迁入。",
         "components": [
           "commands",
           "hooks",
@@ -88,7 +88,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "MEDIA.md",
@@ -97,8 +97,8 @@
         },
         {
           "path": "index.js",
-          "size": 174426,
-          "sha256": "3d85e43df5c98ae544851c45141f231c633752b27a31704b2f5d064149a02356"
+          "size": 191169,
+          "sha256": "1b1995c5ec22052bccfa6066fa5993f35d6616b14bf43263993a43db44c63d3c"
         },
         {
           "path": "media-mcp/launch.py",
@@ -117,13 +117,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 47910,
-          "sha256": "659e522e96bb0d4bece665107a7d6ee85212a6aa67170c952a27fe34e49c53ef"
+          "size": 53299,
+          "sha256": "d63d43f59a0fb8bff696b5730108c714f86aed4d8cd9ef44719577bbbafe7855"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
-          "size": 6212,
-          "sha256": "27314356f1594a6857d90f3396c3da19310316c7f1ebf0f24eca73eeeb5adb90"
+          "size": 8007,
+          "sha256": "c835dd9adcd8c2b77cf9e0d22b6a6461c9d7d9fdf45e6c92fd93d7b8aa0f59a9"
         },
         {
           "path": "skills/bilibili-butler/references/commands.md",
@@ -137,8 +137,8 @@
         },
         {
           "path": "skills/explore-videos/SKILL.md",
-          "size": 5238,
-          "sha256": "97a4198e84d17d10854bd14e8f04c52a46804f9e2e53f7eaf1b372f7691268e3"
+          "size": 5974,
+          "sha256": "891dc70a15a87e714ce02115713887f2d5b064ac1416f8737f86810020771099"
         }
       ]
     },
@@ -170,7 +170,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
@@ -210,7 +210,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
@@ -251,7 +251,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "README.md",
@@ -295,7 +295,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
@@ -331,7 +331,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
@@ -371,7 +371,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "index.js",
@@ -408,7 +408,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cd858bd8d21392a624182995faf06c344668642e",
+      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
       "files": [
         {
           "path": "README.md",
