@@ -35,7 +35,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "df790f2bc0e4753d2cdf5c0474206cfd54087649",
       "files": [
         {
           "path": "index.js",
@@ -57,7 +57,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.11.0",
+      "version": "1.13.0",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "automation",
       "main": "./index.js",
@@ -78,7 +78,7 @@
         "usage": "/explore 立即浏览一次，有适合当前聊天的发现时再分享\n/explorestatus 查看上次探索、分享及下次运行时间\n/explorelike 记录希望多看的主题：/explorelike 主题\n/exploreavoid 记录希望避开的主题：/exploreavoid 主题\n/biliaccounts 验证大号或小号登录：/biliaccounts main 或 browse\n/bilifolders 列出大号收藏夹\n/biliscan 分页扫描收藏；new 开始新扫描\n/biliplan 分批生成收藏分类方案\n/bilipreview 分页预览方案：/bilipreview 偏移量\n/biliapply 应用已生成的收藏方案\n/bilidraft 以小号拟评论：/bilidraft BV号 内容\n/bilipost 发送指定评论草稿：/bilipost 草稿编号\n/biliinteractions 查看自动评论和回复的处理记录\n/bilianalyze 分段分析视频：/bilianalyze BV号 [分P序号] [new]\n/bilisummary 读取分析总结：/bilisummary BV号 [分P序号] [页码]",
         "platforms": [],
         "requirements": [],
-        "changelog": "活动轨迹迁入独立SQLite，按账号、视频、时间检索；正文无损压缩与去重，列表只取摘要，旧活动校验后迁入。",
+        "changelog": "增加收藏夹搜索、精简编号核对、可预览和撤销的夹内排序，以及重启后保留的风控暂停。保留按内容选择字幕、平台预览和必要音画补读，以及参考当前聊天近期正文的分享。",
         "components": [
           "commands",
           "hooks",
@@ -88,7 +88,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "df790f2bc0e4753d2cdf5c0474206cfd54087649",
       "files": [
         {
           "path": "MEDIA.md",
@@ -97,8 +97,8 @@
         },
         {
           "path": "index.js",
-          "size": 191169,
-          "sha256": "1b1995c5ec22052bccfa6066fa5993f35d6616b14bf43263993a43db44c63d3c"
+          "size": 215278,
+          "sha256": "f7ed5b2dba3aadd79e976eca0ab4aef39b6501709d493290d1931809ad7715cd"
         },
         {
           "path": "media-mcp/launch.py",
@@ -117,13 +117,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 53299,
-          "sha256": "d63d43f59a0fb8bff696b5730108c714f86aed4d8cd9ef44719577bbbafe7855"
+          "size": 58292,
+          "sha256": "fa95d34b46366544f623b80bf1e50428c37ea9c11507a3ca8932f3702b9437f5"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
-          "size": 8007,
-          "sha256": "c835dd9adcd8c2b77cf9e0d22b6a6461c9d7d9fdf45e6c92fd93d7b8aa0f59a9"
+          "size": 9625,
+          "sha256": "9da510d62d0109f19a1d8c590303d1b683a4ed8548b50b56875c1846e21b5363"
         },
         {
           "path": "skills/bilibili-butler/references/commands.md",
@@ -132,13 +132,13 @@
         },
         {
           "path": "skills/bilibili-butler/references/organizing.md",
-          "size": 6900,
-          "sha256": "41f1220b97fa3bf90c21adbeb0e7021ca172d17478872f0b5ee19a5fdbb4ee13"
+          "size": 9077,
+          "sha256": "d11816044d68f935a46c3a433dbddc4e0dc639c86cb4941a1892ac4c254e30ad"
         },
         {
           "path": "skills/explore-videos/SKILL.md",
-          "size": 5974,
-          "sha256": "891dc70a15a87e714ce02115713887f2d5b064ac1416f8737f86810020771099"
+          "size": 7090,
+          "sha256": "2b50b0efc8b83ed49979c5f887ac6430f1031fd46811171165c530ef2f5b9f37"
         }
       ]
     },
@@ -170,7 +170,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -210,7 +210,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -251,7 +251,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "README.md",
@@ -295,7 +295,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -331,7 +331,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -371,7 +371,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
         {
           "path": "index.js",
@@ -388,7 +388,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "结合画面、字幕和时间戳理解视频，按问题继续补看。",
       "category": "utility",
       "main": "",
@@ -401,24 +401,24 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "优先获取 1080p 视频，整帧保留至 1920 像素长边；需要读小字时可从原视频局部补看，并标明实际尺寸和裁剪位置。",
+        "changelog": "新增B站平台预览图：按分P与时间区间轻量看图，记录实际采样时间；需要细节时继续读取原视频。",
         "components": [
           "skills",
           "mcp"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "588c5d51fe3394d36fc64018245a0db2f1573054",
+      "ref": "df790f2bc0e4753d2cdf5c0474206cfd54087649",
       "files": [
         {
           "path": "README.md",
-          "size": 10392,
-          "sha256": "84c6c700068f22efc923b90fd3b9e3323e38bcf37b9f41d8c157899850239fd0"
+          "size": 10917,
+          "sha256": "97600e93b2b060197e84e2b2d7b19b3867ba4a212d5fb4c8c8e8625ab1bcb12c"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
-          "size": 1738,
-          "sha256": "ddde73dc0f67dff43d14f320910cb9000f99638ee44372bd29fac7c896110df0"
+          "size": 3212,
+          "sha256": "aa527ccfb5f6db10716be5cc6c296308b10e00cdbb9ba1227cfabd8ba1bbd13f"
         },
         {
           "path": "mcp.json",
@@ -427,8 +427,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 1027,
-          "sha256": "b3d59471e1c6d689f403cfa48e6f38bd6144e87a2e7b08d2d9ea3cdcaee20b26"
+          "size": 1007,
+          "sha256": "39692e014628eac0d29f5646058779e2ad6bb02f32fd5781bb004aa0434ac844"
         },
         {
           "path": "requirements-asr.txt",
@@ -437,13 +437,13 @@
         },
         {
           "path": "requirements-media.txt",
-          "size": 187,
-          "sha256": "59e20a4ecf79f845a50f86054bc91e8d28b2b1e532492f012637200f42966f23"
+          "size": 204,
+          "sha256": "f52bc6a3ccc857b882da70f8381333e546fc8a3f889fc27207246a820199fc80"
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 8540,
-          "sha256": "0df62fef30e67a3a9509511a08f4a0a2b9c27b79bc363eb4772dd20d5855ed94"
+          "size": 9072,
+          "sha256": "9697a4cdcc587956b6b3f254bd2b0f86eb3b44b505a759109c0d2177a1b4d060"
         },
         {
           "path": "tools/common.py",
@@ -457,8 +457,8 @@
         },
         {
           "path": "tools/jobs.py",
-          "size": 16719,
-          "sha256": "8c728da0b195c4988c39fc47ca6a1aea4c352fc4ae6f685f65151359bc1952f1"
+          "size": 16848,
+          "sha256": "5b6edb4286f55e00a5a136d3566b85fb5ebbcac7ce14b589cc125d5e826c4b84"
         },
         {
           "path": "tools/media.py",
@@ -471,9 +471,14 @@
           "sha256": "cfda8cd725c1117f2280833171347d2204b220910fb514e04f5092fd2b312397"
         },
         {
+          "path": "tools/preview.py",
+          "size": 9164,
+          "sha256": "c686a3cf0c0b5cd19985ee5639c04ad38b5487b9494e4c06f6c78c2c1a334584"
+        },
+        {
           "path": "tools/server.py",
-          "size": 10992,
-          "sha256": "a749a775da194362a90731d1b49d0f6352d27f5d42b56e76e291328a1c4ab213"
+          "size": 12070,
+          "sha256": "c3daf8581e457fe078e29b9883a6466f8b0ca5256251aa122517351ded5547db"
         },
         {
           "path": "tools/transcribe.py",
