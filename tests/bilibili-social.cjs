@@ -142,7 +142,7 @@ if (require.main === module) (async () => {
   resume.failModel(false); resume.tick(301); await resume.poll(); assert.equal(resume.posts.length, 1);
   const attempts = resume.agents.filter(r => r.taskId.startsWith("bili-dm-")); assert.equal(attempts[0].taskId, attempts[1].taskId); assert.deepEqual(attempts[0].externalContent, attempts[1].externalContent);
   const discovery = fixture(); discovery.discover(true); discovery.visual(true);
-  await discovery.poll(); assert.equal(discovery.media.length, 1); assert.equal(discovery.media[0].kind, "frames");
+  await discovery.poll(); assert.deepEqual(discovery.media.map(input => input.kind), ["preview", "frames"]);
   assert.ok(discovery.files.has(`channel:notes/${BV}-p1.md`)); assert.equal(discovery.posts.length, 0);
   discovery.tick(); await discovery.poll(); assert.equal(discovery.posts.length, 1, "automatic comment runs after real discovery and reading");
   const comment = discovery.agents.find(r => r.taskId.startsWith("bili-comment-"));

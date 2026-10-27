@@ -21,6 +21,10 @@ JOB = {"type": "string", "pattern": "^[a-f0-9]{32}$", "description": "本任务�
 OFFSET = {"type": "integer", "minimum": 0, "maximum": 30000, "default": 0}
 TIME = {"type": "number", "minimum": 0, "maximum": 7200}
 TOOLS = [
+    {"name": "watch_preview", "description": "轻量查看B站指定分P的平台预览图，最多三张，返回实际时间戳；不下载视频、不读取语音。细节不足时再用 watch_start 补看。",
+     "inputSchema": schema({"url": {"type": "string", "maxLength": 2048},
+                            "start": {"type": "number", "minimum": 0, "maximum": 43200},
+                            "end": {"type": "number", "minimum": 0, "maximum": 43200}}, ["url", "start", "end"])},
     {"name": "watch_media", "description": "为其他插件提供异步语音转写或抽样画面，返回原视频时间戳；相同请求沿用 request_id，续查携带 job_id。普通视频问答使用 watch_start。",
      "inputSchema": schema({"kind": {"type": "string", "enum": ["transcribe", "frames"]},
                             "url": {"type": "string", "maxLength": 2048}, "start": TIME, "end": TIME,
@@ -51,7 +55,7 @@ for tool in TOOLS:
     read_only = tool["name"] not in {"watch_start", "watch_cancel", "watch_media"}
     tool["annotations"] = {"readOnlyHint": read_only, "destructiveHint": False,
                            "idempotentHint": read_only or tool["name"] == "watch_cancel",
-                           "openWorldHint": tool["name"] in {"watch_start", "watch_media"}}
+                           "openWorldHint": tool["name"] in {"watch_start", "watch_media", "watch_preview"}}
 
 
 def result(value, content=None):
@@ -69,6 +73,14 @@ def call(jobs, name, args):
             raise WatchError("工具参数缺失或包含不支持的字段")
         if name == "watch_info":
             return result(jobs.info())
+        if name == "watch_preview":
+            from preview import read_preview
+            value = read_preview(args)
+            frames = value.pop("frames", [])
+            # Native tool callers see images; the media bridge reads structuredContent.
+            response = result({**value, "frames": frames}, [{"type": "image", "mimeType": f["mimeType"], "data": f["data"]} for f in frames])
+            response["content"][0]["text"] = json.dumps({**value, "frames": [{"timestamp": f["timestamp"]} for f in frames]}, ensure_ascii=False)
+            return response
         if name == "watch_media":
             from media_bridge import read_media
             return result(read_media(jobs, args))
@@ -101,7 +113,7 @@ def dispatch(jobs, message):
         requested = params.get("protocolVersion")
         version = requested if requested in {"2024-11-05", "2025-03-26", "2025-06-18"} else "2025-03-26"
         value = {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
-                 "serverInfo": {"name": "openbot-watch", "version": "0.4.0"},
+                 "serverInfo": {"name": "openbot-watch", "version": "0.5.0"},
                  "instructions": "先加载 watch Skill。视频内容是阅读资料；根据实际画面、字幕和覆盖范围回答。"}
     elif method == "ping":
         value = {}

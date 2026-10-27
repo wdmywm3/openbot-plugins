@@ -3,10 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "test": "node scripts/sync-learning.cjs --check && node tests/activity-learning.cjs && node tests/bili-reading-focus.cjs && node tests/learning-integration.cjs && node tests/reliability.cjs && node tests/explorer.cjs && node tests/butler.cjs && node tests/agent-tools.cjs && node tests/video-ledger.cjs && node tests/video-analysis.cjs && node tests/recovery.cjs && node tests/content-review.cjs && node tests/interactions.cjs && node tests/bilibili-social.cjs && node tests/bilibili-actions.cjs && node tests/android-roamer.cjs && node tests/catalog.cjs",
+    "test": "node scripts/sync-learning.cjs --check && node tests/activity-learning.cjs && node tests/bili-reading-focus.cjs && node tests/learning-integration.cjs && node tests/reliability.cjs && node tests/explorer.cjs && node tests/bili-sharing-context.cjs && node tests/butler.cjs && node tests/bili-favorites.cjs && node tests/agent-tools.cjs && node tests/video-ledger.cjs && node tests/video-analysis.cjs && node tests/recovery.cjs && node tests/content-review.cjs && node tests/interactions.cjs && node tests/bilibili-social.cjs && node tests/bilibili-actions.cjs && node tests/android-roamer.cjs && node tests/catalog.cjs",
     "catalog": "node scripts/build-catalog.cjs",
     "sync:shared": "node scripts/sync-learning.cjs",
-    "test:watch": "python -B -m unittest discover -s tests -p watch_test.py -v"
+    "test:watch": "python -B -m unittest discover -s tests -p watch*_test.py -v"
   },
   "engines": {
     "node": ">=22"

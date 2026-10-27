@@ -29,7 +29,7 @@ async function main() {
     env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
   await client.connect(transport, { timeout: 15000 });
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 7);
+  assert.equal(tools.length, 8);
   for (const tool of tools) assert.equal(sanitizeMcpSchema(tool.inputSchema).ok, true, tool.name);
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const info = await call("watch_info");
@@ -73,7 +73,7 @@ async function main() {
   const consumer = readPluginPackage(path.resolve(__dirname, "../plugins/bilibili-explorer")).manifest;
   assert.equal(consumer.name, "B站小管家");
   const entry = { id: "fixture", channelId: "bot", pluginId: "watch", pluginServer: "watch", pluginOwnerKey: "fixture-owner", mcpType: "stdio", enabled: true };
-  const mediaService = createPluginMediaService({ entries: () => [entry], allowedTools: async () => ["mcp__fixture__watch_media"],
+  const mediaService = createPluginMediaService({ entries: () => [entry], allowedTools: async () => ["mcp__fixture__watch_media", "mcp__fixture__watch_preview"],
     request: async (_id, _method, params) => client.callTool({ ...params, arguments: { ...params.arguments, url: imported.source } }) });
   const f = fixture({ captions: false, duration: 6 });
   const receipts = [];
@@ -96,7 +96,7 @@ async function main() {
   assert.equal(mediaResult({ structuredContent: completed }).source, "Watch 抽样画面");
   const denied = await call("watch_start", { source: video });
   assert.equal(denied.isError, true);
-  console.log("Watch host integration: package discovery, seven validated schemas, MCP client, native images and host image forwarding passed");
+  console.log("Watch host integration: package discovery, eight validated schemas, MCP client, native images and host image forwarding passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

@@ -6,6 +6,10 @@ const ref = process.argv[2] || execFileSync("git", ["rev-parse", "HEAD"], { cwd:
 if (!/^[a-f0-9]{40}$/.test(ref)) throw new Error("Use a committed Git SHA");
 const filesAtRef = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", "plugins"], { cwd: root, encoding: "utf8" }).trim().split("\n");
 const read = file => execFileSync("git", ["show", `${ref}:${file}`], { cwd: root });
+// An unchanged package keeps its immutable source reference, so publishing one
+// plugin does not make every other installed plugin look like a reinstall.
+let previous = new Map();
+try { previous = new Map(JSON.parse(fs.readFileSync(path.join(root, "catalog.json"), "utf8")).plugins.map(entry => [entry.id, entry])); } catch {}
 const plugins = filesAtRef.filter(file => /^plugins\/[^/]+\/plugin.json$/.test(file)).map(file => {
   const raw = JSON.parse(read(file));
   const ext = raw.extensions?.["com.openbot"] || {};
@@ -25,6 +29,10 @@ const plugins = filesAtRef.filter(file => /^plugins\/[^/]+\/plugin.json$/.test(f
       const bytes = read(item);
       return { path: item.slice(base.length), size: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex") };
     }) };
+}).map(entry => {
+  const old = previous.get(entry.id);
+  if (old?.version === entry.version && /^[a-f0-9]{40}$/.test(old.ref) && JSON.stringify(old.files) === JSON.stringify(entry.files)) entry.ref = old.ref;
+  return entry;
 });
 fs.writeFileSync(path.join(root, "catalog.json"), JSON.stringify({ schemaVersion: 1, plugins }, null, 2) + "\n");
 console.log(`Catalog contains ${plugins.length} plugins pinned to ${ref}`);

@@ -133,7 +133,8 @@ class Jobs:
 
     def info(self):
         model = self.settings.get("asr_model_path")
-        return {"version": "0.4.0", "dependencies": dependencies(),
+        return {"version": "0.5.0", "dependencies": dependencies(),
+                "preview": {"available": importlib.util.find_spec("PIL") is not None, "sources": ["Bilibili"], "max_frames": 3},
                 "download_runtime": {"python_package": importlib.util.find_spec("yt_dlp") is not None,
                                      "youtube_ejs": importlib.util.find_spec("yt_dlp_ejs") is not None,
                                      "deno": bool(shutil.which("deno"))},

@@ -33,6 +33,7 @@ function fixture() {
           assert.equal(q.get("bvid"), "BV1234567890");
           return { code: 0, data: tags };
         }
+        if (p.endsWith("/resource/ids")) return { code: 0, data: [...memberships.get(q.get("media_id"))].map(id => ({ id, type: 2, bvid: "BV1234567890" })) };
         if (p.endsWith("/resource/list")) return { code: 0, data: { has_more: false, medias: [...memberships.get(q.get("media_id"))].map(id => ({
           id, bvid: "BV1234567890", type: 2, title: "天文入门", intro: "宇宙", upper: { name: "科普" },
         })) } };

@@ -601,7 +601,7 @@ class RealMediaTests(unittest.TestCase):
         try:
             self.assertEqual(rpc("initialize", {"protocolVersion": "2025-03-26", "clientInfo": {"name": "test", "version": "1"}, "capabilities": {}})["protocolVersion"], "2025-03-26")
             names = {tool["name"] for tool in rpc("tools/list")["tools"]}
-            self.assertEqual(len(names), 7)
+            self.assertEqual(len(names), 8)
             self.assertNotIn("shell", names)
             start = rpc("tools/call", {"name": "watch_start", "arguments": {"source": self.source, "frame_count": 6, "sampling": "uniform"}})
             self.assertFalse(start["isError"], start)

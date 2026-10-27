@@ -42,8 +42,8 @@ const focusedJob=f=>[...f.state.values()].find(value=>value?.bvid===BV&&value.st
  assert.ok(JSON.stringify(fallback.models[0].externalContent).includes('这是实际逐句文字'));assert.ok(!JSON.stringify(fallback.models).includes('不能把这句话当字幕'));
  content=(await fallbackDb({name:'bilibili-history',scope:'channel',action:'get',collection:'contents',key:`${BV}:p:1`})).record.value;
  assert.deepEqual(content.coverage.map(row=>[row.start,row.end]),[[10,20]],'unknown end times add no invented coverage');
- const summaryOnly=fixture({captions:false});summaryOnly.ctx.config.browseUid='2';summaryOnly.ctx.api.getSecret=fallback.ctx.api.getSecret;
+ const summaryOnly=fixture({captions:false,decisions:{visual:{needAudio:true}}});summaryOnly.ctx.config.browseUid='2';summaryOnly.ctx.api.getSecret=fallback.ctx.api.getSecret;
  const raw=summaryOnly.ctx.api.fetchJson;summaryOnly.ctx.api.fetchJson=async(url,options)=>url.includes('/conclusion/get')?{code:0,data:{model_result:{summary:'only summary'}}}:url.includes('/nav')?{code:0,data:{isLogin:true,mid:2,wbi_img:images}}:url.includes('/view?')?{code:0,data:{title:'测试',owner:{mid:3},pages:[{cid:1,duration:40}]}}:raw(url,options);
- await analyze(summaryOnly);assert.equal(summaryOnly.media[0].kind,'transcribe','summary-only fallback still needs actual speech');
+ await analyze(summaryOnly);assert.ok(summaryOnly.media.some(input=>input.kind==='transcribe'),'a speech-dependent question still needs actual speech after preview');
  console.log('Bili reading: actual caption intervals, WBI vector, text fallback, no summary-as-transcript, focused checkpoints and early completion passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
