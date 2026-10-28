@@ -1,6 +1,6 @@
 # Watch 视频阅读
 
-Watch 0.5.0 将视频读取做成一个插件包：Skill 指导阅读，工具负责预览、视频下载、画面提取、字幕读取、补看与取消，`watch_media` 为其他插件提供异步媒体读取。它使用 OpenBot 的 Skill 与 MCP 接口，业务逻辑和校验全部在本包内。适用于启用此插件的群聊、私聊和任务，不需要给聊天开放 Shell。
+Watch 0.6.0 将视频读取做成一个插件包：Skill 指导阅读，工具负责预览、视频下载、画面提取、字幕读取、补看与取消，`watch_media` 为其他插件提供异步媒体读取。它使用 OpenBot 的 Skill 与 MCP 接口，业务逻辑和校验全部在本包内。适用于启用此插件的群聊、私聊和任务，不需要给聊天开放 Shell。
 
 `watch_preview` 直接读取B站指定分P的平台预览拼图，最多返回三张低清画面，不下载或解码视频。需要 Pillow（已列入 requirements-media.txt）；返回实际采样时间与请求时间。它适合初筛题材和风格，具体过程、小字或语音仍需按问题补读。预览不可用时返回 unavailable，由调用方决定是否读取原视频。B站小管家 1.12.0 默认绑定此预览工具，需要支持 `preview` 媒体能力的 OpenBot；旧版宿主继续原视频阅读路径。
 
@@ -10,11 +10,11 @@ B站小管家 1.9.0 默认通过 `watch_media` 补读语音和画面。两者在
 
 ## 安装和运行
 
-1. 安装 Python 3.10+ 和 FFmpeg（包含 ffprobe），确保可被 OpenBot 启动。下载依赖安装到运行本插件的 Python 环境；建议使用独立虚拟环境，并在插件的 MCP 连接配置中选择该解释器。YouTube 还需在 PATH 中提供 Deno。
-2. 在 OpenBot 的扩展管理中导入本目录的 `plugin.json`，在目标实例和会话启用插件，并允许角色使用 Skill 与该插件的 MCP 工具。查看画面需要支持图片的模型。
+1. 使用支持依赖安装的新版本 OpenBot。安装弹窗会使用自带 Python 和 uv，按 requirements-media.lock 准备独立环境，并下载 FFmpeg/ffprobe 与 Deno；无需手动安装 Python 或修改系统 PATH。旧版宿主仍需自行准备这些依赖。
+2. 在 OpenBot 的插件管理中导入本目录或从市场安装，在插件详情打开运行开关；再在目标实例或主人私聊中允许暴露插件工具。安装完成和启动状态分别以实际结果为准，查看画面需要支持图片的模型。
 3. 向 Bot 提供视频链接和问题。`watch_info` 可检查依赖；不要用执行脚本代替缺失的工具权限。
 
-从插件目录安装下载依赖：
+手动部署到其他宿主时，可从插件目录安装下载依赖：
 
 ```powershell
 python -m pip install -r requirements-media.txt

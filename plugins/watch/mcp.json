@@ -3,9 +3,27 @@
     "watch": {
       "type": "stdio",
       "command": "python",
-      "args": ["-B", "-u", "${PLUGIN_ROOT}/tools/server.py", "--data-dir", "${PLUGIN_DATA}"],
-      "env": { "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1" },
-      "enabled_tools": ["watch_info", "watch_start", "watch_status", "watch_frames", "watch_transcript", "watch_cancel", "watch_media"]
+      "args": [
+        "-B",
+        "-u",
+        "${PLUGIN_ROOT}/tools/server.py",
+        "--data-dir",
+        "${PLUGIN_DATA}"
+      ],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "enabled_tools": [
+        "watch_preview",
+        "watch_info",
+        "watch_start",
+        "watch_status",
+        "watch_frames",
+        "watch_transcript",
+        "watch_cancel",
+        "watch_media"
+      ]
     }
   }
 }

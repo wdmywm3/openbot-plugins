@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "结合画面、字幕和时间戳理解视频，按问题继续补看。",
   "extensions": {
     "com.openbot": {
@@ -11,11 +11,21 @@
       "metadata": {
         "usage": "在启用插件的会话或任务中提供 B 站、YouTube 视频链接，或主动导入本地视频后交给 Bot 阅读。",
         "requirements": [
-          "Python 3.10 或更新版本、ffmpeg、ffprobe，以及 requirements-media.txt 中的下载依赖",
+          "由 OpenBot 自动准备 Python、FFmpeg 和视频下载依赖；需要支持依赖安装的 OpenBot 版本",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "新增B站平台预览图：按分P与时间区间轻量看图，记录实际采样时间；需要细节时继续读取原视频。"
+        "changelog": "声明独立运行环境与锁定依赖，由 OpenBot 安装时自动准备；补齐平台预览工具授权。"
+      },
+      "dependencies": {
+        "python": {
+          "version": "3.12",
+          "requirements": "requirements-media.lock"
+        },
+        "tools": [
+          "ffmpeg",
+          "deno"
+        ]
       }
     }
   }

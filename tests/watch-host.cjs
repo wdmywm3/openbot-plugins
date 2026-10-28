@@ -23,7 +23,7 @@ async function main() {
   assert.deepEqual(pkg.skills.map(s => s.name), ["watch:watch"]);
   assert.equal(pkg.mcpServers.length, 1);
   const video = path.join(work, "fixture.mp4");
-  execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=4:duration=6", "-c:v", "libx264", video], { windowsHide: true, timeout: 30000 });
+  execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=4:duration=6", "-c:v", "mpeg4", video], { windowsHide: true, timeout: 30000 });
   const imported = JSON.parse(execFileSync(python, ["-B", path.join(plugin, "tools/server.py"), "--data-dir", data, "--import-file", video], { encoding: "utf8", windowsHide: true }));
   const transport = new StdioClientTransport({ command: python, args: pkg.mcpServers[0].args.map(v => v.replaceAll("${PLUGIN_ROOT}", plugin).replaceAll("${PLUGIN_DATA}", data)),
     env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
