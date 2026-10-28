@@ -1,5 +1,11 @@
 # OpenBot 插件
 
+## 梗百科
+
+查询网络梗、缩写和自定义黑话，提供本地 6668 条词库、图片卡片、自动查词和增量更新。
+
+原作者：[in1t1a1](https://github.com/in1t1a1/astrbot_plugin_memewiki)。[安装与使用](plugins/memewiki/README.md)，[下载 0.1.0](https://github.com/wdmywm3/openbot-plugins/releases/tag/memewiki-v0.1.0)。需要支持 50 MiB 插件包和新版市场目录的 OpenBot。
+
 ## B站小管家
 
 根据兴趣浏览 B 站，阅读视频、保存笔记，并把适合当前聊天的内容分享给群友。支持扫描收藏夹、生成分类方案，预览后再整理收藏。

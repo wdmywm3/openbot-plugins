@@ -1,0 +1,381 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "memewiki",
+  "version": "0.1.0",
+  "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "梗百科",
+      "category": "utility",
+      "apiVersion": 1,
+      "main": "index.js",
+      "commandPrefixes": [
+        "/"
+      ],
+      "permissions": [
+        "reply",
+        "state",
+        "mcp",
+        "conversation",
+        "hook:beforeMessage",
+        "hook:beforeModel",
+        "prompt:system"
+      ],
+      "dependencies": {
+        "python": {
+          "version": "3.12",
+          "requirements": "requirements.lock"
+        }
+      },
+      "commands": [
+        {
+          "name": "梗",
+          "description": "查词语含义与出处",
+          "scope": "all",
+          "permission": "member"
+        },
+        {
+          "name": "黑话",
+          "description": "管理当前聊天的黑话",
+          "scope": "all",
+          "permission": "member"
+        },
+        {
+          "name": "网搜",
+          "description": "设置当前聊天的查梗搜索模式",
+          "scope": "all",
+          "permission": "member"
+        }
+      ],
+      "tools": [
+        {
+          "name": "search_meme_wiki",
+          "export": "search",
+          "description": "查询网络梗、缩写、流行语和当前聊天的黑话；返回含义、用法和来源，未收录时明确告知。",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "hooks": [
+        {
+          "type": "beforeMessage",
+          "export": "beforeMessage"
+        },
+        {
+          "type": "beforeModel",
+          "export": "beforeModel"
+        }
+      ],
+      "background": {
+        "export": "poll",
+        "intervalSeconds": 60
+      },
+      "config": {
+        "replyMode": "image",
+        "online": true,
+        "preload": true,
+        "injectGuidance": true,
+        "searchMode": "auto",
+        "maxQueryChars": 10,
+        "guidance": "",
+        "searchServerId": "",
+        "searchTool": "",
+        "searchArgument": "query",
+        "autoSync": false,
+        "syncHour": 4
+      },
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "replyMode": {
+            "type": "string",
+            "title": "查询回复",
+            "enum": [
+              "image",
+              "text"
+            ],
+            "default": "image",
+            "ui": {
+              "enumLabels": [
+                "图片卡片",
+                "文字"
+              ]
+            }
+          },
+          "online": {
+            "type": "boolean",
+            "title": "在线补查",
+            "default": true
+          },
+          "preload": {
+            "type": "boolean",
+            "title": "聊天时自动查词",
+            "default": true
+          },
+          "injectGuidance": {
+            "type": "boolean",
+            "title": "提供接梗指引",
+            "default": true
+          },
+          "searchMode": {
+            "type": "string",
+            "title": "查梗搜索模式",
+            "enum": [
+              "auto",
+              "plugin",
+              "model",
+              "off"
+            ],
+            "default": "auto",
+            "ui": {
+              "enumLabels": [
+                "自动补查",
+                "仅插件补查",
+                "交给模型搜索",
+                "仅本地词库"
+              ]
+            }
+          },
+          "maxQueryChars": {
+            "type": "integer",
+            "title": "自动识别的短词长度",
+            "minimum": 2,
+            "maximum": 20,
+            "default": 10,
+            "ui": {
+              "advanced": true
+            }
+          },
+          "guidance": {
+            "type": "string",
+            "title": "自定义接梗指引",
+            "maxLength": 3500,
+            "default": "",
+            "ui": {
+              "widget": "multiline",
+              "advanced": true
+            }
+          },
+          "searchServerId": {
+            "type": "string",
+            "title": "搜索 MCP 服务 ID",
+            "default": "",
+            "maxLength": 160,
+            "ui": {
+              "advanced": true
+            }
+          },
+          "searchTool": {
+            "type": "string",
+            "title": "搜索工具名称",
+            "default": "",
+            "maxLength": 128,
+            "ui": {
+              "advanced": true
+            }
+          },
+          "searchArgument": {
+            "type": "string",
+            "title": "搜索词参数名",
+            "default": "query",
+            "maxLength": 64,
+            "ui": {
+              "advanced": true
+            }
+          },
+          "autoSync": {
+            "type": "boolean",
+            "title": "每天更新词库",
+            "default": false,
+            "scope": "instance"
+          },
+          "syncHour": {
+            "type": "integer",
+            "title": "更新时间（本地小时）",
+            "minimum": 0,
+            "maximum": 23,
+            "default": 4,
+            "scope": "instance",
+            "ui": {
+              "when": {
+                "field": "autoSync",
+                "equals": true
+              }
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "actions": [
+        {
+          "id": "list_terms",
+          "title": "读取黑话",
+          "kind": "native",
+          "export": "listTerms",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "cursor": {
+                "type": "string",
+                "maxLength": 2048
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "id": "save_term",
+          "title": "保存黑话",
+          "kind": "native",
+          "export": "saveTerm",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "meaning": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "name",
+              "meaning",
+              "revision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "id": "delete_term",
+          "title": "删除黑话",
+          "kind": "native",
+          "export": "deleteTerm",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "name",
+              "revision"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "id": "sync",
+          "title": "更新词库",
+          "kind": "native",
+          "export": "requestSync",
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "resultTemplate": "{text}"
+        },
+        {
+          "id": "sync_status",
+          "title": "更新进度",
+          "kind": "native",
+          "export": "syncStatus",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "replyMode",
+              "online",
+              "preload",
+              "injectGuidance",
+              "searchMode",
+              "maxQueryChars",
+              "guidance",
+              "searchServerId",
+              "searchTool",
+              "searchArgument",
+              "autoSync",
+              "syncHour"
+            ],
+            "widgets": [
+              {
+                "type": "action",
+                "action": "sync"
+              }
+            ]
+          }
+        ],
+        "views": [
+          {
+            "id": "terms",
+            "title": "自定义黑话",
+            "entry": "ui/terms.html",
+            "actions": [
+              "list_terms",
+              "save_term",
+              "delete_term"
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
+          "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
+        ],
+        "usage": "/梗 词语；/黑话 名称 含义；/黑话 列表；/黑话 删除 名称；/网搜 状态",
+        "changelog": "0.1.0：6668 条本地词库、图片卡片、自定义黑话、自动查词与增量更新。原插件作者：in1t1a1（https://github.com/in1t1a1/astrbot_plugin_memewiki）。词库快照取自 Liujelly/dsh-memewiki，词条来源 cnmeme.wiki，保留 MIT 许可。"
+      }
+    }
+  }
+}
