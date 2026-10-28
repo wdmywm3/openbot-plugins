@@ -1,0 +1,60 @@
+# 梗百科
+
+原插件作者：[in1t1a1](https://github.com/in1t1a1)，原项目：[astrbot_plugin_memewiki](https://github.com/in1t1a1/astrbot_plugin_memewiki)。本目录为 OpenBot 移植版，保留原作者及词库来源的许可声明。
+
+OpenBot 插件，提供本地梗词库查询、图片卡片、在线补查和自定义黑话。随包词库包含 6668 条记录，查询时无需联网；联网取得的新词条单独保存。
+
+## 安装
+
+1. 使用已支持 **50 MiB 插件包上限**、Python 依赖和会话事件接口的 OpenBot。
+2. 在「插件市场 → 从本地导入」选择本目录。OpenBot 会准备 Python 3.12 和锁定版本的 Pillow；首次准备依赖需要联网。
+3. 审阅并授权插件，在需要的实例中启用。角色及聊天的任务工具权限须允许本插件的 `dictionary` MCP 服务。
+
+本插件收录在 `catalog-v2.json` 市场目录中。已切换至新版目录的 OpenBot 可直接从市场安装；旧版目录保留供旧客户端使用。也可下载 [memewiki-v0.1.0 发布包](https://github.com/wdmywm3/openbot-plugins/releases/tag/memewiki-v0.1.0)，解压后从本地导入。
+
+安装后可先发送 `/梗 大水理论` 检查词库与图片回复。此版本完成了离线、在线接口、宿主工作进程及管理页测试，尚未完成真实 QQ 账号的收发验收。
+
+## 使用
+
+| 输入 | 效果 |
+| --- | --- |
+| `/梗 大水理论` | 返回词条图片和来源链接；可在设置中切换为文字 |
+| `/黑话 蓝鲸 今天一起开黑` | 为当前聊天添加黑话 |
+| `/黑话 列表`、`/黑话 列表 2` | 分页查看当前聊天的黑话 |
+| `/黑话 删除 蓝鲸` | 管理员删除当前聊天的词条 |
+| `/网搜 状态` | 查看当前聊天的查梗搜索模式 |
+| `/网搜 auto`、`plugin`、`model`、`off` | 管理员设置搜索方式 |
+
+普通成员可以新增词条；修改已有词条、删除词条及调整搜索模式需要实例主人或当前群管理员权限。插件管理页的「自定义黑话」维护实例共用词条，聊天内的同名词条优先。不同实例及不同聊天的数据分开保存。
+
+模型可通过插件工具 `search_meme_wiki` 查询。自动查词对短词先查本地；明确询问「什么梗／什么意思」时才按设置联网补查。查到的资料通过当前聊天的会话事件补充给模型，不额外发送消息。查询失败时继续正常聊天。
+
+`auto` 和 `plugin` 模式允许插件在线补查；`model` 仅向模型提供继续搜索的建议；`off` 仅查本地。关闭「在线补查」会停止插件主动联网查询。未配置额外搜索服务时，在线补查只访问 cnmeme.wiki。
+
+需要通用网页搜索时，在更多设置中填写已授权的 MCP 服务 ID、工具名和查询参数名。模型自行搜索仍受当前聊天的工具权限限制。不会读取 AstrBot 的搜索配置或凭据。
+
+## 词库更新与数据
+
+「更新词库」安排后台增量检查。也可以开启每天更新；任务在实例连接期间每分钟继续处理一页，发现新词时每次最多获取两条详情，失败后五分钟重试。停止实例后暂停，重新连接后继续。
+
+包内 `data/memes.db` 始终只读。联网缓存与增量词条存放在 OpenBot 为本插件提供的 MCP 数据目录；黑话和聊天设置通过 OpenBot 的插件数据接口保存。更新插件不会覆盖这些数据。
+
+图片卡片使用 Pillow 和中文字体；Windows 默认使用微软雅黑。没有可用中文字体或图片生成失败时，自动返回文字。NapCat 与官方 QQ Bot 共用标准图片消息格式，实际账号发送仍需分别验收。
+
+## 来源与迁移范围
+
+功能参考 [astrbot_plugin_memewiki](https://github.com/in1t1a1/astrbot_plugin_memewiki)。原仓库在本次迁移时无法直接下载，因此词库取自 [Liujelly/dsh-memewiki](https://github.com/Liujelly/dsh-memewiki/tree/1d3f8266468823fe85290a016eadf3b8d1262de3)，固定提交及 SHA-256 见 `data/snapshot.json`。词条来源为 [cnmeme.wiki](https://cnmeme.wiki)。保留了该来源仓库的 MIT 许可声明。
+
+OpenBot 接入、MCP 服务与卡片渲染在本包内实现，不依赖 AstrBot、DSH 或它们的数据目录。原版的独立模型闸门没有照搬：当前版本使用规则控制预查范围，不额外发起模型判定请求。
+
+## 开发验证
+
+从插件仓库根目录运行；Python 环境需要安装 `requirements.lock` 中的 Pillow。
+
+```powershell
+python -X utf8 -B -m unittest discover -s tests -p memewiki_test.py -v
+$env:MEMEWIKI_TEST_PYTHON = '你的 Python 路径'
+node tests/memewiki-host.cjs D:\Desktop\openbot
+```
+
+测试覆盖本地查询、在线结果解析与缓存、增量恢复、PNG、真实 MCP 与宿主工作进程、聊天隔离、管理操作版本冲突、预查失败，以及管理页增删改和窄屏布局。

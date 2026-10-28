@@ -62,9 +62,11 @@ Windows GPU 环境可在同一虚拟环境安装 `nvidia-cublas-cu12`、`nvidia-
 
 外部 MCP 的网络请求不经过宿主的网站队列。本参考服务单线程处理，yt-dlp 设置随机请求间隔、关闭自动重试；其他服务需要自行配置访问频率。
 
-## 通用接口
+## 插件的媒体协议
 
-其他插件声明 `media` 权限后也可调用 `ctx.api.media({kind,url,start,end,requestId,jobId?})`，使用同样的 `mediaServices` 配置。工具结果是 MCP `structuredContent` 或 JSON 文本，支持：
+1.14.0 起，本插件声明 `mcp` 权限，通过宿主的 `ctx.api.callTool({serverId,name,arguments})` 或 `{pluginId,pluginServer,name,arguments}` 调用服务。原有 `mediaServices` 配置和 Watch 默认绑定保留；参数映射、时间范围、异步任务编号、帧和备份凭据都由本插件解析、校验和恢复。宿主只提供通用调用、授权、取消和总量限制。`ctx.plugin.namespace` 与 `scopeNamespace` 分别用于实例内插件数据和当前聊天的任务隔离。
+
+兼容旧宿主时仍可使用 `ctx.api.media`，其结果同样经过插件校验；新宿主不再代做媒体业务校验。其他插件应使用通用工具接口，自行定义自己的提供方协议。这里的 B 站媒体协议接受 MCP `structuredContent` 或 JSON 文本：
 
 ```json
 {"status":"queued","jobId":"稳定任务编号"}
@@ -74,7 +76,7 @@ Windows GPU 环境可在同一虚拟环境安装 `nvidia-cublas-cu12`、`nvidia-
 {"status":"completed","segments":[{"start":300,"end":305,"text":"这一段讲话"}],"language":"zh"}
 ```
 
-画面可以返回 `observations:[{start,end,text}]`，或 `frames:[{timestamp,mimeType,data}]`，其中 data 是图片 base64；最多十二张、总编码不超过 16 MB。所有时间都是原视频的绝对秒数，不能把截取片段重新从零计时。失败返回 `status:failed,error`；未配置能力返回 `status:unavailable,reason`。只返回本地文件路径的 MCP 需要增加适配，不能直接当成视频内容。
+画面可以返回 `observations:[{start,end,text}]`，或 `frames:[{timestamp,mimeType,data}]`，其中 data 是图片 base64；最多十二张、总编码不超过 16 MB。所有时间都是原视频的绝对秒数，不能把截取片段重新从零计时。失败返回 `status:failed,error`；未配置能力返回 `status:unavailable,reason`。只返回本地文件路径的 MCP 需要增加适配，不能直接当成视频内容。传给 Agent 时，本插件将通过校验的帧转为通用 `attachments`，自行填写时间戳说明。
 
 本地服务离线测试：`python -B -m unittest discover -s tests -p test_media_mcp.py -v`。插件流程测试：`npm test`。这些测试不下载模型、不访问真实视频，也不代表已通过 GPU 或真实 B 站转写验收。
 

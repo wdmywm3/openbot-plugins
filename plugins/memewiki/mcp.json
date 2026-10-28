@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "dictionary": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-B",
+        "-u",
+        "${PLUGIN_ROOT}/tools/server.py",
+        "--data-dir",
+        "${PLUGIN_DATA}"
+      ],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "enabled_tools": [
+        "memewiki_lookup",
+        "memewiki_card",
+        "memewiki_sync_step",
+        "memewiki_info"
+      ]
+    }
+  }
+}

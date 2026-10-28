@@ -68,19 +68,26 @@ async function main() {
   assert.equal(normalizeExternalMcpResult(detail, text => text, "watch-crop-test").userContextBlocks.filter(b => b.type === "image_url").length, 1);
   // Real plugin -> generic host binding -> Watch MCP -> real extracted frames.
   // Only the transport's source is replaced with our explicitly imported fixture.
-  const { createPluginMediaService, mediaResult } = hostRequire("./electron/lib/features/channels/channel-plugin-media-service.cjs");
+  const { createPluginToolService } = hostRequire("./electron/lib/plugins/plugin-tools.cjs");
   const { fixture } = require("./video-analysis.cjs");
   const consumer = readPluginPackage(path.resolve(__dirname, "../plugins/bilibili-explorer")).manifest;
   assert.equal(consumer.name, "B站小管家");
   const entry = { id: "fixture", channelId: "bot", pluginId: "watch", pluginServer: "watch", pluginOwnerKey: "fixture-owner", mcpType: "stdio", enabled: true };
-  const mediaService = createPluginMediaService({ entries: () => [entry], allowedTools: async () => ["mcp__fixture__watch_media", "mcp__fixture__watch_preview"],
-    request: async (_id, _method, params) => client.callTool({ ...params, arguments: { ...params.arguments, url: imported.source } }) });
+  const mediaService = createPluginToolService({ entries: () => [entry], allowedTools: async () => ["mcp__fixture__watch_media", "mcp__fixture__watch_preview"],
+    request: async (_id, method, params) => method === "tools/list" ? client.listTools()
+      : client.callTool({ ...params, arguments: { ...params.arguments, url: imported.source } }) });
   const f = fixture({ captions: false, duration: 6 });
+  const { createHash } = require("node:crypto");
+  f.ctx.config.mediaServices = structuredClone(consumer.configSchema.properties.mediaServices.default);
+  f.ctx.plugin = { id: consumer.id,
+    namespace: createHash("sha256").update(`bot:${consumer.id}`).digest("hex"),
+    scopeNamespace: createHash("sha256").update(JSON.stringify(["bot", consumer.id, f.ctx.message.chatId])).digest("hex") };
   const receipts = [];
-  f.ctx.api.media = async input => {
-    const result = await mediaService({ channel: { id: "bot" }, plugin: { ...consumer, config: {} },
-      principal: { chatId: "agent:plugin:bilibili-explorer" }, input, signal: new AbortController().signal, assertActive() {} });
-    receipts.push({ input, result }); return result;
+  f.ctx.api.callTool = async input => {
+    const result = await mediaService.call({ channel: { id: "bot" },
+      principal: { source: "channel", channelId: "bot", chatId: f.ctx.message.chatId, senderId: "1", role: "member" },
+      input, signal: new AbortController().signal, assertActive() {} });
+    receipts.push({ input: input.arguments, result: result.structuredContent }); return result;
   };
   const readingDeadline = Date.now() + 45000;
   while (Date.now() < readingDeadline && f.job()?.stage !== "completed") {
@@ -89,11 +96,11 @@ async function main() {
   assert.equal(f.job()?.stage, "completed", JSON.stringify(f.job()));
   assert.ok(receipts.some(row => ["queued", "running"].includes(row.result.status)));
   assert.ok(receipts.some(row => row.input.kind === "frames" && row.result.frames?.length));
-  assert.ok(f.models.some(request => request.frames?.length), "actual Watch images reach the summarizing model");
+  assert.ok(f.models.some(request => request.attachments?.length), "actual Watch images reach the summarizing model");
   assert.match(f.job().summary, /Watch 抽样画面/);
   assert.match(f.job().summary, /待核对/);
   const completed = receipts.find(row => row.result.frames?.length).result;
-  assert.equal(mediaResult({ structuredContent: completed }).source, "Watch 抽样画面");
+  assert.equal(completed.source, "Watch 抽样画面");
   const denied = await call("watch_start", { source: video });
   assert.equal(denied.isError, true);
   console.log("Watch host integration: package discovery, eight validated schemas, MCP client, native images and host image forwarding passed");

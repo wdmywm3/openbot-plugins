@@ -58,7 +58,7 @@ if (require.main === module) (async () => {
   const visual = fixture({ decision: { needVisual: true, reason: "演示需要画面" } });
   assert.match(await visual.invoke(), /抽样画面/);
   assert.deepEqual(visual.media.map(input => input.kind), ["preview", "frames"]);
-  assert.equal(visual.models.at(-1).frames.length, 1);
+  assert.equal(visual.models.at(-1).frames.length, 1, "legacy host calls retain their image input");
   const broken = fixture({ decision: { needAudio: true, reason: "字幕不完整" } });
   await broken.invoke(); assert.equal(broken.media[0].kind, "transcribe");
   const absent = fixture({ captions: false, unavailable: true });

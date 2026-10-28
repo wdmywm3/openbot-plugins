@@ -1,6 +1,20 @@
 name: Check plugins
 on: [push, pull_request]
 jobs:
+  memewiki:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dictionary card runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          python -m pip install --require-hashes -r plugins/memewiki/requirements.lock
+      - name: Check dictionary, updates and PNG cards
+        run: python -X utf8 -B -m unittest discover -s tests -p 'memewiki_test.py' -v
   test:
     runs-on: ubuntu-latest
     steps:

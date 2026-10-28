@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -10,12 +10,14 @@
       "permissions": [
         "agent",
         "state",
+        "conversation",
         "push",
         "reply",
         "network",
         "secret",
         "share",
         "media",
+        "mcp",
         "browser",
         "browser:write",
         "hook:context"
@@ -1905,7 +1907,7 @@
         ]
       },
       "metadata": {
-        "changelog": "增加收藏夹搜索、精简编号核对、可预览和撤销的夹内排序，以及重启后保留的风控暂停。保留按内容选择字幕、平台预览和必要音画补读，以及参考当前聊天近期正文的分享。"
+        "changelog": "媒体服务改用通用 MCP 工具调用，时间戳、画面、任务回执和备份凭据由插件校验；保留已有服务绑定及旧宿主调用兼容。延续收藏夹搜索、可预览和撤销的夹内排序及重启后保留的请求暂停。"
       }
     }
   }
