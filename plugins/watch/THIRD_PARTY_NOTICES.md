@@ -64,3 +64,45 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## dsh-video-storyboard — SAOS-3624
+
+感谢 SAOS-3624 开源 dsh-video-storyboard。
+
+The density-integral allocation and Laplacian sharpness ranking in
+`tools/storyboard.py` are adapted from `src/density.js` and `src/sheet.js` of
+SAOS-3624/dsh-video-storyboard, commit
+`e32f9f66b61b7ac579481f6ddf458cc8b00d3bbe` (version 0.4.4).
+The numbered overview, time-aligned transcript and cell-based rereading design
+also draw on that project. Watch implements its own Python/MCP interfaces,
+FFmpeg scene-score and actual-PTS handling, bounded candidate extraction,
+per-job immutable cell addressing, image composition, validation and lifecycle.
+
+Source: https://github.com/SAOS-3624/dsh-video-storyboard
+Author: https://github.com/SAOS-3624
+
+The upstream source code is MIT-licensed. Its NOTICE excludes documentation
+images from that grant. No upstream demonstration images, video footage,
+model weights, DSH runtime, configuration or credentials are redistributed.
+
+MIT License
+
+Copyright (c) 2026 SAOS-3624
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

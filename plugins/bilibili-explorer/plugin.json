@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
       "main": "./index.js",
-      "category": "automation",
+      "category": "subscription",
       "permissions": [
         "agent",
         "state",
@@ -34,7 +34,6 @@
           "type": "context",
           "export": "context",
           "tools": [
-            "channelPlugin",
             "useSkill"
           ],
           "scope": "all",
@@ -1907,7 +1906,7 @@
         ]
       },
       "metadata": {
-        "changelog": "媒体服务改用通用 MCP 工具调用，时间戳、画面、任务回执和备份凭据由插件校验；保留已有服务绑定及旧宿主调用兼容。延续收藏夹搜索、可预览和撤销的夹内排序及重启后保留的请求暂停。"
+        "changelog": "修复原生插件工具启用时的笔记与浏览能力提示，更新工具调用说明；调整市场分类。"
       }
     }
   }

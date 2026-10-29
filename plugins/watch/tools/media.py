@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import tempfile
 from urllib.error import HTTPError
 from urllib.parse import urljoin
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -21,6 +22,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from common import (Cancelled, DOWNLOAD_FORMAT, DOWNLOAD_SORT, MAX_DURATION, MAX_FRAME_EDGE,
                     MAX_MEDIA, MAX_WINDOW, PREFERRED_RESOLUTION, WatchError,
                     canonical_source, contained, downloader_command, read_json, write_json)
+import storyboard
 
 TIMESTAMP = re.compile(r"pts_time:([^\s]+)")
 FRAME_SIZE = re.compile(r"\bs:(\d+)x(\d+)\b")
@@ -237,11 +239,78 @@ def even_sample(values, count):
 
 
 def scene_times(video, start, end, runner):
-    _, stderr = runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "info", "-ss", str(start), "-t", str(end - start),
-                            *LOCAL_INPUT, "-i", str(video), "-an",
-                            "-vf", "scale=320:-2,select='gt(scene,0.2)',showinfo", "-fps_mode", "vfr", "-f", "null", "-"], 120)
-    times = [start + float(s) for s in TIMESTAMP.findall(stderr)]
-    return sorted({round(t, 6) for t in times if math.isfinite(t) and start <= t < end})
+    # Keep decoded PTS, including VFR sources. Do not derive timestamps from FPS.
+    _, stderr = runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "info", "-ss", str(start),
+                            *LOCAL_INPUT, "-i", str(video), "-t", str(end - start), "-an",
+                            "-vf", "scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score",
+                            "-fps_mode", "vfr", "-f", "null", "-"], 120)
+    samples, timestamp = [], None
+    for line in stderr.splitlines():
+        found = TIMESTAMP.search(line)
+        if found:
+            timestamp = start + float(found[1])
+        score = re.search(r"lavfi\.scene_score=([\d.eE+-]+)", line)
+        if score and timestamp is not None:
+            value = float(score[1])
+            if start <= timestamp < end and math.isfinite(value):
+                samples.append((timestamp, value))
+    return adaptive_cuts(samples)
+
+
+def adaptive_cuts(samples):
+    """Content-relative threshold plus local spikes; suppress nearby transitions."""
+    if not samples:
+        return []
+    values = sorted(score for _, score in samples)
+    median = values[len(values) // 2]
+    deviations = sorted(abs(value - median) for value in values)
+    threshold = min(0.3, max(0.04, median + 6 * deviations[len(deviations) // 2]))
+    candidates = []
+    for i, (timestamp, score) in enumerate(samples):
+        neighbors = [s for _, s in samples[max(0, i - 5):i] + samples[i + 1:i + 6]]
+        baseline = sorted(neighbors)[len(neighbors) // 2] if neighbors else median
+        if score >= threshold and score >= max(0.04, baseline * 2.5):
+            if candidates and timestamp - candidates[-1][0] < 0.15:
+                if score > candidates[-1][1]:
+                    candidates[-1] = (timestamp, score)
+            else:
+                candidates.append((timestamp, score))
+    return [round(t, 6) for t, _ in candidates]
+
+
+def select_clear_points(video, ranges, directory, runner):
+    """Decode small candidates in one pass; only chosen frames are decoded at full size."""
+    from PIL import Image
+    groups = storyboard.candidate_points(ranges)
+    points = sorted(set(point for group in groups for point in group))
+    start, end = ranges[0]["start_seconds"], ranges[-1]["end_seconds"]
+    expression = "+".join(f"gte(t,{point - start:.6f})*(isnan(prev_selected_t)+lt(prev_selected_t,{point - start:.6f}))" for point in points)
+    with tempfile.TemporaryDirectory(prefix="candidates-", dir=directory) as temporary:
+        pattern = str(Path(temporary) / "candidate-%03d.jpg")
+        _, stderr = runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "info", "-y", "-ss", str(start),
+                                *LOCAL_INPUT, "-i", str(video), "-t", str(end - start), "-an",
+                                "-vf", f"select='{expression}',scale=320:320:force_original_aspect_ratio=decrease,showinfo",
+                                "-fps_mode", "vfr", "-q:v", "3", "-frames:v", str(len(points)), pattern], 120)
+        # showinfo runs before the output -t trim; VFR can report a trailing
+        # candidate beyond the window which is never written by the muxer.
+        stamps = [start + float(s) for s in TIMESTAMP.findall(stderr) if math.isfinite(float(s)) and 0 <= float(s) < end - start]
+        files = sorted(Path(temporary).glob("candidate-*.jpg"))
+        if len(stamps) != len(files):
+            raise WatchError("候选画面缺少实际时间戳")
+        candidates = []
+        for timestamp, file in zip(stamps, files):
+            runner.check()
+            if not math.isfinite(timestamp) or not start <= timestamp < end:
+                continue
+            with Image.open(file) as image:
+                candidates.append((timestamp, storyboard.sharpness(image)))
+        selected = []
+        for window, group in zip(ranges, groups):
+            choices = [item for item in candidates if window["start_seconds"] <= item[0] < window["end_seconds"]]
+            # Extremely low-FPS cells may contain no frame. The normal extraction
+            # path checks the decoded timestamp; missing cells remain visible.
+            selected.append(round(max(choices, key=lambda item: item[1])[0], 6) if choices else group[0])
+        return selected
 
 
 def frame_points(start, end, count, scenes):
@@ -313,24 +382,6 @@ def process(request, directory, root, runner, stage, settings):
         warnings.append("取得的文件短于平台标注时长，可能仅为预览；不能视为完整观看")
     if request.get("end_seconds") and request["end_seconds"] > duration + 0.1:
         warnings.append("请求终点超过实际文件长度，已按可读取范围截断")
-    frames = []
-    if request.get("media_kind") != "transcribe":
-        stage("提取画面")
-        points = request.get("timestamps")
-        if points is not None:
-            if any(not start <= p < end for p in points):
-                raise WatchError("补看时间戳必须位于实际读取区间内")
-        else:
-            scenes = []
-            if request["sampling"] == "balanced":
-                try:
-                    scenes = scene_times(video, start, end, runner)
-                except Cancelled:
-                    raise
-                except WatchError:
-                    warnings.append("场景检测失败，使用覆盖整个区间的定时采样")
-            points = frame_points(start, end, request["frame_count"], scenes)
-        frames = extract_frames(video, points, end, directory, runner, crop)
     segments = [] if request.get("media_kind") == "transcribe" else [s for s in captions["segments"] if s["end"] > start and s["start"] < end]
     transcript_source = captions["source"] if segments else "unavailable"
     language = captions.get("language")
@@ -354,6 +405,42 @@ def process(request, directory, root, runner, stage, settings):
             (directory / "audio.wav").unlink(missing_ok=True)
     if not segments:
         warnings.append("没有取得可用字幕或语音转写，不可根据画面推断具体口述内容")
+    frames, ranges, points = [], [], []
+    selection = "explicit" if request.get("timestamps") else request["sampling"]
+    if request.get("media_kind") != "transcribe":
+        stage("提取画面")
+        points = request.get("timestamps")
+        if points is not None:
+            if any(not start <= p < end for p in points):
+                raise WatchError("补看时间戳必须位于实际读取区间内")
+            ranges = storyboard.point_ranges(start, end, points)
+        elif request["sampling"] == "balanced":
+            try:
+                scenes = scene_times(video, start, end, runner)
+                ranges = storyboard.plan_ranges(start, end, request["frame_count"], scenes, segments)
+                points = select_clear_points(video, ranges, directory, runner)
+                selection = "adaptive_clear"
+            except Cancelled:
+                raise
+            except (WatchError, ImportError, OSError, ValueError):
+                warnings.append("自动选帧不可用，已改用覆盖整个区间的定时采样")
+                selection = "uniform_fallback"
+        if points is None:
+            points = frame_points(start, end, request["frame_count"], [])
+            ranges = storyboard.point_ranges(start, end, points)
+        frames = extract_frames(video, points, end, directory, runner, crop)
+    board = {"available": False, "reason": "仅请求语音转写" if request.get("media_kind") == "transcribe" else "媒体接口使用独立画面"}
+    if frames and not request.get("media_kind"):
+        stage("整理分镜")
+        try:
+            board = storyboard.render(directory, ranges, points, frames, segments, meta, crop, runner)
+            if board.get("missing_cells"):
+                warnings.append("部分分镜区间没有取得画面，缺口记录在 storyboard.missing_cells；可按时间缩小范围补看")
+        except Cancelled:
+            raise
+        except (ImportError, OSError, ValueError):
+            board = {"available": False, "reason": "分镜拼图不可用，可继续使用 watch_frames 和 watch_transcript"}
+            warnings.append(board["reason"])
     observations = sorted({o["timestamp_seconds"] for frame in frames for o in frame["observations"]})
     bounds = [start, *observations, end]
     write_json(directory / "transcript.json", {"source": transcript_source, "language": language, "segments": segments})
@@ -365,8 +452,11 @@ def process(request, directory, root, runner, stage, settings):
                            "more_video_after_range": end + 0.1 < duration,
                            "source_incomplete": incomplete},
               "frames": frames, "frame_count": len(frames),
+              "sampling": selection, "storyboard": board,
               "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"]} if frames else None,
               "transcript": {"source": transcript_source, "language": language, "segment_count": len(segments)},
               "warnings": warnings}
+    if request.get("focus_cell"):
+        result["focus_cell"] = request["focus_cell"]
     write_json(directory / "result.json", result)
     return result

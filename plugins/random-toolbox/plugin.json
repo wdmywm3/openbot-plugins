@@ -1,7 +1,7 @@
 {
   "id": "random-toolbox",
   "name": "随机工具箱",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "metadata": {
     "platforms": [
       "napcat",
@@ -10,7 +10,7 @@
     "requirements": [
       "群成员抽取仅支持 NapCat；其他随机命令支持两种实例"
     ],
-    "changelog": "官方 QQ 实例的群成员抽取显示能力说明，其他随机命令继续可用。"
+    "changelog": "更新插件市场分类。"
   },
   "description": "抛硬币、随机数、选项抽取和群成员抽取",
   "main": "index.js",
@@ -101,5 +101,6 @@
         "widgets": []
       }
     ]
-  }
+  },
+  "category": "entertainment"
 }

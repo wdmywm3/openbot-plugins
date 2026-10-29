@@ -6,7 +6,7 @@
       "name": "bPhone",
       "version": "2.3.0",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
-      "category": "automation",
+      "category": "ai",
       "main": "index.js",
       "permissions": [
         "agent",
@@ -33,7 +33,8 @@
           "background",
           "skills"
         ],
-        "hasBackgroundAgent": true
+        "hasBackgroundAgent": true,
+        "category": "ai"
       },
       "ref": "df790f2bc0e4753d2cdf5c0474206cfd54087649",
       "files": [
@@ -59,7 +60,7 @@
       "name": "B站小管家",
       "version": "1.14.0",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
-      "category": "automation",
+      "category": "subscription",
       "main": "./index.js",
       "permissions": [
         "agent",
@@ -88,7 +89,8 @@
           "background",
           "skills"
         ],
-        "hasBackgroundAgent": true
+        "hasBackgroundAgent": true,
+        "category": "subscription"
       },
       "ref": "b627697a8fc605bbd4c713be36df8c89ab45c3ed",
       "files": [
@@ -149,7 +151,7 @@
       "name": "内容监控",
       "version": "1.0.1",
       "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
-      "category": "utility",
+      "category": "subscription",
       "main": "index.js",
       "permissions": [
         "reply",
@@ -170,7 +172,8 @@
           "commands",
           "background"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "subscription"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -191,7 +194,7 @@
       "name": "每日签到",
       "version": "1.0.1",
       "description": "按群或私聊记录每日签到、连续天数和积分排行",
-      "category": "utility",
+      "category": "community",
       "main": "index.js",
       "permissions": [
         "reply",
@@ -210,7 +213,8 @@
         "components": [
           "commands"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "community"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -231,7 +235,7 @@
       "name": "骰娘",
       "version": "1.3.1",
       "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
-      "category": "utility",
+      "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
@@ -251,7 +255,8 @@
         "components": [
           "commands"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "entertainment"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -277,7 +282,7 @@
       "name": "群聊总结",
       "version": "1.0.1",
       "description": "调用机器人 Agent 总结当前群聊中的近期消息",
-      "category": "utility",
+      "category": "ai",
       "main": "index.js",
       "permissions": [
         "agent"
@@ -295,7 +300,8 @@
         "components": [
           "commands"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "ai"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -316,7 +322,7 @@
       "name": "表情素材库",
       "version": "1.0.1",
       "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
-      "category": "utility",
+      "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
@@ -331,7 +337,8 @@
         "components": [
           "commands"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "entertainment"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -352,7 +359,7 @@
       "name": "随机工具箱",
       "version": "1.0.1",
       "description": "抛硬币、随机数、选项抽取和群成员抽取",
-      "category": "utility",
+      "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
@@ -371,7 +378,8 @@
         "components": [
           "commands"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "entertainment"
       },
       "ref": "cd858bd8d21392a624182995faf06c344668642e",
       "files": [
@@ -408,7 +416,8 @@
           "skills",
           "mcp"
         ],
-        "hasBackgroundAgent": false
+        "hasBackgroundAgent": false,
+        "category": "utility"
       },
       "ref": "b627697a8fc605bbd4c713be36df8c89ab45c3ed",
       "files": [

@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 
-from common import (Cancelled, MAX_FRAME_EDGE, MAX_MEDIA, MAX_STORAGE, MAX_WINDOW, PREFERRED_RESOLUTION, Runner, WatchError,
+from common import (Cancelled, MAX_FRAME_EDGE, MAX_MEDIA, MAX_STORAGE, MAX_WINDOW, PREFERRED_RESOLUTION, VERSION, Runner, WatchError,
                     canonical_source, contained, dependencies, integer, number,
                     read_json, token, tree_size, write_json)
 import media
@@ -23,7 +23,7 @@ TERMINAL = {"ready", "failed", "cancelled", "interrupted"}
 
 
 def validate_request(args):
-    allowed = {"source", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin"}
+    allowed = {"source", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin", "focus_cell"}
     if not isinstance(args, dict) or set(args) - allowed or "source" not in args:
         raise WatchError("watch_start 参数无效")
     result = {"source": canonical_source(args["source"]),
@@ -68,6 +68,11 @@ def validate_request(args):
         result.update(media_kind=args["media_kind"], media_scope=args["media_scope"], media_origin=canonical_source(args.get("media_origin")))
     elif "media_scope" in args or "media_origin" in args:
         raise WatchError("媒体桥接参数缺失")
+    if "focus_cell" in args:
+        focus = args["focus_cell"]
+        if not isinstance(focus, dict) or set(focus) != {"job_id", "cell_id"} or "media_kind" in result:
+            raise WatchError("分镜来源无效")
+        result["focus_cell"] = {"job_id": token(focus["job_id"]), "cell_id": integer(focus["cell_id"], "cell_id", 1, 24)}
     return result
 
 
@@ -133,7 +138,8 @@ class Jobs:
 
     def info(self):
         model = self.settings.get("asr_model_path")
-        return {"version": "0.5.0", "dependencies": dependencies(),
+        return {"version": VERSION, "dependencies": dependencies(),
+                "storyboard": {"available": importlib.util.find_spec("PIL") is not None, "cells_per_sheet": 12, "max_sheets": 2},
                 "preview": {"available": importlib.util.find_spec("PIL") is not None, "sources": ["Bilibili"], "max_frames": 3},
                 "download_runtime": {"python_package": importlib.util.find_spec("yt_dlp") is not None,
                                      "youtube_ejs": importlib.util.find_spec("yt_dlp_ejs") is not None,
@@ -271,6 +277,49 @@ class Jobs:
             next_offset = offset + len(frames)
             return {"job_id": job_id, "total": len(result["frames"]), "offset": offset,
                     "next_offset": next_offset if next_offset < len(result["frames"]) else None}, content
+
+    def _storyboard(self, job_id):
+        folder = self.ready(job_id)
+        path = contained(folder, "storyboard.json")
+        if not path.is_file():
+            raise WatchError("本任务没有分镜；可读取 watch_frames，或复用 watch:<job_id> 开始新的读取")
+        return folder, read_json(path)
+
+    def storyboard(self, job_id, page=0):
+        integer(page, "page", 0, 1)
+        with self.lock:
+            folder, board = self._storyboard(job_id)
+            if page >= len(board["sheets"]):
+                raise WatchError("分镜页码不存在")
+            sheet = board["sheets"][page]
+            path = contained(folder, sheet["file"])
+            if path.stat().st_size > 1_500_000:
+                raise WatchError("分镜图片过大")
+            result = read_json(folder / "result.json")
+            value = {"job_id": job_id, "page": page, "total_pages": len(board["sheets"]),
+                     "next_page": page + 1 if page + 1 < len(board["sheets"]) else None,
+                     "width": sheet["width"], "height": sheet["height"], "cells": sheet["cells"],
+                     "source_view": board["source_view"], "range": result["range"],
+                     "coverage": result["coverage"], "transcript_source": result["transcript"]["source"],
+                     "missing_cells": result.get("storyboard", {}).get("missing_cells", []),
+                     "warnings": result["warnings"],
+                     "note": "每格是区间中的一个采样瞬间；区间字幕不等于画面发生时刻。小字或动作细节用 watch_zoom 补看；字幕截断时用 watch_transcript。"}
+            return value, [{"type": "image", "mimeType": "image/jpeg", "data": base64.b64encode(path.read_bytes()).decode("ascii")}]
+
+    def zoom(self, job_id, cell_id, frame_count=6, crop=None, request_id=None):
+        integer(cell_id, "cell_id", 1, 24)
+        with self.lock:
+            _, board = self._storyboard(job_id)
+            cell = next((cell for sheet in board["sheets"] for cell in sheet["cells"] if cell["cell_id"] == cell_id), None)
+            if cell is None:
+                raise WatchError("该任务中不存在这个分镜编号")
+            args = {"source": "watch:" + job_id, **cell["range"], "frame_count": frame_count,
+                    "focus_cell": {"job_id": job_id, "cell_id": cell_id}}
+            if crop is not None:
+                args["crop"] = crop
+            if request_id is not None:
+                args["request_id"] = request_id
+            return self.start(args)
 
     def transcript(self, job_id, offset=0, limit=40):
         integer(offset, "offset", 0, 30000)

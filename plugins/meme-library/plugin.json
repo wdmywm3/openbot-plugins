@@ -1,7 +1,7 @@
 {
   "id": "meme-library",
   "name": "表情素材库",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
   "main": "index.js",
   "responseMode": "direct",
@@ -64,6 +64,8 @@
     ]
   },
   "metadata": {
-    "builtinFeature": "stickers"
-  }
+    "builtinFeature": "stickers",
+    "changelog": "更新插件市场分类。"
+  },
+  "category": "entertainment"
 }

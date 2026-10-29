@@ -142,12 +142,12 @@ if(require.main===module)(async()=>{
  const multi=fixture();multi.ctx.tool='use';multi.devices[0].isDefault=false;multi.devices.push({deviceId:'phone-two',deviceRevision:1,name:'第二台',effectiveSettings:{interests:'植物'}});
  await assert.rejects(plugin.agentTool(multi.ctx),/请指定手机/);multi.ctx.input={deviceId:'phone-two'};await plugin.agentTool(multi.ctx);assert.equal(multi.calls[0].resource.deviceId,'phone-two');
  const parallel=fixture();parallel.ctx.tool='use';await Promise.all([plugin.agentTool(parallel.ctx),plugin.agentTool(parallel.ctx)]);assert.equal(parallel.calls.length,1,'competing chats claim one activity atomically');
- const hook=fixture();hook.ctx.hook={enabledTools:['channelPlugin','useSkill']};hook.ctx.principal={role:'member',messageType:'group'};
+ const hook=fixture();hook.ctx.hook={enabledTools:['useSkill']};hook.ctx.principal={role:'member',messageType:'group'};
  hook.devices[0].connection={host:'SECRET_HOST'};let reminder=(await plugin.context(hook.ctx)).content;
  assert.match(reminder,/shared\/files\/activities/);
  assert.match(reminder,/长期设备/);assert.match(reminder,/phone-one/);assert.ok(!reminder.includes('SECRET_HOST'));
- hook.ctx.hook.enabledTools=['channelPlugin'];assert.equal(await plugin.context(hook.ctx),null);
- hook.ctx.hook.enabledTools=['channelPlugin','useSkill'];hook.devices.splice(0);assert.match((await plugin.context(hook.ctx)).content,/没有绑定手机/);
+ hook.ctx.hook.enabledTools=[];assert.equal(await plugin.context(hook.ctx),null);
+ hook.ctx.hook.enabledTools=['useSkill'];hook.devices.splice(0);assert.match((await plugin.context(hook.ctx)).content,/没有绑定手机/);
  for(let i=0;i<500;i++)hook.devices.push({deviceId:`device-${i}`,name:'设备名称'.repeat(40),effectiveSettings:{}});
  reminder=(await plugin.context(hook.ctx)).content;assert.ok(reminder.length<=4000);assert.match(reminder,/listDevices/);
  hook.ctx.tool='status';hook.ctx.input={listDevices:true,offset:10};const page=await plugin.agentTool(hook.ctx);assert.equal(page.devices.length,10);assert.equal(page.nextOffset,20);

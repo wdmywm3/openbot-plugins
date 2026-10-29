@@ -1,7 +1,7 @@
 {
   "id": "daily-checkin",
   "name": "每日签到",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "metadata": {
     "platforms": [
       "napcat",
@@ -10,7 +10,7 @@
     "requirements": [
       "需要支持 api.updateState 的 OpenBot 版本"
     ],
-    "changelog": "签到按用户保存，积分与排行通过原子更新避免多人签到互相覆盖。 签到积分与排行可保存到插件专属数据库，并在首次使用时继承旧记录。"
+    "changelog": "更新插件市场分类。"
   },
   "description": "按群或私聊记录每日签到、连续天数和积分排行",
   "main": "index.js",
@@ -93,5 +93,6 @@
         "widgets": []
       }
     ]
-  }
+  },
+  "category": "community"
 }

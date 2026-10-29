@@ -1,7 +1,7 @@
 {
   "id": "group-digest",
   "name": "群聊总结",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "metadata": {
     "platforms": [
       "napcat",
@@ -11,7 +11,7 @@
     "requirements": [
       "使用实例或群聊当前 Agent 与模型；不单独运行后台模型"
     ],
-    "changelog": "明确沿用当前聊天上下文与模型。"
+    "changelog": "更新插件市场分类。"
   },
   "description": "调用机器人 Agent 总结当前群聊中的近期消息",
   "main": "index.js",
@@ -63,5 +63,6 @@
         "widgets": []
       }
     ]
-  }
+  },
+  "category": "ai"
 }

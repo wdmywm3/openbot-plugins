@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.6.0",
-  "description": "结合画面、字幕和时间戳理解视频，按问题继续补看。",
+  "version": "0.7.0",
+  "description": "通过分镜图与字幕理解视频，按编号高清补看关键片段。",
   "extensions": {
     "com.openbot": {
       "displayName": "Watch 视频阅读",
@@ -15,7 +15,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "声明独立运行环境与锁定依赖，由 OpenBot 安装时自动准备；补齐平台预览工具授权。"
+        "changelog": "新增编号分镜概览、字幕对齐和按格高清补看；按画面与字幕密度分配采样，自动选取清晰画面。鸣谢 SAOS-3624 的 MIT 开源项目 dsh-video-storyboard。"
       },
       "dependencies": {
         "python": {

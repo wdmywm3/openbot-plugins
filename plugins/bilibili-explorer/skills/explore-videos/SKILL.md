@@ -33,4 +33,4 @@ description: B站小管家的自主浏览：按兴趣浏览 B站、记录收获�
 
 账号、配置、记录按实例隔离；不要自动使用整理收藏的大号互动。站内评论、回复遵守用户已开启的功能及授权。发送结果不明时核对，不自动重发。
 
-主人要求主动探索时，用 channelPlugin 的 explore 工具；查看状态用 explore_status。命令在当前聊天执行，自动浏览则独立运行。先 list 发现工具，再 start 提交并 status 查询宿主任务，重复请求沿用 requestKey。站内互动、笔记和 QQ 分享分别按自己的开关及授权执行。
+主人要求主动探索时，使用当前披露的本插件原生 explore 工具；查看状态用 explore_status，工具名前缀以实际目录为准。命令在当前聊天执行，自动浏览则独立运行。已有工具 schema 时不必再 list；action=start 返回 completed/result 时直接读取，只有 running 才保存 id 并通过同一工具的 action=status、jobId 查询。failed/interrupted 不代表成功，重复请求沿用 requestKey。只有通用 plugin 工具确实可用且没有原生入口时，才用它的 list/start/status 备选流程。站内互动、笔记和 QQ 分享分别按自己的开关及授权执行。

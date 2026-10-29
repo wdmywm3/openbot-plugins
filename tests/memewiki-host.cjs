@@ -74,13 +74,20 @@ async function main() {
   await assert.rejects(runtime.runPluginAction(channel,plugin,action("save_term"),{name:"实例词条",meaning:"过时修改",revision:0}),/改变|版本/);
   assert.match((await command("/梗 实例词条","onebot:group:2")).text,/实例共享含义/);
   await runtime.runPluginBeforeMessage(channel,{id:"input-1",chatId:principal.chatId,content:"大水理论是什么梗",sender:{id:"owner"},messageType:"group"},principal);
+  assert.equal(events.length,0,"passive traffic never performs automatic lookup");
+  const wakeInput = { id: "input-1", chatId: principal.chatId, direction: "in", content: "大水理论是什么梗", sender: { id: "owner" }, messageType: "group" };
+  await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-1",inputMessages:[wakeInput],messages:[]},principal);
   assert.equal(events.length,1); assert.match(JSON.stringify(events[0]),/长安二求/);
+  await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-1",inputMessages:[wakeInput],messages:[]},principal);
+  assert.equal(events.length,1,"model fallback does not repeat the same wake's lookup");
   await runtime.runPluginBeforeMessage(channel,{id:"input-2",chatId:principal.chatId,content:"你今天怎么样",sender:{id:"owner"},messageType:"group"},principal);
   assert.equal(events.length,1);
   allow=false;
-  await runtime.runPluginBeforeMessage(channel,{id:"input-3",chatId:principal.chatId,content:"大水理论",sender:{id:"owner"},messageType:"group"},principal);
+  entry.enabled=false;
+  await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-2",inputMessages:[{...wakeInput,id:"input-3"}],messages:[]},principal);
   assert.equal(events.length,1,"unavailable optional lookup preserves normal routing");
   allow=true;
+  entry.enabled=true;
   const context = { overrideAgent:{enabledTools:["plugin"]},channelPrincipal:principal };
   const job=await runtime.runPluginTool({action:"start",pluginId:"memewiki",tool:"search_meme_wiki",input:{query:"大水理论"},requestKey:"lookup-native"},context);
   let completed;
@@ -117,7 +124,7 @@ async function main() {
     await row.getByRole("button",{name:"删除"}).click();await page.locator("#notice").filter({hasText:"已删除"}).waitFor();
     assert.equal(await page.locator("article").filter({hasText:"卡片测试"}).count(),0);
   } finally { await browser.close(); }
-  console.log("memewiki host: 50 MiB catalog, real MCP/worker, commands, PNG, chat isolation, management revisions, prelookup, graceful failure and sync request passed");
+  console.log("memewiki host: real MCP/worker, commands, PNG, chat isolation, wake-only lookup, retry deduplication, graceful failure and sync request passed");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await runtime?.stopAllPluginPolls();shutdownPluginWorkers();await client.close().catch(()=>{});
   assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});

@@ -1,13 +1,13 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "metadata": {
     "platforms": [
       "napcat",
       "qqbot"
     ],
-    "changelog": "支持官方 QQ 会话 ID；未发送的消息保留待办，结果不明的消息暂停重试；恢复后清除旧错误。 监控进度按订阅保存到插件专属数据库，继承待确认推送，避免迁移后重复发送。"
+    "changelog": "更新插件市场分类。"
   },
   "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
   "main": "index.js",
@@ -240,5 +240,6 @@
         "properties": {}
       }
     }
-  ]
+  ],
+  "category": "subscription"
 }

@@ -19,6 +19,8 @@
         "watch_info",
         "watch_start",
         "watch_status",
+        "watch_storyboard",
+        "watch_zoom",
         "watch_frames",
         "watch_transcript",
         "watch_cancel",

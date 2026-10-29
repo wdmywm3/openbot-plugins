@@ -1,6 +1,6 @@
 # Watch 视频阅读
 
-Watch 0.6.0 将视频读取做成一个插件包：Skill 指导阅读，工具负责预览、视频下载、画面提取、字幕读取、补看与取消，`watch_media` 为其他插件提供异步媒体读取。它使用 OpenBot 的 Skill 与 MCP 接口，业务逻辑和校验全部在本包内。适用于启用此插件的群聊、私聊和任务，不需要给聊天开放 Shell。
+Watch 0.7.0 将视频读取做成一个插件包：先查看编号分镜图与对应字幕，再按问题高清补看关键片段。工具负责预览、下载、抽帧、字幕、补看与取消，`watch_media` 为其他插件提供异步媒体读取。它使用 OpenBot 的 Skill 与 MCP 接口，业务逻辑和校验全部在本包内。适用于启用此插件的群聊、私聊和任务，不需要给聊天开放 Shell。
 
 `watch_preview` 直接读取B站指定分P的平台预览拼图，最多返回三张低清画面，不下载或解码视频。需要 Pillow（已列入 requirements-media.txt）；返回实际采样时间与请求时间。它适合初筛题材和风格，具体过程、小字或语音仍需按问题补读。预览不可用时返回 unavailable，由调用方决定是否读取原视频。B站小管家 1.12.0 默认绑定此预览工具，需要支持 `preview` 媒体能力的 OpenBot；旧版宿主继续原视频阅读路径。
 
@@ -24,7 +24,17 @@ python -m pip install -r requirements-media.txt
 
 `mcp.json` 使用 `${PLUGIN_ROOT}` 与 `${PLUGIN_DATA}`，没有硬编码宿主路径。每个实例有独立的数据目录。MCP 是包内工具的传输方式，无须另装一个“媒体 MCP”插件。
 
-工具包括 `watch_info`、`watch_start`、`watch_status`、`watch_frames`、`watch_transcript`、`watch_cancel`。工具参数以发现的 JSON Schema 为准。服务通过 stdio 运行，标准输出只用于 MCP 消息。
+工具包括 `watch_preview`、`watch_info`、`watch_start`、`watch_status`、`watch_storyboard`、`watch_zoom`、`watch_frames`、`watch_transcript`、`watch_cancel`，以及供其他插件调用的 `watch_media`。工具参数以发现的 JSON Schema 为准。服务通过 stdio 运行，标准输出只用于 MCP 消息。
+
+## 分镜概览与高清补看
+
+`watch_start` 完成后，用 `watch_storyboard({job_id})` 一次读取分镜图片和时间、字幕索引。每页最多12格，最多两页；`next_page` 非空时继续读取。每格提供实际取帧时间、关联区间及字幕节选。字幕保留原时间，节选被截断时明确标记；完整文字仍由 `watch_transcript` 分页读取。相同画面合并存储后，各观察时刻仍有独立分镜编号。
+
+`watch_zoom({job_id,cell_id})` 从该任务缓存的原视频重新读取对应区间，默认抽取6个采样位置，返回新的任务编号；完成后用 `watch_frames` 查看独立画面。分镜编号绑定不可变的原任务，新概览和服务重启不会覆盖旧编号。补看可带 `crop`，不填时返回整帧。旧版本任务没有分镜索引时，原有画面、字幕和按时间补看仍可使用。
+
+默认的 `balanced` 采样依据画面变化与字幕密度分配区间，保留首尾锚点，并在中间区间的多个候选中选清晰帧。变化密度权重设有上限，静态区间不会被挤掉。候选缩略图一次解码，选定画面再按原清晰度提取；候选文件随即清理。显式 `timestamps` 和 `uniform` 保持指定时间及等距采样语义，不做清晰帧偏移。自动选帧失败时会说明原因并退回定时采样，取消操作不会被当作降级继续运行。
+
+分镜图保留整幅画面比例与边缘，只供概览；不把小字和连续动作压在更多子格中。`image_rect` 标明各格图片在拼图中的实际位置，`source_view` 标明原视频尺寸与已有裁剪区域，局部补看按原视频像素指定。低帧率等原因导致区间没有可用画面时，`storyboard.missing_cells` 记录缺口，不将区间外的图片标成该格。图片成本由所用模型决定，不承诺固定 token 数。
 
 ## 什么时候读取、如何重看
 
@@ -65,7 +75,7 @@ python -B tools/server.py --data-dir 'D:/OpenBotData/mcp/ext-example' --import-f
 - 每次最多处理 600 秒，视频最长 120 分钟、单文件最多 256 MiB。下载优先选择 1080p，按画面短边处理横屏与竖屏；没有该档位时选择可用的较低档位，只有更高档位时选其中最低的档位。结果报告实际源文件尺寸，低于优先清晰度时提示。登录和权限可能影响可用档位，网页播放器的清晰度设置不控制本插件。
 - 长视频按区间继续阅读，首次仍需下载完整文件；提高画质不会解除文件与缓存容量限制。复用已有低清缓存不会自动变成高清，需要从原视频链接重新开始下载。
 - 整帧与局部画面的长边最多 1920 像素，保留普通横屏或竖屏 1080p 的尺寸，不放大小尺寸视频。局部补看从原视频裁剪，保留原始像素细节；结果中的 `frame_view` 及图片文字说明区分整帧和裁剪画面。
-- 默认最多 12 张画面，可设为 2–24 张。定时锚点覆盖整个区间，再补充场景变化；每次向模型返回最多四张图片。只合并字节完全相同的图片，保留所有观察时间戳。
+- 默认最多12个采样位置，可设为2–24个；极短片段会减少区间数。`balanced` 按变化密度分配，`uniform` 等距采样。分镜每页返回一张拼图，独立画面每次最多四张。只合并字节完全相同的图片，保留所有观察时间戳。
 - 用 `watch:<job_id>` 复用原文件，选择新范围或具体时间戳。结果始终报告实际处理区间、采样时间、最大观察间隔和字幕来源；下载到预览或短文件时会提示。
 - 同一服务串行处理视频，最多四个未完成任务。下载/抽帧/转写有超时、容量限制与取消。服务重启后将未完成任务标为中断，不自动重放。
 - 缓存上限 2 GiB，最多 64 个任务。任务及导入文件保留约 24 小时，在服务启动或队列空闲时的新请求触发清理；达到限额时拒绝新任务。
@@ -73,11 +83,17 @@ python -B tools/server.py --data-dir 'D:/OpenBotData/mcp/ext-example' --import-f
 
 ## 开发验证
 
-在插件仓库运行 `npm run test:watch`。测试覆盖输入、B 站兼容分支、字幕、时间覆盖、分页、取消、缓存复用、重启和 PCM 读取；有 FFmpeg 时还会生成短视频并验证真实抽帧、1080p 整帧和从 4K 原视频裁剪细线，通过 stdio 协议读取原生图片。下载格式测试使用 yt-dlp 的真实选择逻辑但不联网，覆盖横屏、竖屏与清晰度回退。PCM 数值测试需要转写环境中的 NumPy。
+在具备 requirements-media.txt 依赖的 Python 环境中，于插件仓库运行 `npm run test:watch`。测试覆盖输入、B站兼容分支、字幕、时间覆盖、分页、取消、缓存复用、重启和 PCM 读取；有 FFmpeg 时还会生成短视频验证真实抽帧、1080p 整帧和从4K原视频裁剪细线，通过 stdio 协议读取原生图片。分镜测试还覆盖快切密度、字幕节选截断、清晰帧选择、变帧率时间戳、竖屏边缘保留、静态去重后的时间索引、跨任务与重启后的按格补看，以及采样失败与取消。下载格式测试使用 yt-dlp 的真实选择逻辑但不联网。PCM 数值测试另需 NumPy。
 
 `node tests/watch-host.cjs <OpenBot源码目录>` 额外使用宿主实际的包解析器、MCP 客户端和图片转发逻辑验证兼容性。这个路径仅用于开发验证，插件运行不依赖源码目录。
 
 源码可直接导入开发版 OpenBot。正式市场目录固定到 Git 提交，需完成发布流程后再生成 catalog。上游参考与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 鸣谢
+
+感谢 **[SAOS-3624](https://github.com/SAOS-3624)** 开源的 **[dsh-video-storyboard](https://github.com/SAOS-3624/dsh-video-storyboard)**。Watch 0.7.0 的分镜概览、按格补看设计，以及密度积分分配和清晰帧排序参考或改编自该项目。参考版本为 `e32f9f66b61b7ac579481f6ddf458cc8b00d3bbe`，源码采用 MIT 许可；完整版权和许可声明随插件保存在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。未引入其 DSH 运行环境、配置目录、模型权重或演示视频图片。
+
+也感谢 [bradautomates/claude-video](https://github.com/bradautomates/claude-video) 与 [c1overzz/dsh-bili-scroll](https://github.com/c1overzz/dsh-bili-scroll) 对既有视频阅读与平台预览能力的贡献；对应改编范围及许可同样保留在上述文件中。
 
 2026-10-25 实测结果：
 

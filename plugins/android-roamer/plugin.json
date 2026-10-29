@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
   "extensions": {
     "com.openbot": {
       "main": "index.js",
-      "category": "automation",
+      "category": "ai",
       "permissions": [
         "agent",
         "resource:android",
@@ -33,7 +33,6 @@
           "type": "context",
           "export": "context",
           "tools": [
-            "channelPlugin",
             "useSkill"
           ],
           "scope": "all",
@@ -510,7 +509,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "新增逐次活动轨迹，保留每次任务的结果与关键步骤，旧活动作为快照迁入；SQLite正文无损压缩，列表按需读详情。"
+        "changelog": "修复原生插件工具启用时的能力提示，更新任务完成与续查说明；调整市场分类。"
       }
     }
   }

@@ -221,7 +221,7 @@ async function saveVideoNote(ctx, input, chatId) {
 }
 module.exports.context = async ctx => {
   return { content: ["B站活动账本和笔记保存在本插件的数据目录，按 BV 号与分 P 标识，标题不是去重键。",
-    "公开笔记在 shared/files/notes/，当前聊天笔记在本聊天的 files/notes/；这是逻辑目录，请通过 channelPlugin 的 notes 工具读取，无需直接访问宿主文件。",
+    "公开笔记在 shared/files/notes/，当前聊天笔记在本聊天的 files/notes/；这是逻辑目录，请通过本插件原生 notes 工具读取，无需直接访问宿主文件。",
     "先加载 explore-videos 技能。notes 输入 bvid、part 可读取当前聊天的 Markdown，public:true 改读自己的公开浏览笔记；不带 bvid 列目录索引，content:true 查询实际取得的资料范围；offset 继续阅读长笔记。",
     "learning 按 query 检索有来源的经验，public:true 读取自主浏览经验；可查历史版本和待解决问题，主人可以修订或撤回。",
     "主人私聊可用 activity 按 bvid、kind 查询浏览、阅读及公开互动的时间、正文、配图和结果；public:false 查当前聊天发起的阅读，account:main 查大号记录。",
@@ -543,7 +543,7 @@ async function shareBiliDiscovery(ctx, state, chosen, now) {
   await saveExploration(ctx, state);
   try {
     const local = !!ctx.message?.chatId;
-    const reminder = `你刚才浏览的 B站资料是 ${chosen.id} 的第 ${chosen.part} P，本次分享草稿已交给宿主。相关记录位于本插件 ${local ? "当前聊天" : "shared"}/files/notes/${chosen.id}-p${chosen.part}.md；需要承接时，通过 channelPlugin 的 notes 工具按 bvid、part${local ? "" : "、public:true"} 读取，不凭标题声称完整看过；没有笔记时以实际资料范围为准。`;
+    const reminder = `你刚才浏览的 B站资料是 ${chosen.id} 的第 ${chosen.part} P，本次分享草稿已交给宿主。相关记录位于本插件 ${local ? "当前聊天" : "shared"}/files/notes/${chosen.id}-p${chosen.part}.md；需要承接时，通过本插件原生 notes 工具按 bvid、part${local ? "" : "、public:true"} 读取，不凭标题声称完整看过；没有笔记时以实际资料范围为准。`;
     const sent = await ctx.api.submitShare({ chatId, content: body, url: chosen.url, contextVersion: result.contextVersion, reminder });
     if (sent?.skipped) {
       state.seen = state.seen.filter(item => item !== entry); state.sharedToday--;

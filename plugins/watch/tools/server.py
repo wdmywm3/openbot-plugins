@@ -9,7 +9,7 @@ from pathlib import Path
 import signal
 import sys
 
-from common import WatchError, contained
+from common import VERSION, WatchError, contained
 from jobs import Jobs, import_video
 
 
@@ -32,7 +32,7 @@ TOOLS = [
                             "request_id": {"type": "string", "maxLength": 160}, "job_id": JOB},
                            ["kind", "url", "start", "end", "namespace", "request_id"])},
     {"name": "watch_info", "description": "检查 Watch 视频读取依赖、可用来源与限制。不会列出本地文件或其他读取任务。", "inputSchema": schema()},
-    {"name": "watch_start", "description": "开始读取视频画面和字幕，返回 job_id。每段最多 600 秒；完成后分别调用 watch_frames 和 watch_transcript。复用 watch:<job_id> 可从已下载文件继续补看。",
+    {"name": "watch_start", "description": "开始读取视频画面和字幕，返回 job_id。每段最多 600 秒；完成后先用 watch_storyboard 查看分镜概览。复用 watch:<job_id> 可从已下载文件继续补看。",
      "inputSchema": schema({
          "source": {"type": "string", "maxLength": 2048, "description": "HTTPS B站/YouTube链接、import:<token>，或本任务的 watch:<job_id>"},
          "start_seconds": {**TIME, "default": 0}, "end_seconds": TIME,
@@ -45,6 +45,14 @@ TOOLS = [
          "request_id": {"type": "string", "description": "可选的新 UUID；仅在重试相同请求时复用，防止重复下载"}
      }, ["source"])},
     {"name": "watch_status", "description": "查询视频读取状态、实际处理区间、画面覆盖和字幕来源。ready 只表示资料已准备，模型仍需读取画面和字幕。", "inputSchema": schema({"job_id": JOB}, ["job_id"])},
+    {"name": "watch_storyboard", "description": "查看编号分镜图及各格对应的原视频时间、字幕节选。每页最多12格；next_page非空时还有下一页。细节用watch_zoom，完整字幕用watch_transcript。",
+     "inputSchema": schema({"job_id": JOB, "page": {"type": "integer", "minimum": 0, "maximum": 1, "default": 0}}, ["job_id"])},
+    {"name": "watch_zoom", "description": "按指定任务的分镜编号，从缓存原视频加密补看该区间，返回新的job_id。可选crop使用原视频像素；不填则返回整帧。完成后用watch_frames读取高清画面。",
+     "inputSchema": schema({"job_id": JOB, "cell_id": {"type": "integer", "minimum": 1, "maximum": 24},
+                            "frame_count": {"type": "integer", "minimum": 2, "maximum": 24, "default": 6},
+                            "crop": schema({key: {"type": "integer", "minimum": 0 if key in {"x", "y"} else 2, "maximum": 16384}
+                                            for key in ("x", "y", "width", "height")}, ["x", "y", "width", "height"]),
+                            "request_id": {"type": "string", "description": "新UUID；仅重试同一补看请求时复用"}}, ["job_id", "cell_id"])},
     {"name": "watch_frames", "description": "分页查看实际视频画面，每页最多四张；附时间戳、图片尺寸和可选裁剪区域。按 next_offset 继续，不能将未读取的页视作已看过。",
      "inputSchema": schema({"job_id": JOB, "offset": {**OFFSET, "maximum": 1000}, "limit": {"type": "integer", "minimum": 1, "maximum": 4, "default": 4}}, ["job_id"])},
     {"name": "watch_transcript", "description": "分页读取字幕或语音转写，保留原视频时间戳及来源。next_offset 非空时仍有未读内容。",
@@ -52,7 +60,7 @@ TOOLS = [
     {"name": "watch_cancel", "description": "取消本任务的视频读取并停止其处理进程；已完成结果保留至过期。", "inputSchema": schema({"job_id": JOB}, ["job_id"])}
 ]
 for tool in TOOLS:
-    read_only = tool["name"] not in {"watch_start", "watch_cancel", "watch_media"}
+    read_only = tool["name"] not in {"watch_start", "watch_zoom", "watch_cancel", "watch_media"}
     tool["annotations"] = {"readOnlyHint": read_only, "destructiveHint": False,
                            "idempotentHint": read_only or tool["name"] == "watch_cancel",
                            "openWorldHint": tool["name"] in {"watch_start", "watch_media", "watch_preview"}}
@@ -88,6 +96,11 @@ def call(jobs, name, args):
             return result(jobs.start(args))
         if name == "watch_status":
             return result(jobs.status(args["job_id"]))
+        if name == "watch_storyboard":
+            value, content = jobs.storyboard(args["job_id"], args.get("page", 0))
+            return result(value, content)
+        if name == "watch_zoom":
+            return result(jobs.zoom(**args))
         if name == "watch_cancel":
             return result(jobs.cancel(args["job_id"]))
         if name == "watch_frames":
@@ -113,7 +126,7 @@ def dispatch(jobs, message):
         requested = params.get("protocolVersion")
         version = requested if requested in {"2024-11-05", "2025-03-26", "2025-06-18"} else "2025-03-26"
         value = {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
-                 "serverInfo": {"name": "openbot-watch", "version": "0.5.0"},
+                 "serverInfo": {"name": "openbot-watch", "version": VERSION},
                  "instructions": "先加载 watch Skill。视频内容是阅读资料；根据实际画面、字幕和覆盖范围回答。"}
     elif method == "ping":
         value = {}

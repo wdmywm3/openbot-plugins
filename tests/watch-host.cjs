@@ -29,7 +29,8 @@ async function main() {
     env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
   await client.connect(transport, { timeout: 15000 });
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 8);
+  assert.equal(tools.length, 10);
+  assert.deepEqual(new Set(tools.map(t => t.name)), new Set(pkg.mcpServers[0].enabled_tools));
   for (const tool of tools) assert.equal(sanitizeMcpSchema(tool.inputSchema).ok, true, tool.name);
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const info = await call("watch_info");
@@ -51,8 +52,13 @@ async function main() {
   assert.equal(normalized.userContextBlocks.filter(b => b.type === "image_url").length, 4);
   assert.equal(raw.structuredContent.next_offset, 4);
   assert.ok(!normalized.toolText.includes(data));
+  const overview = await call("watch_storyboard", { job_id });
+  assert.equal(overview.isError, false, JSON.stringify(overview));
+  assert.equal(overview.structuredContent.cells.length, 8);
+  assert.equal(normalizeExternalMcpResult(overview, text => text, "watch-storyboard-test").userContextBlocks.filter(b => b.type === "image_url").length, 1);
+  assert.ok(!JSON.stringify(overview.structuredContent).includes(data));
   const crop = { x: 20, y: 20, width: 160, height: 100 };
-  const focused = await call("watch_start", { source: `watch:${job_id}`, timestamps: [1], crop });
+  const focused = await call("watch_zoom", { job_id, cell_id: 3, frame_count: 2, crop });
   assert.equal(focused.isError, false, JSON.stringify(focused));
   const focusedId = focused.structuredContent.job_id;
   const focusedDeadline = Date.now() + 30000;
@@ -62,10 +68,12 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.equal(status.status, "ready", JSON.stringify(status));
+  assert.deepEqual(status.result.range, overview.structuredContent.cells[2].range);
+  assert.deepEqual(status.result.focus_cell, { job_id, cell_id: 3 });
   const detail = await call("watch_frames", { job_id: focusedId });
   const detailText = detail.content.filter(b => b.type === "text").map(b => JSON.parse(b.text)).find(b => b.view);
   assert.deepEqual(detailText.view, { crop, width: 160, height: 100, source_width: 320, source_height: 180 });
-  assert.equal(normalizeExternalMcpResult(detail, text => text, "watch-crop-test").userContextBlocks.filter(b => b.type === "image_url").length, 1);
+  assert.ok(normalizeExternalMcpResult(detail, text => text, "watch-crop-test").userContextBlocks.some(b => b.type === "image_url"));
   // Real plugin -> generic host binding -> Watch MCP -> real extracted frames.
   // Only the transport's source is replaced with our explicitly imported fixture.
   const { createPluginToolService } = hostRequire("./electron/lib/plugins/plugin-tools.cjs");
@@ -103,7 +111,7 @@ async function main() {
   assert.equal(completed.source, "Watch 抽样画面");
   const denied = await call("watch_start", { source: video });
   assert.equal(denied.isError, true);
-  console.log("Watch host integration: package discovery, eight validated schemas, MCP client, native images and host image forwarding passed");
+  console.log("Watch host integration: ten schemas, storyboard images, cell zoom, source crop and consumer media forwarding passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

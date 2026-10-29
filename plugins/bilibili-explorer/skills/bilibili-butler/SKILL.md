@@ -26,7 +26,7 @@ description: B站收藏的三级整理、内容价值评估、视频备份与可
 
 ## Agent 工具入口
 
-优先调用 channelPlugin(action=list)，发现 bilibili-explorer 的工具。用 channelPlugin(action=start, pluginId, tool, input, requestKey) 执行；保存返回的任务 id，通过 status 查询，完成前不宣称成功。同一请求重试沿用 requestKey，每次继续下一批才使用新 key。
+优先使用当前披露的 bilibili-explorer 原生工具，名字以实际目录为准；已有 schema 时不必再 list。调用 action=start、input、requestKey；返回 completed/result 时直接读取，只有 running 才保存 id 并用同一工具的 action=status、jobId 查询。failed/interrupted 不代表成功。只有通用 plugin 工具确实可用且没有原生入口时，才用 plugin 的 list/start/status 备选流程。同一请求重试沿用 requestKey，每次继续下一批才使用新 key。
 
 收藏整理流程：folders 取得实际 ID → scan 扫描指定 folderIds → classify 处理 scanId → preview 分页查看 planId。scan 和 classify 返回的 status 若未完成则继续下一批，不能把一个批次当整项任务完成。普通分类默认 previewOnly=true，明确要求实际整理才在建立扫描时设为 false；已经生成的只分类方案不能转为执行方案。
 
