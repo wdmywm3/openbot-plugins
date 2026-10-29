@@ -1,0 +1,402 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "search",
+  "version": "0.1.0",
+  "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "搜索",
+      "category": "utility",
+      "icon": "search",
+      "apiVersion": 1,
+      "main": "index.js",
+      "permissions": [
+        "network",
+        "secret",
+        "history",
+        "settings:import"
+      ],
+      "networkHosts": [
+        "*"
+      ],
+      "legacySettings": "websearch",
+      "config": {
+        "webProvider": "anysearch",
+        "imageProvider": "off"
+      },
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "webProvider": {
+            "type": "string",
+            "title": "网页搜索",
+            "enum": [
+              "anysearch",
+              "tavily",
+              "exa",
+              "brave"
+            ],
+            "default": "anysearch",
+            "ui": {
+              "enumLabels": [
+                "AnySearch",
+                "Tavily",
+                "Exa",
+                "Brave Search"
+              ]
+            }
+          },
+          "imageProvider": {
+            "type": "string",
+            "title": "以图搜图",
+            "enum": [
+              "off",
+              "google"
+            ],
+            "default": "off",
+            "ui": {
+              "enumLabels": [
+                "未启用",
+                "Google Cloud Vision"
+              ]
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "name": "web_search",
+          "export": "web_search",
+          "description": "搜索网页资料和最新信息。输入问题或关键词，返回标题、链接和摘要。不能用文字描述替代以图搜图。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "search_depth": {
+                "type": "string",
+                "enum": [
+                  "basic",
+                  "advanced"
+                ]
+              },
+              "include_domains": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 253
+                },
+                "maxItems": 20
+              },
+              "exclude_domains": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 253
+                },
+                "maxItems": 20
+              },
+              "domain": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "sub_domain": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "sub_domain_params": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "aliases": [
+            "web_search",
+            "search_web",
+            "mcp__anysearch__search"
+          ],
+          "mutating": false
+        },
+        {
+          "name": "read_webpage",
+          "export": "read_webpage",
+          "description": "读取已知网页或搜索结果，获取正文与来源。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "maxLength": 3000
+              },
+              "maxChars": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 50000
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "aliases": [
+            "web_fetch",
+            "mcp__anysearch__extract"
+          ],
+          "mutating": false
+        },
+        {
+          "name": "search_by_image",
+          "export": "search_by_image",
+          "description": "根据当前聊天的一张图片查找匹配图片、出现过它的网页及相关实体。用于图片出处、角色、作品或物品查询。messageId 来自消息或聊天记录；index 是该消息附件列表中从 0 开始的位置。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "messageId": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              }
+            },
+            "required": [
+              "messageId"
+            ],
+            "additionalProperties": false
+          },
+          "when": {
+            "field": "imageProvider",
+            "equals": "google"
+          },
+          "mutating": false
+        },
+        {
+          "name": "batch_search",
+          "export": "batch_search",
+          "description": "同时查询 2–5 个独立问题；可使用先前查询到的 AnySearch 领域参数。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "queries": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "minLength": 1
+                    },
+                    "max_results": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10
+                    },
+                    "search_depth": {
+                      "type": "string",
+                      "enum": [
+                        "basic",
+                        "advanced"
+                      ]
+                    },
+                    "include_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 253
+                      },
+                      "maxItems": 20
+                    },
+                    "exclude_domains": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 253
+                      },
+                      "maxItems": 20
+                    },
+                    "domain": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "sub_domain": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "sub_domain_params": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "queries"
+            ],
+            "additionalProperties": false
+          },
+          "aliases": [
+            "mcp__anysearch__batch_search"
+          ],
+          "permissionAliases": [
+            "web_search"
+          ],
+          "mutating": false
+        },
+        {
+          "name": "get_sub_domains",
+          "export": "get_sub_domains",
+          "description": "使用 AnySearch 的专业数据查询前，查明领域、子领域及必填参数。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "domain": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "domains": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "maxItems": 5
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "aliases": [
+            "mcp__anysearch__get_sub_domains"
+          ],
+          "when": {
+            "field": "webProvider",
+            "equals": "anysearch"
+          },
+          "permissionAliases": [
+            "web_search"
+          ],
+          "mutating": false
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "webProvider",
+              "imageProvider"
+            ],
+            "widgets": [
+              {
+                "type": "secret",
+                "key": "anysearchKey",
+                "title": "AnySearch API Key（可选）",
+                "when": {
+                  "field": "webProvider",
+                  "equals": "anysearch"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "tavilyKey",
+                "title": "Tavily API Key",
+                "when": {
+                  "field": "webProvider",
+                  "equals": "tavily"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "exaKey",
+                "title": "Exa API Key",
+                "when": {
+                  "field": "webProvider",
+                  "equals": "exa"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "braveKey",
+                "title": "Brave Search API Key",
+                "when": {
+                  "field": "webProvider",
+                  "equals": "brave"
+                }
+              },
+              {
+                "type": "secret",
+                "key": "googleKey",
+                "title": "Cloud Vision API Key",
+                "when": {
+                  "field": "imageProvider",
+                  "equals": "google"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
+          "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
+        ],
+        "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
+        "changelog": "0.1.0：迁移 AnySearch、Tavily、Exa、Brave 网页搜索及网页读取；增加 Google Cloud Vision 以图搜图。"
+      }
+    }
+  }
+}
