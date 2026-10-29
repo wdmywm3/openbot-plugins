@@ -1,5 +1,11 @@
 # OpenBot 插件
 
+## 搜索
+
+网页搜索、网页阅读和以图搜图，分别配置服务，由 Bot 按任务选择工具。网页支持 AnySearch、Tavily、Exa、Brave，图片搜索支持 Google Cloud Vision。
+
+[安装与配置](plugins/search/README.md)。
+
 ## 梗百科
 
 查询网络梗、缩写和自定义黑话，提供本地 6668 条词库、图片卡片、自动查词和增量更新。
