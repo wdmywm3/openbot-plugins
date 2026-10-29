@@ -483,6 +483,60 @@
       ]
     },
     {
+      "id": "search",
+      "name": "搜索",
+      "version": "0.1.0",
+      "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "network",
+        "secret",
+        "history",
+        "settings:import"
+      ],
+      "metadata": {
+        "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
+          "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
+        ],
+        "changelog": "0.1.0：迁移 AnySearch、Tavily、Exa、Brave 网页搜索及网页读取；增加 Google Cloud Vision 以图搜图。",
+        "components": [
+          "tools",
+          "skills"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "1f8ed1d9f2cc978143b3ab21d3b4384d12d0b49c",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 1153,
+          "sha256": "5637c99f1685dd047120f11d098afd490656a700790809a109ab03bc5cb7ab2e"
+        },
+        {
+          "path": "index.js",
+          "size": 22663,
+          "sha256": "1e1c8397792188daa56309aaba80520d53bbe80cca2fa74c8b20dccfdf52baa4"
+        },
+        {
+          "path": "plugin.json",
+          "size": 11897,
+          "sha256": "0301993196cb04bc79ea7021ab85ed6d2e5e3634de799c6a157f9e374c8eb431"
+        },
+        {
+          "path": "skills/search/SKILL.md",
+          "size": 1883,
+          "sha256": "0988d8ff7e531d7f2b954a9f15b998e7cd236a26e9948041e455877110cb9c76"
+        }
+      ]
+    },
+    {
       "id": "watch",
       "name": "Watch 视频阅读",
       "version": "0.6.0",
