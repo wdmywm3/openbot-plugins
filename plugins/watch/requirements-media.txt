@@ -2,3 +2,4 @@
 # default includes the YouTube EJS component; Deno is installed separately.
 yt-dlp[default,curl-cffi]>=2026.10.21
 Pillow>=10.4,<13
+faster-whisper>=1.2,<2

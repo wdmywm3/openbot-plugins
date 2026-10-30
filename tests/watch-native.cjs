@@ -92,6 +92,21 @@ function fixture() {
     assert.equal((await start(f.ctx)).job_id, "browser-job");
     assert.equal(f.calls.at(-1).arguments.info.frames.length, 2);
     assert.ok(!mediaCalls.some(c => c.action === "audio"), "captions avoid recording audio");
+    f.ctx.input.detail = "transcript";
+    await start(f.ctx);
+    assert.equal(f.calls.at(-1).arguments.info.frames.length, 0, "transcript detail does not request images");
+    delete f.ctx.input.detail;
+    const ordinaryMedia = f.ctx.api.browserMedia;
+    f.ctx.api.browserMedia = async input => {
+      const result = await ordinaryMedia(input);
+      if (input.action === "inspect") result.media[0] = { ...result.media[0], duration: 60, tracks: [{ kind: "subtitles" }] };
+      if (input.action === "captions") return { segments: input.end > 6 ? [{ start: 20, end: 22, text: "Later words" }] : [] };
+      return result;
+    };
+    await start(f.ctx);
+    assert.equal(f.calls.at(-1).arguments.info.captions.track_available, true);
+    assert.equal(f.calls.at(-1).arguments.info.captions.segments.length, 0);
+    assert.ok(!mediaCalls.some(c => c.action === "audio"), "a quiet focus interval does not trigger ASR");
     f.ctx.api.browserMedia = async () => { throw new Error("permission denied"); };
     await assert.rejects(start(f.ctx), /permission denied/);
     assert.ok(!f.calls.some(c => c.name === "watch_start"));
@@ -101,6 +116,15 @@ function fixture() {
   }
   const mcp = JSON.parse(fs.readFileSync(path.join(__dirname, "../plugins/watch/mcp.json")));
   const server = Object.values(mcp.mcpServers)[0];
+  assert.equal(server.env.WATCH_PLUGIN_CONFIG, "${PLUGIN_CONFIG}");
+  assert.ok(manifest.dependencies.tools.includes("msvc"));
+  {
+    const f = fixture(); f.entry.media[1] = { ...f.entry.media[1], type: "audio", name: "speech.wav" };
+    f.ctx.input.audio = "off";
+    await start(f.ctx);
+    assert.equal(f.calls.at(-1).arguments.audio, "off", "file mode retains the no-speech option");
+    assert.equal(f.calls.at(-1).arguments.source, imported);
+  }
   assert.equal(manifest.tools.filter(t => t.name === "watch_start").length, 1);
   assert.ok(!server.enabled_tools.includes("watch_start")); assert.ok(!server.enabled_tools.includes("watch_ingest"));
   console.log("Watch native: provider-neutral attachments, bounded chunks, signed URLs, approved local roots, errors and single entry passed");

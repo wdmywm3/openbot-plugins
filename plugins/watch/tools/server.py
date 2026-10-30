@@ -39,6 +39,8 @@ TOOLS = [
          "start_seconds": {**TIME, "default": 0}, "end_seconds": TIME,
          "frame_count": {"type": "integer", "minimum": 2, "maximum": 24, "default": 12},
          "sampling": {"type": "string", "enum": ["balanced", "uniform"], "default": "balanced"},
+         "detail": {"type": "string", "enum": ["balanced", "transcript"], "default": "balanced"},
+         "audio": {"type": "string", "enum": ["auto", "off", "required"], "default": "auto"},
          "timestamps": {"type": "array", "items": TIME, "minItems": 1, "maxItems": 24, "description": "补看指定的原视频秒数；提供后替代自动选帧"},
          "crop": {**schema({key: {"type": "integer", "minimum": 0 if key in {"x", "y"} else 2, "maximum": 16384}
                              for key in ("x", "y", "width", "height")}, ["x", "y", "width", "height"]),
@@ -190,7 +192,8 @@ def data_lock(root):
 
 def serve(root, host_bridge=False):
     with data_lock(root):
-        jobs = Jobs(root)
+        config = json.loads(os.environ["WATCH_PLUGIN_CONFIG"]) if host_bridge and "WATCH_PLUGIN_CONFIG" in os.environ else None
+        jobs = Jobs(root, owner_config=config)
         jobs.host_bridge = host_bridge
         try:
             while True:

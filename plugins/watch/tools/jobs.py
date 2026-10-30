@@ -17,13 +17,14 @@ from common import (Cancelled, MAX_FRAME_EDGE, MAX_MEDIA, MAX_STORAGE, MAX_WINDO
                     canonical_source, contained, dependencies, integer, number,
                     read_json, token, tree_size, write_json)
 import media
+import asr
 
 TTL = 24 * 60 * 60
 TERMINAL = {"ready", "failed", "cancelled", "interrupted"}
 
 
 def validate_request(args):
-    allowed = {"source", "source_type", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin", "focus_cell"}
+    allowed = {"source", "source_type", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin", "focus_cell", "audio", "detail"}
     if not isinstance(args, dict) or set(args) - allowed or "source" not in args:
         raise WatchError("watch_start 参数无效")
     result = {"source": canonical_source(args["source"]),
@@ -32,6 +33,13 @@ def validate_request(args):
               "sampling": args.get("sampling", "balanced")}
     if result["sampling"] not in {"balanced", "uniform"}:
         raise WatchError("sampling 必须是 balanced 或 uniform")
+    for key, choices in {"audio": {"auto", "off", "required"}, "detail": {"balanced", "transcript"}}.items():
+        if key in args:
+            if args[key] not in choices:
+                raise WatchError(f"{key} 取值无效")
+            result[key] = args[key]
+    if result.get("detail") == "transcript" and "crop" in args:
+        raise WatchError("仅读取文字时不使用裁剪区域")
     if "source_type" in args:
         if args["source_type"] not in {"auto", "direct", "page"}:
             raise WatchError("source_type 必须是 auto、direct 或 page")
@@ -81,7 +89,7 @@ def validate_request(args):
 
 
 class Jobs:
-    def __init__(self, root, processor=media.process):
+    def __init__(self, root, processor=media.process, owner_config=None):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         contained(self.root, "jobs").mkdir(exist_ok=True)
@@ -94,9 +102,12 @@ class Jobs:
         settings = contained(self.root, "settings.json")
         if settings.is_file():
             value = read_json(settings)
-            model = value.get("asr_model_path")
-            if model and isinstance(model, str):
-                self.settings["asr_model_path"] = str(Path(model).expanduser().resolve())
+            self.settings = asr.validate_settings(value)
+        if owner_config is not None:
+            if not isinstance(owner_config, dict):
+                raise WatchError("插件配置无效")
+            self.settings.update(asr.validate_settings({"asr_backend": owner_config.get("asrBackend", "local"),
+                                                       "asr_language": owner_config.get("asrLanguage", "")}))
         for path in (self.root / "jobs").iterdir():
             if not path.is_dir():
                 continue
@@ -143,16 +154,14 @@ class Jobs:
                         continue
 
     def info(self):
-        model = self.settings.get("asr_model_path")
         return {"version": VERSION, "dependencies": dependencies(),
                 "storyboard": {"available": importlib.util.find_spec("PIL") is not None, "cells_per_sheet": 12, "max_sheets": 2},
                 "preview": {"available": importlib.util.find_spec("PIL") is not None, "sources": ["Bilibili"], "max_frames": 3},
-                "browser": {"entry": "OpenBot native watch_start", "requires_host": "0.1.77", "window_seconds": 60, "audio_chunk_seconds": 20},
+                "browser": {"entry": "OpenBot native watch_start", "requires_host": "0.1.78", "window_seconds": 60, "audio_chunk_seconds": 20},
                 "download_runtime": {"python_package": importlib.util.find_spec("yt_dlp") is not None,
                                      "youtube_ejs": importlib.util.find_spec("yt_dlp_ejs") is not None,
                                      "deno": bool(shutil.which("deno"))},
-                "asr": {"configured": bool(model), "model_available": bool(model and all((Path(model) / name).is_file() for name in ("model.bin", "config.json", "tokenizer.json"))),
-                        "runtime_available": importlib.util.find_spec("faster_whisper") is not None},
+                "asr": asr.status(self.root, self.settings),
                 "cookies_configured": contained(self.root, "cookies.txt").is_file(),
                 "sources": ["browser-playable pages via native watch_start", "HTTP/HTTPS direct media", "yt-dlp supported video pages", "chat attachments via native watch_start", "configured local video roots", "import:<token>", "watch:<job_id>"],
                 "limits": {"window_seconds": MAX_WINDOW, "frames_per_job": 24, "images_per_call": 4,
@@ -217,10 +226,10 @@ class Jobs:
             self.records[job_id] = record
             self.events[job_id] = threading.Event()
             self._save(record)
-            self.executor.submit(self._run, job_id)
+            self.executor.submit(self._run, job_id, dict(self.settings))
             return self.status(job_id)
 
-    def _run(self, job_id):
+    def _run(self, job_id, settings):
         with self.lock:
             record = self.records[job_id]
             if record["status"] in TERMINAL:
@@ -234,7 +243,7 @@ class Jobs:
                 record["stage"] = value
                 self._save(record)
         try:
-            self.processor(record["request"], self.directory(job_id), self.root, runner, stage, self.settings)
+            self.processor(record["request"], self.directory(job_id), self.root, runner, stage, settings)
             runner.check()
             with self.lock:
                 # Serialize completion with cancellation to avoid a late success.
@@ -346,6 +355,7 @@ class Jobs:
                 chars += size
             end = offset + len(segments)
             return {"job_id": job_id, "source": data["source"], "language": data.get("language"),
+                    "state": data.get("state", "available" if data["segments"] else "unavailable"),
                     "total": len(data["segments"]), "offset": offset, "segments": segments,
                     "next_offset": end if end < len(data["segments"]) else None}
 

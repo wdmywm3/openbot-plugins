@@ -124,7 +124,7 @@ class BrowserEvidence(unittest.TestCase):
                 Path(command[command.index("--output")+1]).write_text(json.dumps({"segments": [{"start": 0.25, "end": 0.75, "text": "Audio evidence"}], "language": "en"}))
                 return "", ""
             return original(runner, command, timeout)
-        with patch.object(Runner, "run", run):
+        with patch.object(Runner, "run", run), patch("asr.prepare", return_value="fixture-model"):
             state = self.wait(browser_media.dispatch(self.jobs, args)["job_id"])
         self.assertEqual(state["status"], "ready", state)
         transcript = self.jobs.transcript(state["job_id"])

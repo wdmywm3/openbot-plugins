@@ -1,10 +1,10 @@
 "use strict";
 
-const START_FIELDS = new Set(["source", "source_type", "message_id", "attachment_index", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "mode", "tab_id", "media_id", "audio"]);
-const MEDIA = /\.(mp4|mkv|webm|mov|avi|m4v|flv|wmv|mpg|mpeg|ts|m2ts|ogv|3gp|3g2)$/i;
+const START_FIELDS = new Set(["source", "source_type", "message_id", "attachment_index", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "mode", "tab_id", "media_id", "audio", "detail"]);
+const MEDIA = /\.(mp4|mkv|webm|mov|avi|m4v|flv|wmv|mpg|mpeg|ts|m2ts|ogv|3gp|3g2|mp3|m4a|wav|ogg|opus|flac|aac|aiff|aif)$/i;
 const remote = source => typeof source === "string" && /^https?:\/\//i.test(source);
 const permissionFailure = error => /授权|审核|权限|撤销|不属于|未声明|禁止|permission|revoked|denied/i.test(String(error.message || ""));
-const video = item => item?.type === "video" || /^video\//i.test(item?.mimeType || item?.mediaType || "")
+const video = item => ["video", "audio"].includes(item?.type) || /^(video|audio)\//i.test(item?.mimeType || item?.mediaType || "")
   || item?.type === "file" && MEDIA.test(item.name || item.fileName || "");
 
 async function call(ctx, name, args) {
@@ -39,7 +39,7 @@ async function message(ctx, id) {
 async function importAttachment(ctx, input, selected, index, namespace) {
   const attachment = await ctx.api.readMessageAttachment({ messageId: selected.id, index, maxBytes: 6 * 1024 * 1024 });
   const original = selected.media.filter(m => ["image", "file", "audio", "video"].includes(m.type))[index];
-  if (!video(original) || !["file", "video"].includes(attachment.type) || !Number.isInteger(attachment.size) || attachment.size <= 0
+  if (!video(original) || !["file", "video", "audio"].includes(attachment.type) || !Number.isInteger(attachment.size) || attachment.size <= 0
     || typeof attachment.data !== "string" || !attachment.data || attachment.data.length > 8 * 1024 * 1024)
     throw new Error("读取到的附件不是可用视频");
   let name = String(original.name || original.fileName || "video.mp4").split(/[\\/]/).at(-1);
@@ -76,7 +76,7 @@ async function upload(ctx, namespace, kind, sourceId, media, requestId) {
 }
 
 async function browserStart(ctx, request, options, namespace) {
-  if (!ctx.api.browserMedia) throw new Error("在线读取需要 OpenBot 0.1.77 或更新版本");
+  if (!ctx.api.browserMedia) throw new Error("在线读取需要 OpenBot 0.1.78 或更新版本");
   // Validate plugin-owned parameters before opening a page; duration is refined below.
   await call(ctx, "watch_browser", { action: "plan", namespace, request, duration: 7200 });
   const opened = options.tab_id ? { tabId: options.tab_id } : await ctx.api.browserMedia({ action: "open", url: request.source });
@@ -88,7 +88,7 @@ async function browserStart(ctx, request, options, namespace) {
       if (options.media_id || attempt >= 9 || error.code !== "BROWSER_MEDIA_STALE") throw error;
       if (ctx.api.sleep) await ctx.api.sleep(500); continue;
     }
-    candidates = (listed.media || []).filter(m => m.kind === "video" && m.duration > 0 && m.readyState >= 2);
+    candidates = (listed.media || []).filter(m => ["video", "audio"].includes(m.kind) && m.duration > 0 && m.readyState >= 2);
     if (candidates.length) break;
     if (attempt < 9 && ctx.api.sleep) await ctx.api.sleep(500);
   }
@@ -105,7 +105,7 @@ async function browserStart(ctx, request, options, namespace) {
   const pool = visible.length ? visible : candidates, playing = pool.filter(m => m.paused === false);
   let selected = options.media_id ? candidates.find(m => m.id === options.media_id)
     : playing.length === 1 ? playing[0] : pool.length === 1 ? pool[0]
-    : pool[0].width * pool[0].height >= 2 * pool[1].width * pool[1].height ? pool[0] : null;
+    : pool[0].width * pool[0].height > 0 && pool[0].width * pool[0].height >= 2 * pool[1].width * pool[1].height ? pool[0] : null;
   if (!selected && !options.media_id) {
     const error = new Error(`页面有多个播放器，请按问题选择后带上 tab_id 和 media_id：${JSON.stringify({ tab_id: opened.tabId, media: pool.slice(0, 6).map(m => ({ media_id: m.id, duration: m.duration, width: m.width, height: m.height })) })}`);
     error.code = "WATCH_MEDIA_SELECTION"; throw error;
@@ -114,8 +114,20 @@ async function browserStart(ctx, request, options, namespace) {
   const target = { tabId: opened.tabId, mediaId: selected.id };
   const planned = await call(ctx, "watch_browser", { action: "plan", namespace, request, duration: selected.duration });
   const captions = await ctx.api.browserMedia({ action: "captions", ...target, start: planned.start, end: planned.end });
+  // A quiet focus interval is not a missing caption track. Older hosts return
+  // only range-filtered cues, so inspect bounded ranges if they advertise tracks.
+  let trackAvailable = Boolean(captions.track_available || captions.segments?.length);
+  if (!trackAvailable && selected.tracks?.some(t => ["captions", "subtitles"].includes(t.kind))) {
+    for (let start = 0; start < selected.duration && !trackAvailable; start += 600) {
+      ctx.signal?.throwIfAborted();
+      const track = await ctx.api.browserMedia({ action: "captions", ...target, start, end: Math.min(start + 600, selected.duration) });
+      trackAvailable = Boolean(track.track_available || track.segments?.length);
+    }
+  }
+  captions.track_available = trackAvailable;
   const frames = [], audio = [], warnings = [];
-  for (const seconds of planned.points) {
+  const visual = selected.kind === "video" && (request.detail !== "transcript" || request.timestamps?.length);
+  for (const seconds of visual ? planned.points : []) {
     ctx.signal?.throwIfAborted();
     let frame;
     try { frame = await ctx.api.browserMedia({ action: "frame", ...target, seconds }); }
@@ -127,11 +139,11 @@ async function browserStart(ctx, request, options, namespace) {
     frames.push({ asset_id: await upload(ctx, namespace, "image", `${opened.tabId}:frame:${seconds}`, frame, request.request_id),
       requested: seconds, timestamp: frame.timestamp, view: frame.view });
   }
-  if (!frames.length) throw new Error("播放器未返回所选区间内的画面");
-  if (!(captions.segments || []).length && options.audio !== "off") {
+  if (visual && !frames.length) warnings.push("播放器未返回所选区间内的画面");
+  if (!trackAvailable && options.audio !== "off") {
     const info = await call(ctx, "watch_info", {});
-    const available = info.asr?.model_available && info.asr?.runtime_available;
-    if (!available && options.audio === "required") throw new Error("读取声音需要先配置本地转写模型");
+    const available = info.asr?.can_prepare || info.asr?.model_available && info.asr?.runtime_available && info.asr?.backend !== "none";
+    if (!available && options.audio === "required") warnings.push("本地转写尚未启用或依赖不完整，无法满足所请求的语音读取");
     if (available) {
       for (let start = planned.start; start < planned.end - 0.2;) {
         ctx.signal?.throwIfAborted();
@@ -144,10 +156,10 @@ async function browserStart(ctx, request, options, namespace) {
           start: clip.start, end: clip.end, leadSeconds: clip.leadSeconds });
         start = clip.end;
       }
-    } else warnings.push("没有可用字幕，且未配置本地转写模型；本次仅读取画面");
+    } else warnings.push("没有可用字幕，且本地转写未启用或依赖不完整");
   }
   return call(ctx, "watch_browser", { action: "finish", namespace, request,
-    info: { duration: selected.duration, title: listed.title, tab_id: opened.tabId, media_id: selected.id, frames, audio, captions, warnings } });
+    info: { duration: selected.duration, kind: selected.kind, title: listed.title, tab_id: opened.tabId, media_id: selected.id, frames, audio, captions, warnings } });
 }
 
 module.exports.watch_start = async ctx => {
@@ -159,6 +171,7 @@ module.exports.watch_start = async ctx => {
   if (typeof namespace !== "string" || !/^[a-f0-9]{64}$/.test(namespace)) throw new Error("当前宿主没有提供视频读取范围，请更新宿主");
   const { message_id, attachment_index, mode = "auto", tab_id, media_id, audio = "auto", ...request } = input;
   if (!["auto", "browser", "download"].includes(mode) || !["auto", "off", "required"].includes(audio)) throw new Error("视频读取方式无效");
+  if (input.audio !== undefined) request.audio = audio;
   let options = { mode, tab_id, media_id, audio };
   if (/^watch:[a-f0-9]{32}$/.test(request.source || "")) {
     const prior = await call(ctx, "watch_browser", { action: "source", namespace, job_id: request.source.slice(6) });

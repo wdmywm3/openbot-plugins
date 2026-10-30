@@ -23,13 +23,15 @@ from common import (Cancelled, DOWNLOAD_FORMAT, DOWNLOAD_SORT, MAX_DURATION, MAX
                     MAX_MEDIA, MAX_WINDOW, PREFERRED_RESOLUTION, WatchError,
                     canonical_source, contained, read_json, write_json)
 import storyboard
+import asr
 from sources import configured_local_file, remote_source
 
 TIMESTAMP = re.compile(r"pts_time:([^\s]+)")
 FRAME_SIZE = re.compile(r"\bs:(\d+)x(\d+)\b")
 TIMING = re.compile(r"^\s*((?:\d+:)?\d{2}:\d{2}[.,]\d{3})\s+-->\s+((?:\d+:)?\d{2}:\d{2}[.,]\d{3})")
-MEDIA_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg", ".ts", ".m2ts", ".ogv", ".3gp", ".3g2"}
-LOCAL_INPUT = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,avi,flv,asf,mpeg,mpegts,ogg"]
+MEDIA_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg", ".ts", ".m2ts", ".ogv", ".3gp", ".3g2",
+                    ".mp3", ".m4a", ".wav", ".ogg", ".opus", ".flac", ".aac", ".aiff", ".aif"}
+LOCAL_INPUT = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,avi,flv,asf,mpeg,mpegts,ogg,mp3,wav,flac,aac,aiff"]
 
 
 def seconds(value):
@@ -130,17 +132,44 @@ def expand_short_url(url):
 def probe(path, runner):
     out, _ = runner.run(["ffprobe", "-v", "error", *LOCAL_INPUT, "-show_streams", "-show_format", "-of", "json", str(path)], 30)
     data = json.loads(out)
-    video = next((s for s in data.get("streams", []) if s.get("codec_type") == "video"), None)
-    if not video:
-        raise WatchError("没有可读取的视频画面")
+    streams = data.get("streams", [])
+    video = next((s for s in streams if s.get("codec_type") == "video" and not s.get("disposition", {}).get("attached_pic")), None)
+    audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if not video and not audio:
+        raise WatchError("没有可读取的视频或音频流")
     fmt = data.get("format", {})
-    duration = float(video.get("duration") or fmt.get("duration") or 0)
+    duration = float((video or audio).get("duration") or fmt.get("duration") or 0)
     if not math.isfinite(duration) or not 0 < duration <= MAX_DURATION + 1:
         raise WatchError(f"支持最长 {MAX_DURATION // 60} 分钟的视频")
-    if not 0 < int(video.get("width", 0)) <= 16384 or not 0 < int(video.get("height", 0)) <= 16384:
+    if video and (not 0 < int(video.get("width", 0)) <= 16384 or not 0 < int(video.get("height", 0)) <= 16384):
         raise WatchError("视频画面尺寸无效")
-    return {"duration_seconds": duration, "width": video["width"], "height": video["height"],
-            "has_audio": any(s.get("codec_type") == "audio" for s in data["streams"])}
+    return {"duration_seconds": duration, "width": video["width"] if video else 0, "height": video["height"] if video else 0,
+            "has_video": bool(video), "has_audio": bool(audio),
+            "subtitle_streams": [{"index": s["index"], "codec": s.get("codec_name"), "language": s.get("tags", {}).get("language"),
+                                  "default": bool(s.get("disposition", {}).get("default"))} for s in streams if s.get("codec_type") == "subtitle"]}
+
+
+def embedded_captions(video, meta, directory, runner, warnings):
+    tracks = sorted(meta.get("subtitle_streams", []), key=lambda s: not s["default"])
+    for track in tracks:
+        if track["codec"] not in {"subrip", "ass", "ssa", "webvtt", "mov_text", "text"}:
+            continue
+        path = directory / "embedded.vtt"
+        try:
+            runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y", *LOCAL_INPUT,
+                        "-i", str(video), "-map", f"0:{track['index']}", "-c:s", "webvtt", "-fs", str(4 * 1024 * 1024), str(path)], 60)
+            rows = parse_captions(path)
+            if rows:
+                return {"segments": rows, "source": "embedded_subtitles", "language": track["language"]}
+        except Cancelled:
+            raise
+        except (WatchError, OSError, ValueError):
+            warnings.append("一条内嵌字幕未能读取")
+        finally:
+            path.unlink(missing_ok=True)
+    if tracks:
+        warnings.append("没有取得可用的内嵌文字字幕；图片字幕未转换为文字")
+    return {"segments": [], "source": "unavailable"}
 
 
 def link_copy(source, target):
@@ -168,13 +197,22 @@ def single_video_info(info):
     raise WatchError("页面包含多个视频或未指定视频，请打开需要观看的具体视频链接")
 
 
-def acquire(source, directory, root, runner, stage, source_type="auto"):
+def acquire(source, directory, root, runner, stage, source_type="auto", transcript_only=False):
     """Returns a local immutable media file, metadata and full-source captions."""
     warnings = []
     if source.startswith(("watch:", "import:")):
         prefix, identity = source.split(":")
         folder = contained(root, "jobs" if prefix == "watch" else "imports", identity)
         manifest = read_json(contained(folder, "source.json"))
+        if manifest.get("kind") == "captions":
+            if transcript_only:
+                captions = read_json(contained(folder, "captions.json"))
+                write_json(directory / "source.json", manifest)
+                write_json(directory / "captions.json", captions)
+                return None, manifest, captions, list(manifest.get("warnings", []))
+            return acquire(manifest["url"], directory, root, runner, stage, "page", transcript_only)
+        if manifest.get("audio_only") and not transcript_only and manifest.get("url"):
+            return acquire(manifest["url"], directory, root, runner, stage, "page", False)
         video = contained(folder, manifest["file"])
         target = directory / ("media" + video.suffix)
         link_copy(video, target)
@@ -234,14 +272,7 @@ def acquire(source, directory, root, runner, stage, source_type="auto"):
     # does. Do not repeat the page/API extraction for each processing stage.
     from_info = ["--load-info-json", str(info_file)]
     prefix = str(directory).replace("%", "%%")
-    stage("下载视频")
-    runner.run(base + ["--no-part", "--max-filesize", str(MAX_MEDIA),
-                      "--merge-output-format", "mp4",
-                      "--no-write-subs", "--no-write-auto-subs", "-o", prefix + "/media.%(ext)s", *from_info], 600)
-    files = [p for p in directory.glob("media.*") if p.suffix in MEDIA_EXTENSIONS and not re.search(r"\.f\d+\.", p.name)]
-    if len(files) != 1 or not 0 < files[0].stat().st_size <= MAX_MEDIA:
-        raise WatchError("没有取得完整视频文件，或文件超过 256 MiB 限制")
-    manifest = {"file": files[0].name, "url": source, "title": str(info.get("title") or "视频")[:300], "reported_duration_seconds": reported,
+    manifest = {"url": source, "title": str(info.get("title") or "视频")[:300], "reported_duration_seconds": reported,
                 "metadata_origin": info.get("watch_metadata_origin", "yt_dlp"), "preferred_resolution": PREFERRED_RESOLUTION}
     captions = {"segments": [], "source": "unavailable"}
     kind, language = choose_subtitle(info)
@@ -262,10 +293,30 @@ def acquire(source, directory, root, runner, stage, source_type="auto"):
             raise
         except (WatchError, ValueError, TypeError, KeyError):
             warnings.append("字幕下载或解析失败；画面仍可读取")
+    video = None
+    if not (transcript_only and captions["segments"]):
+        stage("下载音频" if transcript_only else "下载视频")
+        try:
+            runner.run(base + (["-f", "ba/b"] if transcript_only else []) + ["--no-part", "--max-filesize", str(MAX_MEDIA),
+                              "--merge-output-format", "mp4", "--no-write-subs", "--no-write-auto-subs",
+                              "-o", prefix + "/media.%(ext)s", *from_info], 600)
+            files = [p for p in directory.glob("media.*") if p.suffix in MEDIA_EXTENSIONS and not re.search(r"\.f\d+\.", p.name)]
+            if len(files) != 1 or not 0 < files[0].stat().st_size <= MAX_MEDIA:
+                raise WatchError("没有取得完整媒体文件，或文件超过 256 MiB 限制")
+            video = files[0]
+        except Cancelled:
+            raise
+        except WatchError:
+            if not captions["segments"]:
+                raise
+            warnings.append("媒体下载失败，已保留可用字幕；本次没有画面或声音证据")
+    manifest.update({"file": video.name} if video else {"kind": "captions"})
+    if video and transcript_only:
+        manifest["audio_only"] = True
     manifest["warnings"] = warnings
     write_json(directory / "source.json", manifest)
     write_json(directory / "captions.json", captions)
-    return files[0], manifest, captions, warnings
+    return video, manifest, captions, warnings
 
 
 def even_sample(values, count):
@@ -410,12 +461,28 @@ def process(request, directory, root, runner, stage, settings):
                 raise WatchError("浏览器任务补看需要原生 watch_start/watch_zoom 重新读取页面")
             from browser_media import process as browser_process
             return browser_process(request, directory, root, runner, stage, settings, folder)
-    video, manifest, captions, warnings = acquire(request["source"], directory, root, runner, stage, request.get("source_type", "auto"))
-    meta = probe(video, runner)
+    text_only = request.get("media_kind") == "transcribe" or request.get("detail") == "transcript" and not request.get("timestamps")
+    video, manifest, captions, warnings = acquire(request["source"], directory, root, runner, stage, request.get("source_type", "auto"), text_only and request.get("media_kind") != "transcribe")
+    try:
+        meta = probe(video, runner) if video else None
+    except Cancelled:
+        raise
+    except (WatchError, ValueError):
+        if not captions["segments"]:
+            raise
+        meta = None
+        warnings.append("媒体无法解码，已保留可用字幕")
+    if meta is None:
+        meta = {"duration_seconds": manifest.get("reported_duration_seconds") or max(s["end"] for s in captions["segments"]),
+                "width": 0, "height": 0, "has_video": False, "has_audio": False}
+    if video and not captions["segments"] and meta.get("subtitle_streams"):
+        stage("读取内嵌字幕")
+        captions = embedded_captions(video, meta, directory, runner, warnings)
+        write_json(directory / "captions.json", captions)
     crop = request.get("crop")
     if crop and (crop["x"] + crop["width"] > meta["width"] or crop["y"] + crop["height"] > meta["height"]):
         raise WatchError(f"裁剪区域超出原视频 {meta['width']}×{meta['height']} 的范围；请按原视频像素指定区域")
-    if manifest.get("preferred_resolution") and min(meta["width"], meta["height"]) < manifest["preferred_resolution"]:
+    if meta["has_video"] and manifest.get("preferred_resolution") and min(meta["width"], meta["height"]) < manifest["preferred_resolution"]:
         warnings.append(f"本次取得 {meta['width']}×{meta['height']} 视频，低于优先选择的 {manifest['preferred_resolution']}p；小字可能不清晰")
     duration = meta["duration_seconds"]
     start = request["start_seconds"]
@@ -428,32 +495,40 @@ def process(request, directory, root, runner, stage, settings):
         warnings.append("取得的文件短于平台标注时长，可能仅为预览；不能视为完整观看")
     if request.get("end_seconds") and request["end_seconds"] > duration + 0.1:
         warnings.append("请求终点超过实际文件长度，已按可读取范围截断")
-    segments = [] if request.get("media_kind") == "transcribe" else [s for s in captions["segments"] if s["end"] > start and s["start"] < end]
-    transcript_source = captions["source"] if segments else "unavailable"
+    # The cross-plugin transcribe contract explicitly requests speech evidence.
+    track_available = bool(captions["segments"]) and request.get("media_kind") != "transcribe"
+    segments = [s for s in captions["segments"] if s["end"] > start and s["start"] < end] if track_available else []
+    transcript_source = captions["source"] if track_available else "unavailable"
+    transcript_state = "available" if segments else "no_speech" if track_available else "unavailable"
     language = captions.get("language")
-    if request.get("media_kind") != "frames" and not segments and meta["has_audio"] and settings.get("asr_model_path"):
-        stage("转写音频")
+    if request.get("media_kind") != "frames" and not track_available and meta["has_audio"] and request.get("audio") != "off" and asr.configured(settings):
         try:
+            model = asr.prepare(root, settings, runner, stage)
+            stage("转写音频")
             audio = directory / "audio.wav"
             runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", str(start), "-t", str(end - start),
                         *LOCAL_INPUT, "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", str(audio)], 60)
-            runner.run([sys.executable, "-B", str(Path(__file__).with_name("transcribe.py")), "--model", settings["asr_model_path"],
-                        "--audio", str(audio), "--output", str(directory / "asr.json")], 600)
-            data = read_json(directory / "asr.json")
+            data = asr.transcribe(audio, directory / "asr.json", model, settings, runner)
             segments = [{"start": round(start + s["start"], 6), "end": round(min(end, start + s["end"]), 6), "text": s["text"]}
                         for s in data["segments"] if s["start"] < end - start]
             transcript_source, language = "local_asr", data.get("language")
+            transcript_state = "available" if segments else "no_speech"
         except Cancelled:
             raise
-        except (WatchError, ValueError, KeyError, TypeError):
-            warnings.append("本地转写失败；本次只依据已读取的画面")
+        except (WatchError, ValueError, KeyError, TypeError, OSError):
+            transcript_state = "failed"
+            warnings.append("本地转写准备或识别失败，可重试；已取得的其他资料仍可读取")
         finally:
             (directory / "audio.wav").unlink(missing_ok=True)
-    if not segments:
+    elif not track_available:
+        transcript_state = "disabled" if request.get("audio") == "off" or not asr.configured(settings) else "no_audio" if not meta["has_audio"] else "unavailable"
+    if not segments and transcript_state != "no_speech":
         warnings.append("没有取得可用字幕或语音转写，不可根据画面推断具体口述内容")
+    if request.get("audio") == "required" and transcript_state not in {"available", "no_speech"}:
+        warnings.append("未满足本次要求的语音读取，请明确说明该部分不可用")
     frames, ranges, points = [], [], []
     selection = "explicit" if request.get("timestamps") else request["sampling"]
-    if request.get("media_kind") != "transcribe":
+    if meta["has_video"] and not text_only:
         stage("提取画面")
         points = request.get("timestamps")
         if points is not None:
@@ -474,8 +549,13 @@ def process(request, directory, root, runner, stage, settings):
         if points is None:
             points = frame_points(start, end, request["frame_count"], [])
             ranges = storyboard.point_ranges(start, end, points)
-        frames = extract_frames(video, points, end, directory, runner, crop)
-    board = {"available": False, "reason": "仅请求语音转写" if request.get("media_kind") == "transcribe" else "媒体接口使用独立画面"}
+        try:
+            frames = extract_frames(video, points, end, directory, runner, crop)
+        except Cancelled:
+            raise
+        except WatchError:
+            warnings.append("画面提取失败，已保留取得的字幕或转写")
+    board = {"available": False, "reason": "仅读取文字" if text_only else "来源没有视频画面" if not meta["has_video"] else "没有取得分镜画面"}
     if frames and not request.get("media_kind"):
         stage("整理分镜")
         try:
@@ -489,7 +569,7 @@ def process(request, directory, root, runner, stage, settings):
             warnings.append(board["reason"])
     observations = sorted({o["timestamp_seconds"] for frame in frames for o in frame["observations"]})
     bounds = [start, *observations, end]
-    write_json(directory / "transcript.json", {"source": transcript_source, "language": language, "segments": segments})
+    write_json(directory / "transcript.json", {"source": transcript_source, "state": transcript_state, "language": language, "segments": segments})
     result = {"title": manifest["title"], "source": manifest.get("url", request["source"]),
               "media": meta, "reported_duration_seconds": reported,
               "range": {"start_seconds": start, "end_seconds": end},
@@ -500,7 +580,7 @@ def process(request, directory, root, runner, stage, settings):
               "frames": frames, "frame_count": len(frames),
               "sampling": selection, "storyboard": board,
               "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"]} if frames else None,
-              "transcript": {"source": transcript_source, "language": language, "segment_count": len(segments)},
+              "transcript": {"source": transcript_source, "state": transcript_state, "language": language, "segment_count": len(segments)},
               "warnings": warnings}
     if request.get("focus_cell"):
         result["focus_cell"] = request["focus_cell"]

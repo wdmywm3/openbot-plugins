@@ -7,7 +7,14 @@ selection and reuse of downloaded metadata in
 transcribe.py and download.py). The source was inspected locally before adaptation. Watch uses
 its own bounded process runner, job storage, tool interface, input validation,
 frame coverage policy and Bilibili WBI adapter. The upstream setup, global
-configuration and cloud model integrations are not included.
+configuration and cloud model integrations are not included. The 0.10.0 local
+setup lifecycle, caption-first acquisition and partial-evidence handling also
+reference setup.py and watch.py at the same commit. Watch implements its own
+pinned model download, warm-up receipt and faster-whisper adapter.
+
+The optional managed model is Systran/faster-whisper-small (MIT), pinned in
+asr-model.json. Weights are downloaded separately, not redistributed in this package.
+Source: https://huggingface.co/Systran/faster-whisper-small
 
 Source: https://github.com/bradautomates/claude-video
 

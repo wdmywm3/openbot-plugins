@@ -26,7 +26,8 @@ async function main() {
   execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=4:duration=6", "-c:v", "mpeg4", video], { windowsHide: true, timeout: 30000 });
   const imported = JSON.parse(execFileSync(python, ["-B", path.join(plugin, "tools/server.py"), "--data-dir", data, "--import-file", video], { encoding: "utf8", windowsHide: true }));
   const transport = new StdioClientTransport({ command: python, args: pkg.mcpServers[0].args.map(v => v.replaceAll("${PLUGIN_ROOT}", plugin).replaceAll("${PLUGIN_DATA}", data)),
-    env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
+    env: { ...process.env, ...Object.fromEntries(Object.entries(pkg.mcpServers[0].env).map(([key, value]) =>
+      [key, value.replaceAll("${PLUGIN_CONFIG}", JSON.stringify({ asrBackend: "none" }))])) }, cwd: work, stderr: "pipe" });
   await client.connect(transport, { timeout: 15000 });
   const tools = (await client.listTools()).tools;
   assert.equal(tools.length, 12);
@@ -35,6 +36,7 @@ async function main() {
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const info = await call("watch_info");
   assert.equal(info.structuredContent.dependencies.ffmpeg, true);
+  assert.equal(info.structuredContent.asr.backend, "none", "owner settings arrive through the MCP environment");
   const started = await call("watch_start", { source: imported.source, frame_count: 8, sampling: "uniform" });
   assert.equal(started.isError, false, JSON.stringify(started));
   const job_id = started.structuredContent.job_id;

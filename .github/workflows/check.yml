@@ -38,5 +38,5 @@ jobs:
           sudo apt-get install -y ffmpeg
       - name: Check Watch tools with real video
         run: |
-          python -m pip install numpy -r plugins/watch/requirements-media.txt
+          python -m pip install --require-hashes -r plugins/watch/requirements-media.lock
           python -B -m unittest discover -s tests -p 'watch*_test.py' -v

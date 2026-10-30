@@ -7,6 +7,7 @@ import sys
 import uuid
 from common import Cancelled, MAX_STORAGE, WatchError, canonical_source, contained, integer, number, read_json, token, tree_size, write_json
 import storyboard
+import asr
 
 
 def plan(request, duration):
@@ -62,7 +63,7 @@ def finish(jobs, args):
     planned = plan(args.get("request"), info.get("duration"))
     namespace = args["namespace"]
     frames, audio, captions = info.get("frames", []), info.get("audio", []), info.get("captions", {})
-    if not isinstance(frames, list) or not 1 <= len(frames) <= 24 or not isinstance(audio, list) or len(audio) > 4:
+    if not isinstance(frames, list) or not 0 <= len(frames) <= 24 or not isinstance(audio, list) or len(audio) > 4:
         raise WatchError("页面媒体数量无效")
     if not isinstance(captions, dict) or not isinstance(captions.get("segments", []), list) or len(captions.get("segments", [])) > 200:
         raise WatchError("页面字幕无效")
@@ -122,8 +123,9 @@ def finish(jobs, args):
                 raise WatchError("播放器编号无效")
         data = {"namespace": namespace, "request": planned["request"], "url": canonical_source(planned["request"]["source"]),
                 "title": str(info.get("title", "在线视频"))[:200], "duration": info["duration"],
-                "tab_id": info["tab_id"], "media_id": info["media_id"], "frames": items, "audio": sounds,
-                "captions": {"segments": segments, "language": str(captions.get("language") or "")[:32], "truncated": bool(captions.get("truncated"))},
+                "tab_id": info["tab_id"], "media_id": info["media_id"], "kind": "audio" if info.get("kind") == "audio" else "video", "frames": items, "audio": sounds,
+                "captions": {"segments": segments, "track_available": bool(segments or captions.get("track_available")),
+                             "language": str(captions.get("language") or "")[:32], "truncated": bool(captions.get("truncated"))},
                 "range": {"start_seconds": planned["start"], "end_seconds": planned["end"]},
                 "points": planned["points"], "warnings": planned["warnings"] + [str(x)[:300] for x in info.get("warnings", [])[:16]]}
         write_json(folder / "browser.json", data)
@@ -172,9 +174,20 @@ def process(request, directory, root, runner, stage, settings, source_folder):
                            "observations": [{"requested_seconds": row["requested"], "timestamp_seconds": row["timestamp"]}]})
     segments = list(data["captions"]["segments"])
     language = data["captions"].get("language")
-    transcript_source = "browser_text_track" if segments else "unavailable"
+    track_available = bool(segments or data["captions"].get("track_available"))
+    transcript_source = "browser_text_track" if track_available else "unavailable"
+    transcript_state = "available" if segments else "no_speech" if track_available else "unavailable"
     audio_ranges = []
-    if not segments and data["audio"] and settings.get("asr_model_path"):
+    model = None
+    if not track_available and data["audio"] and asr.configured(settings) and request.get("audio") != "off":
+        try:
+            model = asr.prepare(root, settings, runner, stage)
+        except Cancelled:
+            raise
+        except (WatchError, ValueError, OSError):
+            transcript_state = "failed"
+            warnings.append("本地转写初始化未完成，可重试继续准备；画面仍可读取")
+    if model:
         stage("转写页面音频")
         for row in data["audio"]:
             runner.check()
@@ -184,9 +197,7 @@ def process(request, directory, root, runner, stage, settings, source_folder):
                             "-protocol_whitelist", "file,pipe", "-format_whitelist", "matroska,webm,ogg,wav",
                             "-i", str(contained(source_folder, row["file"])), "-t", str(row["end"] - row["start"]),
                             "-vn", "-ac", "1", "-ar", "16000", str(wav)], 60)
-                runner.run([sys.executable, "-B", str(Path(__file__).with_name("transcribe.py")), "--model", settings["asr_model_path"],
-                            "--audio", str(wav), "--output", str(result)], 600)
-                transcript = read_json(result)
+                transcript = asr.transcribe(wav, result, model, settings, runner)
                 for segment in transcript["segments"]:
                     a, b = max(start, row["start"] + segment["start"]), min(end, row["start"] + segment["end"])
                     if b > a:
@@ -195,19 +206,23 @@ def process(request, directory, root, runner, stage, settings, source_folder):
                 transcript_source, language = "browser_audio_asr", transcript.get("language")
             except Cancelled:
                 raise
-            except (WatchError, ValueError, KeyError, TypeError):
+            except (WatchError, ValueError, KeyError, TypeError, OSError):
                 warnings.append("部分页面音频转写失败，其时间范围不能当作已听到")
             finally:
                 (directory / "audio.wav").unlink(missing_ok=True)
-    if not segments:
+        transcript_state = "failed" if not audio_ranges else "partial" if len(audio_ranges) < len(data["audio"]) else "available" if segments else "no_speech"
+    if not track_available and not model and transcript_state != "failed":
+        transcript_state = "disabled" if not asr.configured(settings) or request.get("audio") == "off" else "unavailable"
+    if not segments and transcript_state != "no_speech":
         warnings.append("没有取得可用字幕或语音转写，请只依据已看到的画面")
     if data["captions"].get("truncated"):
         warnings.append("页面字幕已截断，需缩小范围继续读取")
     if any(row["view"] == "page" for row in data["frames"]):
         warnings.append("嵌入播放器的图片为所在页面的可见区域，可能包含页面其他内容")
-    meta = {"duration_seconds": data["duration"], "width": data["frames"][0]["width"], "height": data["frames"][0]["height"], "has_audio": bool(data["audio"])}
+    meta = {"duration_seconds": data["duration"], "width": data["frames"][0]["width"] if data["frames"] else 0,
+            "height": data["frames"][0]["height"] if data["frames"] else 0, "has_video": data.get("kind") != "audio", "has_audio": bool(data["audio"])}
     ranges = storyboard.point_ranges(start, end, data["points"])
-    board = storyboard.render(directory, ranges, data["points"], frames, segments, meta, crop, runner)
+    board = storyboard.render(directory, ranges, data["points"], frames, segments, meta, crop, runner) if frames else {"available": False, "reason": "本次没有画面"}
     observed = sorted({o["timestamp_seconds"] for f in frames for o in f["observations"]})
     bounds = sorted([start, *observed, end])
     result = {"title": data["title"], "source": data["url"], "mode": "browser", "media": meta, "range": data["range"],
@@ -215,9 +230,9 @@ def process(request, directory, root, runner, stage, settings, source_folder):
                            "max_gap_seconds": round(max(b-a for a,b in zip(bounds,bounds[1:])), 3), "more_video_after_range": end < data["duration"] - 0.1,
                            "source_incomplete": False, "audio_ranges": audio_ranges},
               "frames": frames, "frame_count": len(frames), "storyboard": board, "sampling": "browser_uniform" if not request.get("timestamps") else "explicit",
-              "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"], "coordinate_space": "browser_capture"},
-              "transcript": {"source": transcript_source, "language": language, "segment_count": len(segments)}, "warnings": warnings}
-    write_json(directory / "transcript.json", {"source": transcript_source, "language": language, "segments": sorted(segments, key=lambda s:s["start"])})
+              "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"], "coordinate_space": "browser_capture"} if frames else None,
+              "transcript": {"source": transcript_source, "state": transcript_state, "language": language, "segment_count": len(segments)}, "warnings": warnings}
+    write_json(directory / "transcript.json", {"source": transcript_source, "state": transcript_state, "language": language, "segments": sorted(segments, key=lambda s:s["start"])})
     write_json(directory / "browser.json", data)
     write_json(directory / "source.json", {"kind": "browser", "url": data["url"], "title": data["title"]})
     write_json(directory / "result.json", result)

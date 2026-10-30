@@ -13,7 +13,8 @@
       ],
       "env": {
         "PYTHONUTF8": "1",
-        "PYTHONDONTWRITEBYTECODE": "1"
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "WATCH_PLUGIN_CONFIG": "${PLUGIN_CONFIG}"
       },
       "native_tools": [
         "watch_start",

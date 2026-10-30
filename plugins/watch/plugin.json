@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.9.0",
-  "description": "通过内置浏览器在线读取画面、字幕和片段声音，也支持聊天附件、视频直链和本地文件。",
+  "version": "0.10.0",
+  "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
   "extensions": {
     "com.openbot": {
       "displayName": "Watch 视频阅读",
@@ -16,11 +16,11 @@
       "metadata": {
         "usage": "提供视频页面即可优先在线读取；聊天附件、直链和本地视频共用一个入口，支持分镜、字幕和按时间补看。",
         "requirements": [
-          "需要 OpenBot 0.1.77 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
+          "需要 OpenBot 0.1.78 或更新版本；自动准备 Python、FFmpeg、视频下载及本地语音转写依赖",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
-          "无字幕时可配置本地 faster-whisper 模型进行转写"
+          "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "新增内置浏览器在线读取：按实际时间取帧、读取页面字幕、按需采集当前标签页音频并转写；保留附件、直链和本地文件入口。"
+        "changelog": "参照 claude-video 的本地流程补齐转写依赖、模型初始化与试运行；字幕优先，支持独立音频、内嵌文字字幕及仅读取文字，保留部分可用资料。"
       },
       "dependencies": {
         "python": {
@@ -29,25 +29,51 @@
         },
         "tools": [
           "ffmpeg",
-          "deno"
+          "deno",
+          "msvc"
         ]
       },
       "apiVersion": 1,
       "main": "index.js",
       "config": {
-        "localVideoRoots": []
+        "localVideoRoots": [],
+        "asrBackend": "local",
+        "asrLanguage": ""
       },
       "configSchema": {
         "type": "object",
         "properties": {
           "localVideoRoots": {
             "type": "array",
-            "title": "本地视频目录",
+            "title": "本地媒体目录",
             "description": "允许读取的本地目录或文件；聊天附件和网络视频不需要配置。",
             "items": {
               "type": "string"
             },
             "default": []
+          },
+          "asrBackend": {
+            "type": "string",
+            "title": "无字幕时的语音读取",
+            "enum": [
+              "local",
+              "none"
+            ],
+            "default": "local",
+            "description": "本地转写首次使用会准备约486 MB模型，完成试运行后缓存复用；语音留在本机。",
+            "ui": {
+              "enumLabels": [
+                "本地转写",
+                "仅使用字幕"
+              ]
+            }
+          },
+          "asrLanguage": {
+            "type": "string",
+            "title": "口述语言",
+            "default": "",
+            "maxLength": 3,
+            "description": "留空自动识别；识别不准时可填写 zh、en 等语言代码。此设置不选择字幕语言。"
           }
         },
         "additionalProperties": false
@@ -56,7 +82,7 @@
         {
           "name": "watch_start",
           "export": "watch_start",
-          "description": "读取视频：平台页面优先使用内置浏览器在线取画面和字幕；无字幕时可采集片段声音转写。在线每次最多60秒，其他来源每次最多600秒。支持附件、直链和本地文件。",
+          "description": "读取视频或音频：页面优先通过内置浏览器；字幕优先，无字幕时本地转写。支持仅读文字、附件、直链和本地文件。在线每段最多60秒，文件每段最多600秒。",
           "scope": "all",
           "permission": "member",
           "mutating": false,
@@ -67,7 +93,7 @@
               "source": {
                 "type": "string",
                 "maxLength": 8192,
-                "description": "可在浏览器播放的视频页面、HTTP/HTTPS 视频直链、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"
+                "description": "视频或音频页面、HTTP/HTTPS媒体直链、配置目录内的本地媒体路径、import:<token> 或 watch:<job_id>"
               },
               "source_type": {
                 "type": "string",
@@ -154,13 +180,13 @@
               "message_id": {
                 "type": "string",
                 "maxLength": 200,
-                "description": "当前聊天里视频附件所在的真实消息编号；与 source 二选一"
+                "description": "当前聊天里视频或音频附件所在的真实消息编号；与source二选一"
               },
               "attachment_index": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 99,
-                "description": "可选的附件序号，从0开始；默认选择第一段视频"
+                "description": "可选附件序号，从0开始；默认选择第一段视频或音频"
               },
               "mode": {
                 "type": "string",
@@ -190,7 +216,16 @@
                   "required"
                 ],
                 "default": "auto",
-                "description": "无字幕时是否采集音频：auto在有转写模型时采集；off只看画面；required要求可用的语音读取。"
+                "description": "auto无字幕时按主人配置进行本地转写；off不读取声音；required要求明确报告语音是否取得。"
+              },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "balanced",
+                  "transcript"
+                ],
+                "default": "balanced",
+                "description": "balanced读取画面和文字；transcript仅读取字幕或语音，有字幕时可跳过下载。"
               }
             },
             "required": [],
