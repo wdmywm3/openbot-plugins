@@ -23,7 +23,7 @@ TERMINAL = {"ready", "failed", "cancelled", "interrupted"}
 
 
 def validate_request(args):
-    allowed = {"source", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin", "focus_cell"}
+    allowed = {"source", "source_type", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "media_kind", "media_scope", "media_origin", "focus_cell"}
     if not isinstance(args, dict) or set(args) - allowed or "source" not in args:
         raise WatchError("watch_start 参数无效")
     result = {"source": canonical_source(args["source"]),
@@ -32,6 +32,10 @@ def validate_request(args):
               "sampling": args.get("sampling", "balanced")}
     if result["sampling"] not in {"balanced", "uniform"}:
         raise WatchError("sampling 必须是 balanced 或 uniform")
+    if "source_type" in args:
+        if args["source_type"] not in {"auto", "direct", "page"}:
+            raise WatchError("source_type 必须是 auto、direct 或 page")
+        result["source_type"] = args["source_type"]
     if "crop" in args:
         crop = args["crop"]
         if not isinstance(crop, dict) or set(crop) != {"x", "y", "width", "height"}:
@@ -117,6 +121,8 @@ class Jobs:
 
     def prune(self):
         with self.lock:
+            from ingest import prune as prune_uploads
+            prune_uploads(self.root)
             # Reuse may be copying a cached file. Wait for the queue to drain.
             if any(r["status"] not in TERMINAL for r in self.records.values()):
                 return
@@ -147,7 +153,7 @@ class Jobs:
                 "asr": {"configured": bool(model), "model_available": bool(model and all((Path(model) / name).is_file() for name in ("model.bin", "config.json", "tokenizer.json"))),
                         "runtime_available": importlib.util.find_spec("faster_whisper") is not None},
                 "cookies_configured": contained(self.root, "cookies.txt").is_file(),
-                "sources": ["Bilibili / b23.tv", "YouTube", "import:<token>", "watch:<job_id>"],
+                "sources": ["HTTP/HTTPS direct media", "yt-dlp supported video pages", "chat attachments via native watch_start", "configured local video roots", "import:<token>", "watch:<job_id>"],
                 "limits": {"window_seconds": MAX_WINDOW, "frames_per_job": 24, "images_per_call": 4,
                            "preferred_resolution": PREFERRED_RESOLUTION, "frame_max_edge": MAX_FRAME_EDGE,
                            "media_bytes": MAX_MEDIA, "storage_bytes": MAX_STORAGE, "retention_hours": 24},
@@ -196,7 +202,11 @@ class Jobs:
             if source.startswith("import:"):
                 if not contained(self.root, "imports", source[7:], "source.json").is_file():
                     raise WatchError("导入标识不存在或已过期")
-            missing = [name for name, ready in dependencies().items() if not ready and (name != "yt-dlp" or source.startswith("https:"))]
+            from sources import remote_source
+            needs_downloader = remote_source(source) and not media.direct_source(source, request.get("source_type", "auto"))
+            missing = [name for name, ready in dependencies().items() if not ready and (name != "yt-dlp" or needs_downloader)]
+            if needs_downloader and not importlib.util.find_spec("yt_dlp") and "yt-dlp" not in missing:
+                missing.append("当前 Python 环境的 yt-dlp（requirements-media.txt）")
             if missing:
                 raise WatchError("缺少运行依赖：" + "、".join(missing))
             job_id = uuid.uuid4().hex
@@ -358,7 +368,7 @@ def import_video(root, file, subtitles=None):
     try:
         target = directory / ("media" + source.suffix.lower())
         shutil.copyfile(source, target)
-        # Only this owner-side CLI accepts a path. Chat tools accept its token.
+        # Local access is authorized by the CLI owner or by the scoped ingest entry.
         captions = {"segments": media.parse_captions(subtitles), "source": "imported_subtitles"} if subtitles else {"segments": [], "source": "unavailable"}
         write_json(directory / "captions.json", captions)
         write_json(directory / "source.json", {"file": target.name, "title": source.stem[:300]})

@@ -40,13 +40,15 @@ def wait_job(jobs, identity, timeout=30):
 
 
 class ValidationTests(unittest.TestCase):
-    def test_sources_are_fixed_and_queries_are_canonical(self):
+    def test_platform_queries_are_canonical_and_other_sources_are_allowed(self):
         self.assertEqual(canonical_source("https://www.bilibili.com/video/BV1BFHN6PEfi/?spm_id_from=x&p=2"), "https://www.bilibili.com/video/BV1BFHN6PEfi/?p=2")
         self.assertEqual(canonical_source("https://youtu.be/abcdefghijk?t=90"), "https://www.youtube.com/watch?v=abcdefghijk")
         self.assertEqual(canonical_source("https://m.youtube.com/shorts/abcdefghijk"), "https://www.youtube.com/watch?v=abcdefghijk")
-        for bad in ("D:/Videos/private.mp4", "file:///etc/passwd", "http://127.0.0.1/", "https://youtube.com@127.0.0.1/watch?v=abcdefghijk",
-                    "https://youtube.com.evil.test/watch?v=abcdefghijk", "https://user:pass@www.bilibili.com/video/BV1BFHN6PEfi/",
-                    "https://www.youtube.com:8000/watch?v=abcdefghijk", "https://youtu.be/../abcdefghijk", "import:../../secret", "watch:x",
+        self.assertEqual(canonical_source("D:/Videos/private.mp4"), "D:/Videos/private.mp4")
+        self.assertEqual(canonical_source("https://cdn.example.org/movie.mp4?sig=a%2Fb&expires=1"), "https://cdn.example.org/movie.mp4?sig=a%2Fb&expires=1")
+        self.assertEqual(canonical_source("https://example.org/a-video-page"), "https://example.org/a-video-page")
+        for bad in ("http://127.0.0.1/", "https://youtube.com@127.0.0.1/watch?v=abcdefghijk",
+                    "https://user:pass@www.bilibili.com/video/BV1BFHN6PEfi/", "import:../../secret", "watch:x",
                     "https://www.bilibili.com/video/BV1BFHN6PEfi/?p=0"):
             with self.subTest(bad=bad), self.assertRaises(WatchError):
                 canonical_source(bad)
@@ -547,7 +549,7 @@ class RealMediaTests(unittest.TestCase):
         calls = []
         original = Runner.run
         def downloader(runner, args, timeout=120):
-            if args[0] != "yt-dlp":
+            if len(args) < 3 or Path(args[2]).name != "download.py":
                 return original(runner, args, timeout)
             calls.append(args)
             if "--dump-single-json" in args:
@@ -559,7 +561,7 @@ class RealMediaTests(unittest.TestCase):
             return "", ""
         jobs = Jobs(self.data)
         try:
-            with patch.object(Runner, "run", downloader), patch("media.downloader_command", return_value=["yt-dlp"]), patch("jobs.dependencies", return_value={"ffmpeg": True, "ffprobe": True, "yt-dlp": True}):
+            with patch.object(Runner, "run", downloader), patch("jobs.dependencies", return_value={"ffmpeg": True, "ffprobe": True, "yt-dlp": True}):
                 identity = jobs.start({"source": "https://youtu.be/abcdefghijk", "frame_count": 2, "sampling": "uniform"})["job_id"]
                 state = wait_job(jobs, identity)
             self.assertEqual(state["status"], "ready", state)
@@ -617,8 +619,18 @@ class RealMediaTests(unittest.TestCase):
             page = rpc("tools/call", {"name": "watch_frames", "arguments": {"job_id": identity}})
             self.assertEqual(sum(item["type"] == "image" for item in page["content"]), 4)
             self.assertEqual(page["structuredContent"]["next_offset"], 4)
-            bad = rpc("tools/call", {"name": "watch_start", "arguments": {"source": str(self.video)}})
+            bad = rpc("tools/call", {"name": "watch_ingest", "arguments": {"action": "local", "namespace": "a" * 64, "source": str(self.video), "roots": [str(self.root)]}})
             self.assertTrue(bad["isError"])
+            denied = rpc("tools/call", {"name": "watch_start", "arguments": {"source": str(self.video)}})
+            denied_id = denied["structuredContent"]["job_id"]
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                denied = rpc("tools/call", {"name": "watch_status", "arguments": {"job_id": denied_id}})["structuredContent"]
+                if denied["status"] == "failed":
+                    break
+                time.sleep(0.05)
+            self.assertEqual(denied["status"], "failed")
+            self.assertIn("可读目录", denied["stage"])
         finally:
             child.stdin.close()
             child.wait(timeout=15)

@@ -8,16 +8,17 @@
         "-u",
         "${PLUGIN_ROOT}/tools/server.py",
         "--data-dir",
-        "${PLUGIN_DATA}"
+        "${PLUGIN_DATA}",
+        "--host-bridge"
       ],
       "env": {
         "PYTHONUTF8": "1",
         "PYTHONDONTWRITEBYTECODE": "1"
       },
+      "native_tools": ["watch_start", "watch_ingest"],
       "enabled_tools": [
         "watch_preview",
         "watch_info",
-        "watch_start",
         "watch_status",
         "watch_storyboard",
         "watch_zoom",

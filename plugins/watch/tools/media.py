@@ -16,19 +16,20 @@ import shutil
 import sys
 import tempfile
 from urllib.error import HTTPError
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from common import (Cancelled, DOWNLOAD_FORMAT, DOWNLOAD_SORT, MAX_DURATION, MAX_FRAME_EDGE,
                     MAX_MEDIA, MAX_WINDOW, PREFERRED_RESOLUTION, WatchError,
-                    canonical_source, contained, downloader_command, read_json, write_json)
+                    canonical_source, contained, read_json, write_json)
 import storyboard
+from sources import configured_local_file, remote_source
 
 TIMESTAMP = re.compile(r"pts_time:([^\s]+)")
 FRAME_SIZE = re.compile(r"\bs:(\d+)x(\d+)\b")
 TIMING = re.compile(r"^\s*((?:\d+:)?\d{2}:\d{2}[.,]\d{3})\s+-->\s+((?:\d+:)?\d{2}:\d{2}[.,]\d{3})")
-MEDIA_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"}
-LOCAL_INPUT = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,avi"]
+MEDIA_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg", ".ts", ".m2ts", ".ogv", ".3gp", ".3g2"}
+LOCAL_INPUT = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,avi,flv,asf,mpeg,mpegts,ogg"]
 
 
 def seconds(value):
@@ -149,7 +150,25 @@ def link_copy(source, target):
         shutil.copyfile(source, target)
 
 
-def acquire(source, directory, root, runner, stage):
+def direct_source(source, source_type="auto"):
+    return remote_source(source) and (source_type == "direct" or source_type == "auto" and Path(urlsplit(source).path).suffix.lower() in MEDIA_EXTENSIONS)
+
+
+def single_video_info(info):
+    # Generic HTML pages may be represented as one-entry playlists by yt-dlp.
+    for _ in range(4):
+        if not isinstance(info, dict):
+            break
+        if info.get("_type") not in {"playlist", "multi_video"} and "entries" not in info:
+            return info
+        entries = info.get("entries")
+        if not isinstance(entries, list) or len(entries) != 1:
+            break
+        info = entries[0]
+    raise WatchError("页面包含多个视频或未指定视频，请打开需要观看的具体视频链接")
+
+
+def acquire(source, directory, root, runner, stage, source_type="auto"):
     """Returns a local immutable media file, metadata and full-source captions."""
     warnings = []
     if source.startswith(("watch:", "import:")):
@@ -164,8 +183,29 @@ def acquire(source, directory, root, runner, stage):
         write_json(directory / "source.json", manifest)
         write_json(directory / "captions.json", captions)
         return target, manifest, captions, list(manifest.get("warnings", []))
+    if not remote_source(source):
+        source_file = configured_local_file(source, root)
+        if source_file.suffix.lower() not in MEDIA_EXTENSIONS or not 0 < source_file.stat().st_size <= MAX_MEDIA:
+            raise WatchError("请选择不超过 256 MiB 的视频文件")
+        target = directory / ("media" + source_file.suffix.lower())
+        shutil.copyfile(source_file, target)
+        manifest = {"file": target.name, "title": source_file.name[:300], "source_type": "local"}
+        captions = {"segments": [], "source": "unavailable"}
+        write_json(directory / "source.json", manifest)
+        write_json(directory / "captions.json", captions)
+        return target, manifest, captions, warnings
+    if direct_source(source, source_type):
+        stage("下载视频文件")
+        suffix = Path(urlsplit(source).path).suffix.lower()
+        target = directory / ("media" + (suffix if suffix in MEDIA_EXTENSIONS else ".mp4"))
+        runner.run([sys.executable, "-B", str(Path(__file__).with_name("download.py")), "--direct", source, str(target)], 600)
+        manifest = {"file": target.name, "title": "视频附件", "source_type": "direct"}
+        captions = {"segments": [], "source": "unavailable"}
+        write_json(directory / "source.json", manifest)
+        write_json(directory / "captions.json", captions)
+        return target, manifest, captions, warnings
     source = expand_short_url(source)
-    base = [*downloader_command(), "--ignore-config", "--no-plugin-dirs", "--no-cache-dir", "--no-playlist",
+    base = [sys.executable, "-B", str(Path(__file__).with_name("download.py")), "--ignore-config", "--no-plugin-dirs", "--no-cache-dir", "--no-playlist", "--proxy", "", "--downloader", "native",
             "--no-progress", "--socket-timeout", "20", "--retries", "1", "--fragment-retries", "1",
             "-f", DOWNLOAD_FORMAT, "-S", DOWNLOAD_SORT]
     cookies = contained(root, "cookies.txt")
@@ -173,7 +213,7 @@ def acquire(source, directory, root, runner, stage):
         base += ["--cookies", str(cookies)]
     stage("读取视频信息")
     info_file = directory / "download.info.json"
-    if "bilibili.com/" in source:
+    if urlsplit(source).hostname in {"bilibili.com", "www.bilibili.com", "m.bilibili.com"}:
         if not importlib.util.find_spec("yt_dlp"):
             raise WatchError("B 站读取需要当前 Python 环境中的 yt-dlp，请安装 requirements-media.txt")
         command = [sys.executable, "-B", str(Path(__file__).with_name("download_info.py")), "--source", source, "--output", str(info_file)]
@@ -183,9 +223,7 @@ def acquire(source, directory, root, runner, stage):
         info = read_json(info_file)
     else:
         raw, _ = runner.run(base + ["--dump-single-json", "--skip-download", source], 120)
-        info = json.loads(raw)
-        if not isinstance(info, dict) or info.get("_type") in {"playlist", "multi_video"} or "entries" in info:
-            raise WatchError("请提供一个明确的视频或分 P 链接")
+        info = single_video_info(json.loads(raw))
         write_json(info_file, info)
     reported = info.get("watch_source_duration") or info.get("duration")
     if info.get("is_live") or info.get("live_status") in {"is_live", "is_upcoming", "post_live"}:
@@ -364,7 +402,7 @@ def extract_frames(video, points, end, directory, runner, crop=None):
 
 
 def process(request, directory, root, runner, stage, settings):
-    video, manifest, captions, warnings = acquire(request["source"], directory, root, runner, stage)
+    video, manifest, captions, warnings = acquire(request["source"], directory, root, runner, stage, request.get("source_type", "auto"))
     meta = probe(video, runner)
     crop = request.get("crop")
     if crop and (crop["x"] + crop["width"] > meta["width"] or crop["y"] + crop["height"] > meta["height"]):

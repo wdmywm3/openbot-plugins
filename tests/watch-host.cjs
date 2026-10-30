@@ -19,7 +19,7 @@ const client = new Client({ name: "watch-host-test", version: "1" }, { capabilit
 
 async function main() {
   assert.equal(pkg.manifest.id, "watch");
-  assert.equal(pkg.scriptPath, "");
+  assert.equal(pkg.scriptPath, path.join(plugin, "index.js"));
   assert.deepEqual(pkg.skills.map(s => s.name), ["watch:watch"]);
   assert.equal(pkg.mcpServers.length, 1);
   const video = path.join(work, "fixture.mp4");
@@ -29,8 +29,8 @@ async function main() {
     env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
   await client.connect(transport, { timeout: 15000 });
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 10);
-  assert.deepEqual(new Set(tools.map(t => t.name)), new Set(pkg.mcpServers[0].enabled_tools));
+  assert.equal(tools.length, 11);
+  assert.deepEqual(new Set(tools.map(t => t.name)), new Set([...pkg.mcpServers[0].enabled_tools, "watch_start", "watch_ingest"]));
   for (const tool of tools) assert.equal(sanitizeMcpSchema(tool.inputSchema).ok, true, tool.name);
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const info = await call("watch_info");
@@ -52,6 +52,59 @@ async function main() {
   assert.equal(normalized.userContextBlocks.filter(b => b.type === "image_url").length, 4);
   assert.equal(raw.structuredContent.next_offset, 4);
   assert.ok(!normalized.toolText.includes(data));
+  // Native entry transfers provider-neutral cached bytes through the real MCP server.
+  const native = require(path.join(plugin, "index.js"));
+  const ownEntry = { id: "native-watch", channelId: "bot", pluginId: "watch", pluginServer: "watch", pluginOwnerKey: "native-owner", mcpType: "stdio", enabled: true,
+    pluginDeclaredTools: pkg.mcpServers[0].enabled_tools, pluginNativeTools: pkg.mcpServers[0].native_tools };
+  const ownService = hostRequire("./electron/lib/plugins/plugin-tools.cjs").createPluginToolService({
+    entries: () => [ownEntry], allowedTools: async () => [],
+    request: async (_id, method, params) => method === "tools/list" ? client.listTools() : client.callTool(params) });
+  const nativeCall = input => ownService.call({ channel: { id: "bot" },
+    plugin: { id: "watch", mcpServers: pkg.mcpServers }, principal: { source: "channel", channelId: "bot", chatId: "fixture", senderId: "owner" },
+    signal: new AbortController().signal, assertActive() {}, input });
+  const bytes = fs.readFileSync(video);
+  const nativeCtx = { plugin: { scopeNamespace: "d".repeat(64) }, config: { localVideoRoots: [work] },
+    input: { message_id: "attachment", frame_count: 2, sampling: "uniform" },
+    message: { id: "attachment", media: [{ type: "video", name: "fixture.mp4", assetRef: "openbot-asset://fixture", size: bytes.length }] },
+    api: { readMessageAttachment: async () => ({ type: "video", mimeType: "video/mp4", size: bytes.length, data: bytes.toString("base64") }),
+      callTool: nativeCall } };
+  for (const input of [nativeCtx.input, { source: video, frame_count: 2, sampling: "uniform" }]) {
+    nativeCtx.input = input;
+    const nativeJob = await native.watch_start(nativeCtx);
+    const until = Date.now() + 30000;
+    let nativeStatus;
+    do {
+      nativeStatus = (await call("watch_status", { job_id: nativeJob.job_id })).structuredContent;
+      if (["ready", "failed"].includes(nativeStatus.status)) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < until);
+    assert.equal(nativeStatus.status, "ready", JSON.stringify(nativeStatus));
+    assert.ok((await call("watch_frames", { job_id: nativeJob.job_id })).content.some(b => b.type === "image"));
+  }
+  // Explicit local acceptance input; read existing cached media without modifying it.
+  if (process.env.WATCH_TEST_ATTACHMENT_REF && process.env.WATCH_TEST_ATTACHMENT_ROOT) {
+    const fixture = JSON.parse(fs.readFileSync(process.env.WATCH_TEST_ATTACHMENT_REF, "utf8"));
+    const { readMessageAttachment } = hostRequire("./electron/lib/plugins/plugin-message-attachment.cjs");
+    const message = { id: fixture.messageId, chatId: fixture.chatId, media: [
+      { type: "video", name: "cached.mp4", assetRef: fixture.assetRef, mimeType: "video/mp4" },
+    ] };
+    const ctx = { ...nativeCtx, input: { message_id: message.id, frame_count: 2, sampling: "uniform" }, message,
+      api: { callTool: nativeCtx.api.callTool, readMessageAttachment: input => readMessageAttachment({ fs, path,
+        root: process.env.WATCH_TEST_ATTACHMENT_ROOT, channel: { id: fixture.channelId }, chatId: message.chatId,
+        input, resolveMessage: () => message, guardedFetch: () => { throw new Error("Cached attachment must not need its old URL"); } }) } };
+    const job = await native.watch_start(ctx);
+    let state;
+    const until = Date.now() + 30000;
+    do {
+      state = (await call("watch_status", { job_id: job.job_id })).structuredContent;
+      if (["ready", "failed"].includes(state.status)) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < until);
+    assert.equal(state.status, "ready", JSON.stringify(state));
+    const frames = await call("watch_frames", { job_id: job.job_id });
+    assert.ok(frames.content.some(b => b.type === "image"));
+    console.log("Existing cached attachment: host scoped reader -> native Watch -> MCP -> decoded frames passed");
+  }
   const overview = await call("watch_storyboard", { job_id });
   assert.equal(overview.isError, false, JSON.stringify(overview));
   assert.equal(overview.structuredContent.cells.length, 8);
@@ -109,9 +162,9 @@ async function main() {
   assert.match(f.job().summary, /待核对/);
   const completed = receipts.find(row => row.result.frames?.length).result;
   assert.equal(completed.source, "Watch 抽样画面");
-  const denied = await call("watch_start", { source: video });
+  const denied = await call("watch_ingest", { action: "local", namespace: "d".repeat(64), source: video, roots: [] });
   assert.equal(denied.isError, true);
-  console.log("Watch host integration: ten schemas, storyboard images, cell zoom, source crop and consumer media forwarding passed");
+  console.log("Watch host integration: schemas, native attachments/local files, storyboard images, cell zoom, source crop and consumer media forwarding passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {

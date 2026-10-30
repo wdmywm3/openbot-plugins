@@ -1,21 +1,24 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.7.0",
-  "description": "通过分镜图与字幕理解视频，按编号高清补看关键片段。",
+  "version": "0.8.0",
+  "description": "通用视频阅读：聊天附件、视频直链、各类平台页面与本地文件，结合分镜和字幕按需补看。",
   "extensions": {
     "com.openbot": {
       "displayName": "Watch 视频阅读",
       "category": "utility",
-      "permissions": [],
+      "permissions": [
+        "history",
+        "mcp"
+      ],
       "metadata": {
-        "usage": "在启用插件的会话或任务中提供 B 站、YouTube 视频链接，或主动导入本地视频后交给 Bot 阅读。",
+        "usage": "提供聊天中的视频附件、HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面，或本地视频文件；由 Watch 统一准备画面和字幕。",
         "requirements": [
-          "由 OpenBot 自动准备 Python、FFmpeg 和视频下载依赖；需要支持依赖安装的 OpenBot 版本",
+          "需要 OpenBot 0.1.76 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "新增编号分镜概览、字幕对齐和按格高清补看；按画面与字幕密度分配采样，自动选取清晰画面。鸣谢 SAOS-3624 的 MIT 开源项目 dsh-video-storyboard。"
+        "changelog": "扩展为通用视频来源，新增当前聊天附件与本地目录读取；平台页面优先由已授权的内置浏览器操作，再下载抽帧。无需原生视频模型；需要 OpenBot 0.1.76+。"
       },
       "dependencies": {
         "python": {
@@ -26,7 +29,143 @@
           "ffmpeg",
           "deno"
         ]
-      }
+      },
+      "apiVersion": 1,
+      "main": "index.js",
+      "config": {
+        "localVideoRoots": []
+      },
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "localVideoRoots": {
+            "type": "array",
+            "title": "本地视频目录",
+            "description": "允许读取的本地目录或文件；聊天附件和网络视频不需要配置。",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "name": "watch_start",
+          "export": "watch_start",
+          "description": "读取视频：传 source（视频直链、平台页面、本地路径或已有任务）或 message_id（当前聊天的视频附件）。不要求原生视频模型；就绪后通过 watch_storyboard/watch_frames 查看图片。",
+          "scope": "all",
+          "permission": "member",
+          "mutating": false,
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "maxLength": 8192,
+                "description": "HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"
+              },
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "direct",
+                  "page"
+                ],
+                "description": "默认自动判断；无扩展名的视频附件直链使用 direct"
+              },
+              "start_seconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 7200,
+                "default": 0
+              },
+              "end_seconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 7200
+              },
+              "frame_count": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 24,
+                "default": 12
+              },
+              "sampling": {
+                "type": "string",
+                "enum": [
+                  "balanced",
+                  "uniform"
+                ],
+                "default": "balanced"
+              },
+              "timestamps": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 7200
+                },
+                "minItems": 1,
+                "maxItems": 24,
+                "description": "补看指定的原视频秒数；提供后替代自动选帧"
+              },
+              "crop": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 16384
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 16384
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 16384
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 16384
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false,
+                "description": "可选。仅在整帧细节看不清时使用；x/y/width/height 按 watch_status 的原视频 media.width/height 像素计算，不能直接使用缩小后图片的坐标。不填返回完整画面。"
+              },
+              "request_id": {
+                "type": "string",
+                "description": "可选的新 UUID；仅在重试相同请求时复用，防止重复下载"
+              },
+              "message_id": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "当前聊天里视频附件所在的真实消息编号；与 source 二选一"
+              },
+              "attachment_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99,
+                "description": "可选的附件序号，从0开始；默认选择第一段视频"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
     }
   }
 }

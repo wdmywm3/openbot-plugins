@@ -59,7 +59,7 @@ def extract(source, output, cookies=None):
     all_plugins_loaded.value = True
     options = {"quiet": True, "noprogress": True, "cachedir": False, "noplaylist": True,
                "socket_timeout": 20, "retries": 1, "extractor_retries": 1,
-               "format": DOWNLOAD_FORMAT, "format_sort": [DOWNLOAD_SORT]}
+               "format": DOWNLOAD_FORMAT, "format_sort": [DOWNLOAD_SORT], "proxy": ""}
     if cookies:
         options["cookiefile"] = cookies
     with YoutubeDL(options) as ydl:
@@ -76,6 +76,9 @@ def extract(source, output, cookies=None):
 
 
 def main():
+    from download import guard_network, guard_downloader
+    guard_network()
+    guard_downloader()
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True)
     parser.add_argument("--output", required=True)

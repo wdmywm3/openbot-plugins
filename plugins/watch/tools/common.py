@@ -14,7 +14,6 @@ import sys
 import tempfile
 import threading
 import time
-from urllib.parse import parse_qs, urlparse
 
 MAX_MEDIA = 256 * 1024 * 1024
 MAX_STORAGE = 2 * 1024 * 1024 * 1024
@@ -25,7 +24,7 @@ DOWNLOAD_FORMAT = "bv*+ba/b/bv*"
 # yt-dlp's res sorting uses the shorter side, including portrait video.
 DOWNLOAD_SORT = f"res:{PREFERRED_RESOLUTION}"
 MAX_FRAME_EDGE = 1920
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 TOKEN = re.compile(r"^[a-f0-9]{32}$")
 
 
@@ -74,39 +73,8 @@ def token(value):
 
 
 def canonical_source(value):
-    if not isinstance(value, str) or len(value) > 2048:
-        raise WatchError("请提供视频链接或导入标识")
-    for prefix in ("import:", "watch:"):
-        if value.startswith(prefix):
-            return prefix + token(value[len(prefix):])
-    try:
-        u = urlparse(value)
-        if u.scheme != "https" or u.username or u.password or u.port not in (None, 443):
-            raise ValueError()
-        host = (u.hostname or "").lower()
-        if host in {"bilibili.com", "www.bilibili.com", "m.bilibili.com"}:
-            match = re.fullmatch(r"/video/(BV[A-Za-z0-9]{10})/?", u.path)
-            if match:
-                page = parse_qs(u.query).get("p", ["1"])[0]
-                if not re.fullmatch(r"[1-9][0-9]{0,3}", page):
-                    raise ValueError()
-                return f"https://www.bilibili.com/video/{match[1]}/?p={page}"
-        if host == "b23.tv" and re.fullmatch(r"/[A-Za-z0-9]{2,32}/?", u.path):
-            return "https://b23.tv" + u.path
-        video_id = None
-        if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
-            if u.path == "/watch":
-                video_id = parse_qs(u.query).get("v", [None])[0]
-            else:
-                match = re.fullmatch(r"/(?:shorts|embed)/(\w[\w-]{10})/?", u.path)
-                video_id = match[1] if match else None
-        elif host == "youtu.be":
-            video_id = u.path.strip("/")
-        if video_id and re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
-            return "https://www.youtube.com/watch?v=" + video_id
-    except (ValueError, TypeError):
-        pass
-    raise WatchError("支持 HTTPS B 站、b23.tv、YouTube 视频链接，或 import:/watch: 标识；不接受文件路径及其他地址")
+    from sources import normalize_source
+    return normalize_source(value)
 
 
 def contained(root, *parts):
@@ -208,7 +176,7 @@ class Runner:
                 stderr = err.read(12 * 1024 * 1024).decode("utf-8", "replace")
                 if child.returncode:
                     # Raw stderr may contain signed CDN URLs or local paths.
-                    is_download = "yt-dlp" in Path(args[0]).name or "yt_dlp" in args or any(str(a).endswith("download_info.py") for a in args)
+                    is_download = "yt-dlp" in Path(args[0]).name or "yt_dlp" in args or any(str(a).endswith(("download_info.py", "download.py")) for a in args)
                     hint = download_error(stderr) if is_download else "请检查媒体格式与运行依赖"
                     raise WatchError(f"{Path(args[0]).name} 执行失败（{child.returncode}）：{hint}")
                 return stdout, stderr

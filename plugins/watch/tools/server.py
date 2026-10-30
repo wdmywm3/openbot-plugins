@@ -34,7 +34,8 @@ TOOLS = [
     {"name": "watch_info", "description": "检查 Watch 视频读取依赖、可用来源与限制。不会列出本地文件或其他读取任务。", "inputSchema": schema()},
     {"name": "watch_start", "description": "开始读取视频画面和字幕，返回 job_id。每段最多 600 秒；完成后先用 watch_storyboard 查看分镜概览。复用 watch:<job_id> 可从已下载文件继续补看。",
      "inputSchema": schema({
-         "source": {"type": "string", "maxLength": 2048, "description": "HTTPS B站/YouTube链接、import:<token>，或本任务的 watch:<job_id>"},
+         "source": {"type": "string", "maxLength": 8192, "description": "HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"},
+         "source_type": {"type": "string", "enum": ["auto", "direct", "page"], "description": "默认自动判断；无扩展名的视频附件直链使用 direct"},
          "start_seconds": {**TIME, "default": 0}, "end_seconds": TIME,
          "frame_count": {"type": "integer", "minimum": 2, "maximum": 24, "default": 12},
          "sampling": {"type": "string", "enum": ["balanced", "uniform"], "default": "balanced"},
@@ -59,8 +60,14 @@ TOOLS = [
      "inputSchema": schema({"job_id": JOB, "offset": OFFSET, "limit": {"type": "integer", "minimum": 1, "maximum": 80, "default": 40}}, ["job_id"])},
     {"name": "watch_cancel", "description": "取消本任务的视频读取并停止其处理进程；已完成结果保留至过期。", "inputSchema": schema({"job_id": JOB}, ["job_id"])}
 ]
+TOOLS.append({"name": "watch_ingest", "description": "宿主原生插件的附件导入接口，不作为对话工具启用。",
+              "inputSchema": schema({"action": {"type": "string", "enum": ["begin", "append", "finish", "discard", "local"]},
+                  "namespace": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "size": {"type": "integer"},
+                  "name": {"type": "string"}, "request_id": {"type": "string"}, "source_id": {"type": "string"},
+                  "upload_id": {"type": "string"}, "offset": {"type": "integer"}, "base64": {"type": "string", "maxLength": 48000},
+                  "source": {"type": "string"}, "roots": {"type": "array", "items": {"type": "string"}}}, ["action", "namespace"])})
 for tool in TOOLS:
-    read_only = tool["name"] not in {"watch_start", "watch_zoom", "watch_cancel", "watch_media"}
+    read_only = tool["name"] not in {"watch_start", "watch_zoom", "watch_cancel", "watch_media", "watch_ingest"}
     tool["annotations"] = {"readOnlyHint": read_only, "destructiveHint": False,
                            "idempotentHint": read_only or tool["name"] == "watch_cancel",
                            "openWorldHint": tool["name"] in {"watch_start", "watch_media", "watch_preview"}}
@@ -94,6 +101,11 @@ def call(jobs, name, args):
             return result(read_media(jobs, args))
         if name == "watch_start":
             return result(jobs.start(args))
+        if name == "watch_ingest":
+            if not getattr(jobs, "host_bridge", False):
+                raise WatchError("当前服务未启用宿主附件接口")
+            from ingest import ingest
+            return result(ingest(jobs, args))
         if name == "watch_status":
             return result(jobs.status(args["job_id"]))
         if name == "watch_storyboard":
@@ -131,7 +143,7 @@ def dispatch(jobs, message):
     elif method == "ping":
         value = {}
     elif method == "tools/list":
-        value = {"tools": TOOLS}
+        value = {"tools": [tool for tool in TOOLS if tool["name"] != "watch_ingest" or getattr(jobs, "host_bridge", False)]}
     elif method == "tools/call":
         value = call(jobs, params.get("name"), params.get("arguments", {}))
     else:
@@ -167,9 +179,10 @@ def data_lock(root):
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def serve(root):
+def serve(root, host_bridge=False):
     with data_lock(root):
         jobs = Jobs(root)
+        jobs.host_bridge = host_bridge
         try:
             while True:
                 line = sys.stdin.buffer.readline(65537)
@@ -198,6 +211,7 @@ def main():
             stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="Watch plugin tools; no arbitrary shell execution")
     parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--host-bridge", action="store_true", help="Enable the native plugin's attachment bridge")
     parser.add_argument("--import-file", help="Owner-side import; this option is not exposed as a model tool")
     parser.add_argument("--subtitles", help="Optional VTT/SRT/JSON3/Bilibili JSON sidecar for the imported file")
     args = parser.parse_args()
@@ -210,7 +224,7 @@ def main():
         elif args.subtitles:
             parser.error("--subtitles requires --import-file")
         else:
-            serve(args.data_dir)
+            serve(args.data_dir, args.host_bridge)
     except KeyboardInterrupt:
         pass
     except WatchError as exc:

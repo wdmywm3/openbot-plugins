@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--model")
     parser.add_argument("--bilibili", action="append", default=[])
     parser.add_argument("--youtube")
+    parser.add_argument("--source", action="append", default=[], help="Public direct video URL or supported platform page")
     parser.add_argument("--jfk", help="Local openai/whisper tests/jfk.flac sample")
     args = parser.parse_args()
     root = Path(args.data_dir).resolve()
@@ -67,7 +68,7 @@ def main():
     report = {"plugin_version": read_json(PLUGIN / "plugin.json")["version"], "cases": []}
     jobs = Jobs(root)
     try:
-        for source in [*args.bilibili, *([args.youtube] if args.youtube else [])]:
+        for source in [*args.source, *args.bilibili, *([args.youtube] if args.youtube else [])]:
             state = wait(jobs, {"source": source, "end_seconds": 20, "frame_count": 6}, source)
             item = {"source": source, **evidence(jobs, state)}
             if args.model and state["result"]["media"]["has_audio"]:
