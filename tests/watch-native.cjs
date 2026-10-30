@@ -45,7 +45,7 @@ function fixture() {
   assert.ok(f.calls.every(c => c.name !== "inspect"));
   for (const source of ["https://archive.org/details/test", "https://cdn.example.org/get?token=x%2By", "http://media.example.org/a.mp4", "watch:" + "c".repeat(32)]) {
     const f = fixture(); f.ctx.input = { source }; await start(f.ctx);
-    assert.equal(f.calls.length, 1); assert.equal(f.calls[0].arguments.source, source);
+    assert.equal(f.calls.length, source.startsWith("watch:") ? 2 : 1); assert.equal(f.calls.at(-1).arguments.source, source);
   }
   {
     const f = fixture(); f.ctx.input = { source: "file:///D:/Videos/clip.mp4" }; f.ctx.config.localVideoRoots = ["D:/Videos"];
@@ -71,6 +71,34 @@ function fixture() {
     await assert.rejects(start(f.ctx), /attachment denied/);
   }
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "../plugins/watch/plugin.json"))).extensions["com.openbot"];
+  {
+    const f = fixture(); const mediaCalls = []; f.ctx.input = { source: "https://example.org/player", end_seconds: 6 };
+    const ordinary = f.ctx.api.callTool;
+    f.ctx.api.callTool = async input => {
+      if (input.name === "watch_browser" && input.arguments.action === "plan") return { structuredContent: { request: input.arguments.request, start: 0, end: 6, points: [1, 4] } };
+      if (input.name === "watch_browser" && input.arguments.action === "finish") {
+        f.calls.push(plain(input)); return { structuredContent: { job_id: "browser-job", status: "queued" } };
+      }
+      if (input.name === "watch_ingest" && input.arguments.action === "finish") return { structuredContent: { asset_id: "asset" } };
+      return ordinary(input);
+    };
+    f.ctx.api.browserMedia = async input => {
+      mediaCalls.push(plain(input));
+      if (input.action === "open") return { tabId: "tab" };
+      if (input.action === "inspect") return { title: "Video", url: f.ctx.input.source, media: [{ id: "media", kind: "video", duration: 6, readyState: 4, visible: true, width: 320, height: 180 }] };
+      if (input.action === "captions") return { segments: [{ start: 0, end: 2, text: "Caption" }] };
+      return { size: 3, data: "YWJj", timestamp: input.seconds, view: "element" };
+    };
+    assert.equal((await start(f.ctx)).job_id, "browser-job");
+    assert.equal(f.calls.at(-1).arguments.info.frames.length, 2);
+    assert.ok(!mediaCalls.some(c => c.action === "audio"), "captions avoid recording audio");
+    f.ctx.api.browserMedia = async () => { throw new Error("permission denied"); };
+    await assert.rejects(start(f.ctx), /permission denied/);
+    assert.ok(!f.calls.some(c => c.name === "watch_start"));
+    f.ctx.api.browserMedia = async () => { throw new Error("page unavailable"); };
+    assert.match((await start(f.ctx)).notice, /下载/);
+    f.ctx.input.mode = "browser"; await assert.rejects(start(f.ctx), /page unavailable/);
+  }
   const mcp = JSON.parse(fs.readFileSync(path.join(__dirname, "../plugins/watch/mcp.json")));
   const server = Object.values(mcp.mcpServers)[0];
   assert.equal(manifest.tools.filter(t => t.name === "watch_start").length, 1);

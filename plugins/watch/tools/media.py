@@ -402,6 +402,14 @@ def extract_frames(video, points, end, directory, runner, crop=None):
 
 
 def process(request, directory, root, runner, stage, settings):
+    if request["source"].startswith(("import:", "watch:")):
+        kind, identity = request["source"].split(":")
+        folder = contained(root, "imports" if kind == "import" else "jobs", identity)
+        if read_json(contained(folder, "source.json")).get("kind") == "browser":
+            if kind == "watch":
+                raise WatchError("浏览器任务补看需要原生 watch_start/watch_zoom 重新读取页面")
+            from browser_media import process as browser_process
+            return browser_process(request, directory, root, runner, stage, settings, folder)
     video, manifest, captions, warnings = acquire(request["source"], directory, root, runner, stage, request.get("source_type", "auto"))
     meta = probe(video, runner)
     crop = request.get("crop")

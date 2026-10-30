@@ -106,3 +106,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Browser-reading design references
+
+The online-reading design was informed by the MIT-licensed projects
+[MoaidHathot/Zakira.Replay](https://github.com/MoaidHathot/Zakira.Replay)
+(commit `09dbc02bf9a3b1a60dd4d9591dc1078c66e7ef36`),
+[cctv2333/vidlens](https://github.com/cctv2333/vidlens)
+(commit `e91bf966d6de80cdb6d8f5a2b6211eed41f4645a`), and
+[yanlingLabs/video-extract-mcp](https://github.com/yanlingLabs/video-extract-mcp)
+(commit `32d1861aaebcee4ccdfa2a459b2990e3d30d04c0`).
+These references informed browser seeking/captions and bounded reading windows.
+The browser SDK, evidence ingestion, and tab-audio integration are independently
+implemented for OpenBot; no source code or runtime dependency from these three
+projects is included in this release.

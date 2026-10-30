@@ -15,13 +15,17 @@
         "PYTHONUTF8": "1",
         "PYTHONDONTWRITEBYTECODE": "1"
       },
-      "native_tools": ["watch_start", "watch_ingest"],
+      "native_tools": [
+        "watch_start",
+        "watch_zoom",
+        "watch_ingest",
+        "watch_browser"
+      ],
       "enabled_tools": [
         "watch_preview",
         "watch_info",
         "watch_status",
         "watch_storyboard",
-        "watch_zoom",
         "watch_frames",
         "watch_transcript",
         "watch_cancel",

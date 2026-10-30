@@ -1,8 +1,9 @@
 "use strict";
 
-const START_FIELDS = new Set(["source", "source_type", "message_id", "attachment_index", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id"]);
+const START_FIELDS = new Set(["source", "source_type", "message_id", "attachment_index", "start_seconds", "end_seconds", "frame_count", "sampling", "timestamps", "crop", "request_id", "mode", "tab_id", "media_id", "audio"]);
 const MEDIA = /\.(mp4|mkv|webm|mov|avi|m4v|flv|wmv|mpg|mpeg|ts|m2ts|ogv|3gp|3g2)$/i;
 const remote = source => typeof source === "string" && /^https?:\/\//i.test(source);
+const permissionFailure = error => /授权|审核|权限|撤销|不属于|未声明|禁止|permission|revoked|denied/i.test(String(error.message || ""));
 const video = item => item?.type === "video" || /^video\//i.test(item?.mimeType || item?.mediaType || "")
   || item?.type === "file" && MEDIA.test(item.name || item.fileName || "");
 
@@ -58,6 +59,97 @@ async function importAttachment(ctx, input, selected, index, namespace) {
   return (await call(ctx, "watch_ingest", { action: "finish", namespace, upload_id: begin.upload_id })).source;
 }
 
+async function upload(ctx, namespace, kind, sourceId, media, requestId) {
+  if (!Number.isInteger(media.size) || media.size <= 0 || typeof media.data !== "string") throw new Error("页面媒体结果无效");
+  const begin = await call(ctx, "watch_ingest", { action: "begin", namespace, kind, name: kind === "image" ? "frame.jpg" : "audio.webm",
+    source_id: sourceId.slice(0, 300), size: media.size, ...(requestId ? { request_id: requestId } : {}) });
+  if (begin.result) return begin.result.asset_id;
+  let offset = begin.offset;
+  if (!Number.isInteger(offset) || offset < 0 || offset > media.size || offset < media.size && offset % 3) throw new Error("页面媒体导入进度无效");
+  while (offset < media.size) {
+    const result = await call(ctx, "watch_ingest", { action: "append", namespace, upload_id: begin.upload_id, offset,
+      base64: media.data.slice(offset / 3 * 4, offset / 3 * 4 + 48000) });
+    if (!Number.isInteger(result.offset) || result.offset <= offset || result.offset > media.size) throw new Error("页面媒体导入未前进");
+    offset = result.offset;
+  }
+  return (await call(ctx, "watch_ingest", { action: "finish", namespace, upload_id: begin.upload_id })).asset_id;
+}
+
+async function browserStart(ctx, request, options, namespace) {
+  if (!ctx.api.browserMedia) throw new Error("在线读取需要 OpenBot 0.1.77 或更新版本");
+  // Validate plugin-owned parameters before opening a page; duration is refined below.
+  await call(ctx, "watch_browser", { action: "plan", namespace, request, duration: 7200 });
+  const opened = options.tab_id ? { tabId: options.tab_id } : await ctx.api.browserMedia({ action: "open", url: request.source });
+  let listed, candidates;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try { listed = await ctx.api.browserMedia({ action: "inspect", tabId: opened.tabId }); }
+    catch (error) {
+      ctx.signal?.throwIfAborted();
+      if (options.media_id || attempt >= 9 || error.code !== "BROWSER_MEDIA_STALE") throw error;
+      if (ctx.api.sleep) await ctx.api.sleep(500); continue;
+    }
+    candidates = (listed.media || []).filter(m => m.kind === "video" && m.duration > 0 && m.readyState >= 2);
+    if (candidates.length) break;
+    if (attempt < 9 && ctx.api.sleep) await ctx.api.sleep(500);
+  }
+  if (!candidates.length) throw new Error("页面尚未出现可读取的视频，请先在内置浏览器打开播放器或完成登录");
+  if (!remote(listed.url)) throw new Error("播放器没有有效的页面来源");
+  if (options.tab_id) {
+    const expected = await call(ctx, "watch_browser", { action: "plan", namespace, request, duration: 7200 });
+    const actual = await call(ctx, "watch_browser", { action: "plan", namespace, request: { ...request, source: listed.url }, duration: 7200 });
+    if (expected.request.source !== actual.request.source) throw new Error("页面已变化，地址与本次视频来源不一致");
+  }
+  request.source = listed.url;
+  // The host may refresh media IDs when inspecting; an explicitly selected stale ID is not silently replaced.
+  const visible = candidates.filter(m => m.visible).sort((a, b) => b.width * b.height - a.width * a.height);
+  const pool = visible.length ? visible : candidates, playing = pool.filter(m => m.paused === false);
+  let selected = options.media_id ? candidates.find(m => m.id === options.media_id)
+    : playing.length === 1 ? playing[0] : pool.length === 1 ? pool[0]
+    : pool[0].width * pool[0].height >= 2 * pool[1].width * pool[1].height ? pool[0] : null;
+  if (!selected && !options.media_id) {
+    const error = new Error(`页面有多个播放器，请按问题选择后带上 tab_id 和 media_id：${JSON.stringify({ tab_id: opened.tabId, media: pool.slice(0, 6).map(m => ({ media_id: m.id, duration: m.duration, width: m.width, height: m.height })) })}`);
+    error.code = "WATCH_MEDIA_SELECTION"; throw error;
+  }
+  if (!selected) throw new Error("指定播放器已变化，请重新读取页面并选择播放器");
+  const target = { tabId: opened.tabId, mediaId: selected.id };
+  const planned = await call(ctx, "watch_browser", { action: "plan", namespace, request, duration: selected.duration });
+  const captions = await ctx.api.browserMedia({ action: "captions", ...target, start: planned.start, end: planned.end });
+  const frames = [], audio = [], warnings = [];
+  for (const seconds of planned.points) {
+    ctx.signal?.throwIfAborted();
+    let frame;
+    try { frame = await ctx.api.browserMedia({ action: "frame", ...target, seconds }); }
+    catch (error) { ctx.signal?.throwIfAborted(); if (permissionFailure(error) || error.code === "BROWSER_MEDIA_STALE") throw error;
+      warnings.push(`${seconds} 秒画面读取失败：${String(error.message || "").slice(0, 150)}`); continue; }
+    if (!Number.isFinite(frame.timestamp) || frame.timestamp < planned.start - 0.1 || frame.timestamp >= planned.end) {
+      warnings.push(`没有取得 ${seconds} 秒附近、位于本次范围内的画面`); continue;
+    }
+    frames.push({ asset_id: await upload(ctx, namespace, "image", `${opened.tabId}:frame:${seconds}`, frame, request.request_id),
+      requested: seconds, timestamp: frame.timestamp, view: frame.view });
+  }
+  if (!frames.length) throw new Error("播放器未返回所选区间内的画面");
+  if (!(captions.segments || []).length && options.audio !== "off") {
+    const info = await call(ctx, "watch_info", {});
+    const available = info.asr?.model_available && info.asr?.runtime_available;
+    if (!available && options.audio === "required") throw new Error("读取声音需要先配置本地转写模型");
+    if (available) {
+      for (let start = planned.start; start < planned.end - 0.2;) {
+        ctx.signal?.throwIfAborted();
+        let clip;
+        try { clip = await ctx.api.browserMedia({ action: "audio", ...target, start, seconds: Math.min(20, planned.end - start) }); }
+        catch (error) { ctx.signal?.throwIfAborted(); if (options.audio === "required" || permissionFailure(error)) throw error;
+          warnings.push(`部分页面音频不可用：${String(error.message || "").slice(0, 150)}`); break; }
+        if (!(clip.end > clip.start) || clip.start < start - 0.3 || clip.start > start + 0.5) throw new Error("页面音频时间不一致");
+        audio.push({ asset_id: await upload(ctx, namespace, "audio", `${opened.tabId}:audio:${start}`, clip, request.request_id),
+          start: clip.start, end: clip.end, leadSeconds: clip.leadSeconds });
+        start = clip.end;
+      }
+    } else warnings.push("没有可用字幕，且未配置本地转写模型；本次仅读取画面");
+  }
+  return call(ctx, "watch_browser", { action: "finish", namespace, request,
+    info: { duration: selected.duration, title: listed.title, tab_id: opened.tabId, media_id: selected.id, frames, audio, captions, warnings } });
+}
+
 module.exports.watch_start = async ctx => {
   const input = ctx.input || {};
   if (Object.keys(input).some(key => !START_FIELDS.has(key)) || Boolean(input.source) === Boolean(input.message_id))
@@ -65,7 +157,17 @@ module.exports.watch_start = async ctx => {
   if (!input.message_id && input.attachment_index !== undefined) throw new Error("附件序号需要与消息编号一起使用");
   const namespace = ctx.plugin?.scopeNamespace;
   if (typeof namespace !== "string" || !/^[a-f0-9]{64}$/.test(namespace)) throw new Error("当前宿主没有提供视频读取范围，请更新宿主");
-  const { message_id, attachment_index, ...request } = input;
+  const { message_id, attachment_index, mode = "auto", tab_id, media_id, audio = "auto", ...request } = input;
+  if (!["auto", "browser", "download"].includes(mode) || !["auto", "off", "required"].includes(audio)) throw new Error("视频读取方式无效");
+  let options = { mode, tab_id, media_id, audio };
+  if (/^watch:[a-f0-9]{32}$/.test(request.source || "")) {
+    const prior = await call(ctx, "watch_browser", { action: "source", namespace, job_id: request.source.slice(6) });
+    if (prior.browser) {
+      request.source = prior.source;
+      request.start_seconds ??= prior.start_seconds; request.end_seconds ??= prior.end_seconds;
+      options = { ...options, mode: "browser", tab_id: prior.tab_id, media_id: prior.media_id };
+    }
+  }
   if (message_id) {
     if (typeof message_id !== "string" || !message_id.trim() || message_id.length > 200) throw new Error("视频消息编号无效");
     const selected = await message(ctx, message_id);
@@ -87,5 +189,27 @@ module.exports.watch_start = async ctx => {
       ...(input.request_id ? { request_id: input.request_id } : {}) });
     request.source = result.source;
   }
+  const page = remote(request.source) && request.source_type !== "direct" && !MEDIA.test(request.source.split(/[?#]/)[0]);
+  if (options.mode === "browser" || options.mode === "auto" && page && ctx.api.browserMedia) {
+    try { return await browserStart(ctx, request, options, namespace); }
+    catch (error) {
+      ctx.signal?.throwIfAborted();
+      // Permission denial, changed pages, and explicit browser requests never fall through.
+      const denied = permissionFailure(error);
+      if (options.mode === "browser" || denied || ["BROWSER_MEDIA_STALE", "WATCH_MEDIA_SELECTION"].includes(error.code) || /页面已变化|播放器已变化/.test(error.message || "")) throw error;
+      const result = await call(ctx, "watch_start", request);
+      return { ...result, notice: "内置浏览器未取得完整资料，已转为下载读取", browser_reason: String(error.message || "").slice(0, 250) };
+    }
+  }
   return call(ctx, "watch_start", request);
+};
+
+module.exports.watch_zoom = async ctx => {
+  const input = ctx.input || {}, namespace = ctx.plugin?.scopeNamespace;
+  if (Object.keys(input).some(k => !["job_id", "cell_id", "frame_count", "crop", "request_id"].includes(k))) throw new Error("补看参数无效");
+  const prior = await call(ctx, "watch_browser", { action: "source", namespace, job_id: input.job_id, cell_id: input.cell_id });
+  if (!prior.browser) return call(ctx, "watch_zoom", input);
+  return module.exports.watch_start({ ...ctx, input: { source: prior.source, mode: "browser", tab_id: prior.tab_id, media_id: prior.media_id,
+    start_seconds: prior.start_seconds, end_seconds: prior.end_seconds, frame_count: input.frame_count || 6,
+    ...(input.crop ? { crop: input.crop } : {}), ...(input.request_id ? { request_id: input.request_id } : {}) } });
 };

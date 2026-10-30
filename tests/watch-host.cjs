@@ -29,8 +29,8 @@ async function main() {
     env: { ...process.env, ...pkg.mcpServers[0].env }, cwd: work, stderr: "pipe" });
   await client.connect(transport, { timeout: 15000 });
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 11);
-  assert.deepEqual(new Set(tools.map(t => t.name)), new Set([...pkg.mcpServers[0].enabled_tools, "watch_start", "watch_ingest"]));
+  assert.equal(tools.length, 12);
+  assert.deepEqual(new Set(tools.map(t => t.name)), new Set([...pkg.mcpServers[0].enabled_tools, ...pkg.mcpServers[0].native_tools]));
   for (const tool of tools) assert.equal(sanitizeMcpSchema(tool.inputSchema).ok, true, tool.name);
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const info = await call("watch_info");

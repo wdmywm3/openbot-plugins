@@ -1,24 +1,26 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.8.0",
-  "description": "通用视频阅读：聊天附件、视频直链、各类平台页面与本地文件，结合分镜和字幕按需补看。",
+  "version": "0.9.0",
+  "description": "通过内置浏览器在线读取画面、字幕和片段声音，也支持聊天附件、视频直链和本地文件。",
   "extensions": {
     "com.openbot": {
       "displayName": "Watch 视频阅读",
       "category": "utility",
       "permissions": [
         "history",
-        "mcp"
+        "mcp",
+        "browser",
+        "network"
       ],
       "metadata": {
-        "usage": "提供聊天中的视频附件、HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面，或本地视频文件；由 Watch 统一准备画面和字幕。",
+        "usage": "提供视频页面即可优先在线读取；聊天附件、直链和本地视频共用一个入口，支持分镜、字幕和按时间补看。",
         "requirements": [
-          "需要 OpenBot 0.1.76 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
+          "需要 OpenBot 0.1.77 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "扩展为通用视频来源，新增当前聊天附件与本地目录读取；平台页面优先由已授权的内置浏览器操作，再下载抽帧。无需原生视频模型；需要 OpenBot 0.1.76+。"
+        "changelog": "新增内置浏览器在线读取：按实际时间取帧、读取页面字幕、按需采集当前标签页音频并转写；保留附件、直链和本地文件入口。"
       },
       "dependencies": {
         "python": {
@@ -54,7 +56,7 @@
         {
           "name": "watch_start",
           "export": "watch_start",
-          "description": "读取视频：传 source（视频直链、平台页面、本地路径或已有任务）或 message_id（当前聊天的视频附件）。不要求原生视频模型；就绪后通过 watch_storyboard/watch_frames 查看图片。",
+          "description": "读取视频：平台页面优先使用内置浏览器在线取画面和字幕；无字幕时可采集片段声音转写。在线每次最多60秒，其他来源每次最多600秒。支持附件、直链和本地文件。",
           "scope": "all",
           "permission": "member",
           "mutating": false,
@@ -65,7 +67,7 @@
               "source": {
                 "type": "string",
                 "maxLength": 8192,
-                "description": "HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"
+                "description": "可在浏览器播放的视频页面、HTTP/HTTPS 视频直链、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"
               },
               "source_type": {
                 "type": "string",
@@ -159,12 +161,116 @@
                 "minimum": 0,
                 "maximum": 99,
                 "description": "可选的附件序号，从0开始；默认选择第一段视频"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "browser",
+                  "download"
+                ],
+                "default": "auto",
+                "description": "auto优先在线读取平台页面；browser强制在线读取；download使用下载器。"
+              },
+              "tab_id": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "可选，复用当前聊天已打开的浏览器页面"
+              },
+              "media_id": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "可选，选择页面上已有的具体播放器"
+              },
+              "audio": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "off",
+                  "required"
+                ],
+                "default": "auto",
+                "description": "无字幕时是否采集音频：auto在有转写模型时采集；off只看画面；required要求可用的语音读取。"
               }
             },
             "required": [],
             "additionalProperties": false
           }
+        },
+        {
+          "name": "watch_zoom",
+          "export": "watch_zoom",
+          "description": "按已有分镜编号补看细节；在线任务重新定位原页面，文件任务复用原文件。",
+          "scope": "all",
+          "permission": "member",
+          "mutating": false,
+          "cancellation": "cooperative",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$",
+                "description": "本任务返回的 job_id；作为读取凭证保留在原会话中"
+              },
+              "cell_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 24
+              },
+              "frame_count": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 24,
+                "default": 6
+              },
+              "crop": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 16384
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 16384
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 16384
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 16384
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              "request_id": {
+                "type": "string",
+                "description": "新UUID；仅重试同一补看请求时复用"
+              }
+            },
+            "required": [
+              "job_id",
+              "cell_id"
+            ],
+            "additionalProperties": false
+          }
         }
+      ],
+      "networkHosts": [
+        "*"
       ]
     }
   }

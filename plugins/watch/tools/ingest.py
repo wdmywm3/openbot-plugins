@@ -26,7 +26,7 @@ def ingest(jobs, args):
     if not isinstance(namespace, str) or not re.fullmatch(r"[a-f0-9]{64}", namespace):
         raise WatchError("附件缺少当前会话范围")
     action = args.get("action")
-    fields = {"begin": {"size", "name", "request_id", "source_id"},
+    fields = {"begin": {"size", "name", "request_id", "source_id", "kind"},
               "append": {"upload_id", "offset", "base64"}, "finish": {"upload_id"},
               "discard": {"upload_id"}, "local": {"source", "roots", "request_id"}}
     if action not in fields or set(args) - ({"action", "namespace"} | fields[action]):
@@ -38,7 +38,8 @@ def ingest(jobs, args):
                 request = uuid.UUID(args["request_id"]).hex if args.get("request_id") else uuid.uuid4().hex
             except (ValueError, TypeError, AttributeError):
                 raise WatchError("request_id 必须是 UUID") from None
-            identity = uuid.uuid5(uuid.NAMESPACE_URL, namespace + ":" + request).hex
+            kind = args.get("kind", "video")
+            identity = uuid.uuid5(uuid.NAMESPACE_URL, namespace + ":" + request + (":" + kind + ":" + str(args.get("source_id", "")) if kind != "video" else "")).hex
             folder = contained(jobs.root, "uploads", identity)
             if action == "local":
                 source = local_file(args.get("source"), args.get("roots", []))
@@ -59,9 +60,12 @@ def ingest(jobs, args):
                 raise WatchError("视频文件名无效")
             from media import MEDIA_EXTENSIONS
             suffix = Path(name).suffix.lower()
-            if suffix not in MEDIA_EXTENSIONS:
+            extensions = {"video": MEDIA_EXTENSIONS, "image": {".jpg", ".jpeg", ".png"}, "audio": {".webm", ".wav", ".ogg"}}
+            if kind not in extensions or suffix not in extensions[kind]:
                 raise WatchError("附件不是支持的视频文件")
-            description = {"namespace": namespace, "size": size, "name": name, "source_id": args.get("source_id", "")}
+            if kind == "image" and size > 1500000 or kind == "audio" and size > 2 * 1024 * 1024:
+                raise WatchError("页面媒体超过大小限制")
+            description = {"namespace": namespace, "size": size, "name": name, "source_id": args.get("source_id", ""), "kind": kind}
             if not isinstance(description["source_id"], str) or len(description["source_id"]) > 300:
                 raise WatchError("附件来源编号无效")
             if folder.exists():
@@ -90,7 +94,7 @@ def ingest(jobs, args):
                 return record["result"]
             if target.stat().st_size != record["size"]:
                 raise WatchError("视频附件尚未完整传入")
-            result = import_video(jobs.root, target)
+            result = {"asset_id": identity} if record.get("kind", "video") != "video" else import_video(jobs.root, target)
             write_json(folder / "upload.json", {**record, "result": result})
             return result
         if record.get("result"):

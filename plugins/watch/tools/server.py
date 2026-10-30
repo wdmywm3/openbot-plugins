@@ -63,11 +63,15 @@ TOOLS = [
 TOOLS.append({"name": "watch_ingest", "description": "宿主原生插件的附件导入接口，不作为对话工具启用。",
               "inputSchema": schema({"action": {"type": "string", "enum": ["begin", "append", "finish", "discard", "local"]},
                   "namespace": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "size": {"type": "integer"},
-                  "name": {"type": "string"}, "request_id": {"type": "string"}, "source_id": {"type": "string"},
+                  "name": {"type": "string"}, "request_id": {"type": "string"}, "source_id": {"type": "string"}, "kind": {"type": "string", "enum": ["video", "image", "audio"]},
                   "upload_id": {"type": "string"}, "offset": {"type": "integer"}, "base64": {"type": "string", "maxLength": 48000},
                   "source": {"type": "string"}, "roots": {"type": "array", "items": {"type": "string"}}}, ["action", "namespace"])})
+TOOLS.append({"name": "watch_browser", "description": "插件内部的浏览器资料接口。",
+              "inputSchema": schema({"action": {"type": "string", "enum": ["plan", "finish", "source"]}, "namespace": {"type": "string"},
+                  "request": {"type": "object", "additionalProperties": True}, "duration": TIME, "info": {"type": "object", "additionalProperties": True},
+                  "job_id": JOB, "cell_id": {"type": "integer", "minimum": 1, "maximum": 24}}, ["action", "namespace"])})
 for tool in TOOLS:
-    read_only = tool["name"] not in {"watch_start", "watch_zoom", "watch_cancel", "watch_media", "watch_ingest"}
+    read_only = tool["name"] not in {"watch_start", "watch_zoom", "watch_cancel", "watch_media", "watch_ingest", "watch_browser"}
     tool["annotations"] = {"readOnlyHint": read_only, "destructiveHint": False,
                            "idempotentHint": read_only or tool["name"] == "watch_cancel",
                            "openWorldHint": tool["name"] in {"watch_start", "watch_media", "watch_preview"}}
@@ -101,6 +105,11 @@ def call(jobs, name, args):
             return result(read_media(jobs, args))
         if name == "watch_start":
             return result(jobs.start(args))
+        if name == "watch_browser":
+            if not getattr(jobs, "host_bridge", False):
+                raise WatchError("当前服务未启用宿主浏览器接口")
+            from browser_media import dispatch
+            return result(dispatch(jobs, args))
         if name == "watch_ingest":
             if not getattr(jobs, "host_bridge", False):
                 raise WatchError("当前服务未启用宿主附件接口")
@@ -143,7 +152,7 @@ def dispatch(jobs, message):
     elif method == "ping":
         value = {}
     elif method == "tools/list":
-        value = {"tools": [tool for tool in TOOLS if tool["name"] != "watch_ingest" or getattr(jobs, "host_bridge", False)]}
+        value = {"tools": [tool for tool in TOOLS if tool["name"] not in {"watch_ingest", "watch_browser"} or getattr(jobs, "host_bridge", False)]}
     elif method == "tools/call":
         value = call(jobs, params.get("name"), params.get("arguments", {}))
     else:
