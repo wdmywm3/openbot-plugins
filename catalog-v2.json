@@ -538,8 +538,8 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.9.0",
-      "description": "通过内置浏览器在线读取画面、字幕和片段声音，也支持聊天附件、视频直链和本地文件。",
+      "version": "0.10.0",
+      "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
@@ -552,11 +552,11 @@
         "usage": "提供视频页面即可优先在线读取；聊天附件、直链和本地视频共用一个入口，支持分镜、字幕和按时间补看。",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.77 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
+          "需要 OpenBot 0.1.78 或更新版本；自动准备 Python、FFmpeg、视频下载及本地语音转写依赖",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
-          "无字幕时可配置本地 faster-whisper 模型进行转写"
+          "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "新增内置浏览器在线读取：按实际时间取帧、读取页面字幕、按需采集当前标签页音频并转写；保留附件、直链和本地文件入口。",
+        "changelog": "参照 claude-video 的本地流程补齐转写依赖、模型初始化与试运行；字幕优先，支持独立音频、内嵌文字字幕及仅读取文字，保留部分可用资料。",
         "components": [
           "tools",
           "skills",
@@ -564,62 +564,72 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "f6a16305e7f93544f80c4b089ed2784c129b4e53",
+      "ref": "665cb142d5e65fad2de26ee81aadf6f7cfe18691",
       "files": [
         {
           "path": "README.md",
-          "size": 19577,
-          "sha256": "fefbf8a68849d71f7f5a88194e1d659834d781e05b3ffe74545d06d89d7256ff"
+          "size": 22261,
+          "sha256": "e1e57de60fe9349066d03fbfa732b3d1144b23f6e92796e1073af4aa0d8c0284"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
-          "size": 6003,
-          "sha256": "f047345460e68656470cca26aedbe35264cf3467c64cc27f2776029cb9577930"
+          "size": 6465,
+          "sha256": "fd481a0cd53baf9c6c51fa66ac17fcce06476b0a1b2108ac0d44a8027e318975"
+        },
+        {
+          "path": "asr-model.json",
+          "size": 765,
+          "sha256": "2c923c10b147d93d9879f103998166120e234327f98f50d076ed1a72b4dab413"
         },
         {
           "path": "index.js",
-          "size": 15315,
-          "sha256": "b373e006e7943292c278027744a5944bbed68c54b4f916c21e231aad2f707e20"
+          "size": 16467,
+          "sha256": "48c7be76bb90c8bcaa629c431dd75e8c03b8bfeb69e9a37d8660184b8ad9f301"
         },
         {
           "path": "mcp.json",
-          "size": 710,
-          "sha256": "ddb626e3c3d00dd8284c990818af5ea395e370c9ba465f899595ae0dfcd078de"
+          "size": 761,
+          "sha256": "ad8c10e764c3a31f6adeb050724626f81bd3608d170f984259496114406c0d2c"
         },
         {
           "path": "plugin.json",
-          "size": 9610,
-          "sha256": "8d5017f65e849384ed29583ff85329970b1a9900825249b5cc22158d76cbb038"
+          "size": 10936,
+          "sha256": "d1642f720f8d4f5eb07d3095b9dcea6dbec642ed52c52c45e8f13a4a21855849"
         },
         {
           "path": "requirements-asr.txt",
           "size": 106,
-          "sha256": "9c1c279d718735c5a646cac4e049bd8e25cd29bbceaa49cd45bd35c46841d73d"
+          "sha256": "69ebd478e861ce30795f21a3899ef7290964e7f016edace0729a78df5a1e5109"
         },
         {
           "path": "requirements-media.lock",
-          "size": 64095,
-          "sha256": "ee32d29346b83aaf9b29aff48a7803bc618cd8527005ff37d9b60da74322b862"
+          "size": 89895,
+          "sha256": "94f0a1a9584fe1e0be38204701cd634758e9c105d238e78620a2af2907012e72"
         },
         {
           "path": "requirements-media.txt",
-          "size": 204,
-          "sha256": "f52bc6a3ccc857b882da70f8381333e546fc8a3f889fc27207246a820199fc80"
+          "size": 227,
+          "sha256": "05fc2bbe1dd1f0de45ab3e96696ec9c81e98d5095f316e163c58803510e1c003"
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 15799,
-          "sha256": "fdb30c7fd446a800b27b3388695bf368e79aa38f1ff771cb7f6830eb6e1869f9"
+          "size": 16885,
+          "sha256": "5e98c3e855cf50e043c781cd21601527362724d955e1b01f5b6d91497a8b07f3"
+        },
+        {
+          "path": "tools/asr.py",
+          "size": 5676,
+          "sha256": "6adcd388f4b25e60bd70a37c91bb7f00c60580360ece40094829979ecba6eed2"
         },
         {
           "path": "tools/browser_media.py",
-          "size": 13735,
-          "sha256": "3c08f5497228064c39c30bc4b3c6928a627e51a7229562e32514aeed920bfe93"
+          "size": 14943,
+          "sha256": "68333991eb29251745cbe4497d942a8d2a1b37ed1c940065b9b72f3d858d0188"
         },
         {
           "path": "tools/common.py",
-          "size": 7734,
-          "sha256": "9c3bd6a7f38487f893f84d9d97951969573bd09f188df1d92de289f107d9727d"
+          "size": 7735,
+          "sha256": "16e5d012a08b85b2c7c8432c3d3a85fd043c9536995c2d060331885dc63015cd"
         },
         {
           "path": "tools/download.py",
@@ -638,13 +648,13 @@
         },
         {
           "path": "tools/jobs.py",
-          "size": 20892,
-          "sha256": "3dcdbae2892eb90c51c037a496b276b1b8ac121f75cd72298cc6e58f8f941a23"
+          "size": 21426,
+          "sha256": "aeca2d656da4340c8aefa14e4ccbe08c07fcef4e18b4150aeca15f53575bc653"
         },
         {
           "path": "tools/media.py",
-          "size": 28684,
-          "sha256": "c5d331425f7a5ab4315dc40686bf944d56cbb934039baa8181c0e0d89fad1f8f"
+          "size": 33637,
+          "sha256": "f78f553eed172e9f78d2fd9ed55a61a7823f20f7b4677ed0438106ecc48f2da7"
         },
         {
           "path": "tools/media_bridge.py",
@@ -658,8 +668,13 @@
         },
         {
           "path": "tools/server.py",
-          "size": 15948,
-          "sha256": "01f7c5f902e2239c0632077d691ab75e6a456e939ca48592be7842b94558fe4c"
+          "size": 16289,
+          "sha256": "da37634a52eec7f4a8b398884db93e02ebe1ccb44cf4162749ff5a9b22cebb3c"
+        },
+        {
+          "path": "tools/setup_asr.py",
+          "size": 4225,
+          "sha256": "af5adadb5c88421ad3bd38b06dc4f05c1e81637934a42854a6c6c7b0f05ea24a"
         },
         {
           "path": "tools/sources.py",
@@ -673,8 +688,8 @@
         },
         {
           "path": "tools/transcribe.py",
-          "size": 2394,
-          "sha256": "522388981072284fe587a3a91bec01d48a3cb1c3f1c26fc6a89f4dddda41b932"
+          "size": 3080,
+          "sha256": "15832e6fc849c167027e4e97a2dc656b885e2253d09b0af7e09f8b6d0f5e2941"
         }
       ]
     }
