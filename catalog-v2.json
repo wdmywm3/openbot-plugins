@@ -538,23 +538,25 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.8.0",
-      "description": "通用视频阅读：聊天附件、视频直链、各类平台页面与本地文件，结合分镜和字幕按需补看。",
+      "version": "0.9.0",
+      "description": "通过内置浏览器在线读取画面、字幕和片段声音，也支持聊天附件、视频直链和本地文件。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
         "history",
-        "mcp"
+        "mcp",
+        "browser",
+        "network"
       ],
       "metadata": {
-        "usage": "提供聊天中的视频附件、HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面，或本地视频文件；由 Watch 统一准备画面和字幕。",
+        "usage": "提供视频页面即可优先在线读取；聊天附件、直链和本地视频共用一个入口，支持分镜、字幕和按时间补看。",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.76 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
+          "需要 OpenBot 0.1.77 或更新版本；自动准备 Python、FFmpeg 和视频下载依赖",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "无字幕时可配置本地 faster-whisper 模型进行转写"
         ],
-        "changelog": "扩展为通用视频来源，新增当前聊天附件与本地目录读取；平台页面优先由已授权的内置浏览器操作，再下载抽帧。无需原生视频模型；需要 OpenBot 0.1.76+。",
+        "changelog": "新增内置浏览器在线读取：按实际时间取帧、读取页面字幕、按需采集当前标签页音频并转写；保留附件、直链和本地文件入口。",
         "components": [
           "tools",
           "skills",
@@ -562,32 +564,32 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b6288dcb24b85fcabd1dca8d22130cf77736e825",
+      "ref": "f6a16305e7f93544f80c4b089ed2784c129b4e53",
       "files": [
         {
           "path": "README.md",
-          "size": 18198,
-          "sha256": "52feeeca0c447222d9e2f54f1b2b30c35fcd6a2e26c7c83c28452f052028ac88"
+          "size": 19577,
+          "sha256": "fefbf8a68849d71f7f5a88194e1d659834d781e05b3ffe74545d06d89d7256ff"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
-          "size": 5243,
-          "sha256": "823157fc033393aa9703a03cc8524a0fd1c666df74fbae4c32b46fabe5f89544"
+          "size": 6003,
+          "sha256": "f047345460e68656470cca26aedbe35264cf3467c64cc27f2776029cb9577930"
         },
         {
           "path": "index.js",
-          "size": 5825,
-          "sha256": "eaa542f17c2ed378317b772054177d18a16ab1cea0efaf297368a2df23e6fba7"
+          "size": 15315,
+          "sha256": "b373e006e7943292c278027744a5944bbed68c54b4f916c21e231aad2f707e20"
         },
         {
           "path": "mcp.json",
-          "size": 661,
-          "sha256": "eab97363049ce65b3a317f30db9316902037fd9161a48d95ba53d9435f0cd99c"
+          "size": 710,
+          "sha256": "ddb626e3c3d00dd8284c990818af5ea395e370c9ba465f899595ae0dfcd078de"
         },
         {
           "path": "plugin.json",
-          "size": 6184,
-          "sha256": "88c0aa5e0ca076165399c342c697b899dba078057c1feacd357bdd0fe39edd73"
+          "size": 9610,
+          "sha256": "8d5017f65e849384ed29583ff85329970b1a9900825249b5cc22158d76cbb038"
         },
         {
           "path": "requirements-asr.txt",
@@ -606,13 +608,18 @@
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 15043,
-          "sha256": "c5c5178944778a5edc007788c877b45fe2f02c9a9da01810d489c26d01c8a212"
+          "size": 15799,
+          "sha256": "fdb30c7fd446a800b27b3388695bf368e79aa38f1ff771cb7f6830eb6e1869f9"
+        },
+        {
+          "path": "tools/browser_media.py",
+          "size": 13735,
+          "sha256": "3c08f5497228064c39c30bc4b3c6928a627e51a7229562e32514aeed920bfe93"
         },
         {
           "path": "tools/common.py",
           "size": 7734,
-          "sha256": "4ba92e44d153bd67dd3732c9332e831052181e6ff48a3b3dfc9e701369133cf3"
+          "sha256": "9c3bd6a7f38487f893f84d9d97951969573bd09f188df1d92de289f107d9727d"
         },
         {
           "path": "tools/download.py",
@@ -626,18 +633,18 @@
         },
         {
           "path": "tools/ingest.py",
-          "size": 6496,
-          "sha256": "9d65e24200bcdb4a8b9364b6cbc2d1a367e95996b3e1db96541efe0a90dc576e"
+          "size": 7029,
+          "sha256": "073a138ad7acacfc82827851ecbad219a428d8e8378bb3e1681b016a1b754a81"
         },
         {
           "path": "tools/jobs.py",
-          "size": 20699,
-          "sha256": "8ccc7215b69c15228697da2ad449ce613ddc9b804ae445277310a3a2ddc18025"
+          "size": 20892,
+          "sha256": "3dcdbae2892eb90c51c037a496b276b1b8ac121f75cd72298cc6e58f8f941a23"
         },
         {
           "path": "tools/media.py",
-          "size": 28100,
-          "sha256": "add961bbb86d2e2dec6d94eae4a0d28840d588ea0e2fdfaeb5ba408c1e24fcb8"
+          "size": 28684,
+          "sha256": "c5d331425f7a5ab4315dc40686bf944d56cbb934039baa8181c0e0d89fad1f8f"
         },
         {
           "path": "tools/media_bridge.py",
@@ -651,8 +658,8 @@
         },
         {
           "path": "tools/server.py",
-          "size": 15065,
-          "sha256": "ff3ebebc3cac64064e4d649e219c251147de639f6f7cc52ce731557bb025c19c"
+          "size": 15948,
+          "sha256": "01f7c5f902e2239c0632077d691ab75e6a456e939ca48592be7842b94558fe4c"
         },
         {
           "path": "tools/sources.py",
