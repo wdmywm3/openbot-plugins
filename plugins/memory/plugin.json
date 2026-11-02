@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": { "com.openbot": {
     "displayName": "记忆 Plus", "category": "assistant", "apiVersion": 1, "main": "index.js",
@@ -36,6 +36,6 @@
       { "id": "import", "kind": "job", "export": "importBundle", "permission": "owner", "restartable": true, "timeoutMs": 3600000, "inputSchema": { "type": "object", "additionalProperties": true } }
     ],
     "ui": { "version": 1, "views": [{ "id": "library", "title": "记忆 Plus", "entry": "ui/index.html", "actions": ["list", "manage", "process", "import"] }] },
-    "metadata": { "requirements": ["需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"], "changelog": "支持按聊天跳过此前记录，持久保存整理起点；闲置、定时和手动整理共用成功断点，空扫描也正常推进，失败可重试；减少从普通闲聊和临时状态中生成无用记忆。" }
+    "metadata": { "requirements": ["需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"], "changelog": "完善群聊、私聊与主人事项的整理规则；修复事项改期未同步复查时间，支持明确约定的周期、按新资料复查和事项订阅；取消或停止时清除复查设置，明确重开不恢复旧订阅。" }
   } }
 }

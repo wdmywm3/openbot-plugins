@@ -5,7 +5,7 @@
   "scripts": {
     "test:integration": "node scripts/test-integration.cjs",
     "test:all": "npm test && npm run test:integration",
-    "test:memory:unit": "node tests/memory-standalone.cjs",
+    "test:memory:unit": "node tests/memory-standalone.cjs && node tests/memory-dream-policy.cjs",
     "prepare:candidates": "node scripts/prepare-candidates.cjs",
     "test:conversation": "node tests/conversation-events.cjs",
     "test": "node scripts/sync-learning.cjs --check && node tests/activity-learning.cjs && node tests/bili-reading-focus.cjs && node tests/learning-integration.cjs && node tests/reliability.cjs && node tests/explorer.cjs && node tests/bili-sharing-context.cjs && node tests/butler.cjs && node tests/bili-favorites.cjs && node tests/bili-media-interface.cjs && node tests/agent-tools.cjs && node tests/video-ledger.cjs && node tests/video-analysis.cjs && node tests/recovery.cjs && node tests/content-review.cjs && node tests/interactions.cjs && node tests/bilibili-social.cjs && node tests/bilibili-actions.cjs && node tests/android-roamer.cjs && node tests/catalog.cjs && node tests/conversation-events.cjs && node tests/search.cjs && node tests/search-content.cjs && node tests/watch-native.cjs && npm run test:memory:unit && npm run test:memes",
@@ -15,7 +15,7 @@
     "test:search": "node tests/search.cjs && node tests/search-content.cjs",
     "test:memes": "node tests/meme-library.cjs && node tests/meme-engine.cjs",
     "test:meme-host": "node tests/meme-host.cjs",
-    "test:memory": "node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs"
+    "test:memory": "node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs && node tests/memory-dream-host.cjs"
   },
   "engines": {
     "node": ">=24"

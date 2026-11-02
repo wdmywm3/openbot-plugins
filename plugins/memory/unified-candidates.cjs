@@ -5,7 +5,9 @@ const sorted = values => [...new Set(values || [])].sort();
 function identity(record) {
   return JSON.stringify(stable({ content: String(record.content || "").normalize("NFKC").trim(), kind: record.kind || "fact", subtype: record.subtype || null,
     subjectRefs: sorted(record.subjectRefs), conditions: sorted(record.conditions), validFrom: record.validFrom || null, validTo: record.validTo || null,
-    progress: record.progress || null, fact: record.attributes?.fact || null, nextReviewAt: record.attributes?.nextReviewAt || null }));
+    progress: record.progress || null, fact: record.attributes?.fact || null, nextReviewAt: record.attributes?.nextReviewAt || null,
+    reviewIntervalMinutes: record.attributes?.reviewIntervalMinutes || null, reviewOnChange: record.attributes?.reviewOnChange === true,
+    watchActivityId: record.attributes?.watchActivityId || null }));
 }
 function mergeSources(left = [], right = []) {
   return [...new Map([...left, ...right].map(ref => [JSON.stringify(stable(ref)), ref])).values()].slice(0, 100);

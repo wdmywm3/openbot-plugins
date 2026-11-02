@@ -18,3 +18,5 @@ search 查当前有效记忆，历史审计显式选择 history 模式；read �
 Dream 提案必须能回到原材料中的具体摘录；未读到的原文不能当作已核实。只读跟进没有有用变化时保持安静，排队、模型输出和发起发送都不能当作已送达。导入或恢复历史数据后核对事项，再由用户恢复暂停的跟进。
 
 明确要求到时复查时，使用 matter/followup，progress=active，attributes.nextReviewAt 保存毫秒时间。默认只查一次。用户明确要求持续跟进时，才增加 reviewIntervalMinutes（5–43200）或 reviewOnChange:true；后者在新的用户消息安静五分钟后复查。可用 watchActivityId 指向当前有权读取的事项，接收其完成、取消和恢复变化。不要因为生成了一个事项就擅自开启周期任务。完成或取消时更新事项进度；插件复用同一工作事项，无新进展不通知。
+
+事项改期必须同时修订 attributes.nextReviewAt，保留未变的属性；停止自动复查时清除 nextReviewAt、reviewIntervalMinutes、reviewOnChange 和 watchActivityId。重新开启已结束的事项不沿用旧复查授权。记忆中的截止日期不等于定时提醒，写入目标也不表示已经委派或执行。Dream 提取、自动升降级与复查规则由 Plus 提供，宿主只负责通用存储和操作接口。

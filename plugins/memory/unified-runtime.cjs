@@ -27,6 +27,7 @@ async function initialize(ctx) {
 }
 async function beforeModel(ctx) {
   const { storage, scope } = current(ctx); if (!scope.chatId) return { systemPromptAppend: INSTRUCTIONS };
+  require("./unified-peer.cjs").observe(ctx, storage, scope);
   scheduling.activity(storage, scope, ctx.hook.requestId || ctx.message.id, true);
   const input = channelRecallInput(ctx.hook.inputMessages, ctx.message.content || "");
   if (input.skipAutomaticRecall) return { systemPromptAppend: INSTRUCTIONS };

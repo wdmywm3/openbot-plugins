@@ -64,12 +64,12 @@
 
 正文保存在宿主统一记忆中，插件负责自动召回、整理和复查。定时整理与索引维护分开；整理按固定来源上界分批继续，暂停后可恢复。相同候选合并证据，平台通知和任务报告保留各自含义。私聊事项可明确设置单次、周期或有新证据时复查，无新进展保持安静。
 
-记忆 Plus 2.1.1 和表情插件 2.2.1 需要 OpenBot 0.1.84 或更新版本；安装前检查所需功能，旧宿主应更新后再启用。B站小管家 1.15.0 与 bPhone 2.4.0 也已接入统一记忆，建议配套更新宿主。
+记忆 Plus 2.1.2 和表情插件 2.2.1 需要 OpenBot 0.1.84 或更新版本；安装前检查所需功能，旧宿主应更新后再启用。B站小管家 1.15.0 与 bPhone 2.4.0 也已接入统一记忆，建议配套更新宿主。
 
 ## 开发验证与候选包
 
 测试使用 Node.js 24。独立检出插件仓库后，先运行 `npm ci --prefix plugins/memory --ignore-scripts` 和 `npm ci --prefix plugins/meme-library --ignore-scripts` 安装锁定依赖，再运行 `npm test`。这个入口不读取 OpenBot 源码，包含记忆策略的独立测试和表情图片引擎测试；GitHub Actions 使用同样的环境执行。
 
-`npm run test:integration` 执行全部六个记忆宿主测试、表情／词库／搜索／视频宿主测试、配置页面和 Python 集成；`npm run test:all` 执行独立测试和完整集成。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。集成环境或依赖缺失会明确失败，不静默略过。`npm run test:memory` 保留为六个记忆宿主测试的单独入口，CI 的独立记忆入口为 `npm run test:memory:unit`。
+`npm run test:integration` 执行全部七个记忆宿主测试、表情／词库／搜索／视频宿主测试、配置页面和 Python 集成；`npm run test:all` 执行独立测试和完整集成。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。集成环境或依赖缺失会明确失败，不静默略过。`npm run test:memory` 保留为七个记忆宿主测试的单独入口，CI 的独立记忆入口为 `npm run test:memory:unit`。
 
 `npm run prepare:candidates -- <新目录>` 为当前工作区生成 12 个本地安装目录、ZIP 和内容摘要，`npm run prepare:candidates -- <目录> --verify` 重验。它们是未发布候选；正式发布仍用真实提交运行 `npm run catalog -- <提交SHA>`，不可用工作区摘要伪造远端提交。
