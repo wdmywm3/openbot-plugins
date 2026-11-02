@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.14.1",
+  "version": "1.15.0",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -9,6 +9,8 @@
       "category": "subscription",
       "permissions": [
         "agent",
+        "memory:read",
+        "memory:write",
         "state",
         "conversation",
         "push",
@@ -1906,7 +1908,8 @@
         ]
       },
       "metadata": {
-        "changelog": "修复原生插件工具启用时的笔记与浏览能力提示，更新工具调用说明；调整市场分类。"
+        "requirements": ["推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"],
+        "changelog": "笔记与活动经验接入宿主统一记忆，补齐读写授权及能力提示；浏览、收藏、互动和分享策略继续由插件负责。"
       }
     }
   }

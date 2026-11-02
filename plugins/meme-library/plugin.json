@@ -1,71 +1,537 @@
 {
-  "id": "meme-library",
-  "name": "表情素材库",
-  "version": "1.0.2",
-  "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
-  "main": "index.js",
-  "responseMode": "direct",
-  "commandPrefixes": [
-    "/"
-  ],
-  "permissions": [
-    "reply",
-    "napcat:fetch_custom_face"
-  ],
-  "commands": [
-    {
-      "name": "meme",
-      "aliases": [
-        "表情",
-        "表情包"
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "meme-library",
+  "version": "2.2.0",
+  "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "表情包",
+      "category": "entertainment",
+      "apiVersion": 1,
+      "requiredFeatures": ["persistentContextItems"],
+      "main": "index.js",
+      "permissions": [
+        "reply",
+        "state",
+        "assets",
+        "jobs",
+        "history",
+        "model",
+        "model:select",
+        "retrieval",
+        "mcp",
+        "network",
+        "napcat:fetch_custom_face",
+        "hook:loaded",
+        "hook:beforeModel",
+        "hook:beforeSend",
+        "hook:afterSend",
+        "hook:messageReceived",
+        "prompt:system",
+        "hook:beforeDispatch",
+        "profiles:media",
+        "hook:profileChanged"
       ],
-      "description": "随机或按关键词发送收藏表情",
-      "scope": "all",
-      "permission": "member"
-    },
-    {
-      "name": "memeinfo",
-      "aliases": [
-        "表情库"
-      ],
-      "description": "查看收藏表情数量",
-      "scope": "all",
-      "permission": "member"
-    }
-  ],
-  "configSchema": {
-    "type": "object",
-    "properties": {
-      "replyToSource": {
-        "type": "boolean",
-        "title": "引用触发消息",
-        "default": false
+      "dependencies": {
+        "node": {
+          "lockfile": "package-lock.json"
+        }
       },
-      "emptyKeywordFallsBack": {
-        "type": "boolean",
-        "title": "关键词未命中时随机发送",
-        "default": false
+      "commands": [
+        {
+          "name": "meme",
+          "aliases": [
+            "表情",
+            "表情包"
+          ],
+          "description": "按关键词或随机发送表情",
+          "scope": "all",
+          "permission": "member"
+        },
+        {
+          "name": "memeinfo",
+          "aliases": [
+            "表情库"
+          ],
+          "description": "查看可用表情数量",
+          "scope": "all",
+          "permission": "member"
+        }
+      ],
+      "tools": [
+        {
+          "name": "stickers",
+          "export": "stickers",
+          "aliases": [
+            "qqSticker"
+          ],
+          "description": "检索并查看表情候选，或收藏当前聊天图片。search 返回原图预览和可用于 qqReply 的图片 url；collect 后自动识图和建立索引。",
+          "scope": "all",
+          "permission": "member",
+          "mutating": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "search",
+                  "collect",
+                  "add",
+                  "no_match",
+                  "feedback"
+                ]
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "text"
+                ]
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 6
+              },
+              "messageId": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "imageIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 7
+              },
+              "searchId": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "feedback": {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "negative",
+                  "wrong",
+                  "replaced",
+                  "no_match"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "action"
+            ]
+          }
+        }
+      ],
+      "hooks": [
+        {
+          "type": "beforeDispatch",
+          "export": "beforeSend"
+        },
+        {
+          "type": "loaded",
+          "export": "loaded"
+        },
+        {
+          "type": "beforeModel",
+          "export": "beforeModel"
+        },
+        {
+          "type": "beforeSend",
+          "export": "beforeSend"
+        },
+        {
+          "type": "afterSend",
+          "export": "afterSend"
+        },
+        {
+          "type": "messageReceived",
+          "export": "messageReceived"
+        },
+        {
+          "type": "profileChanged",
+          "export": "profileChanged"
+        }
+      ],
+      "actions": [
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "list",
+          "export": "list",
+          "readOnly": true
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "import",
+          "export": "importFiles"
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "chatMode": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "include",
+                  "exclude"
+                ]
+              },
+              "caption": {
+                "type": "string",
+                "maxLength": 3000
+              },
+              "meaning": {
+                "type": "string",
+                "maxLength": 3000
+              },
+              "literalDescription": {
+                "type": "string",
+                "maxLength": 3000
+              },
+              "ocrText": {
+                "type": "string",
+                "maxLength": 3000
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "emotions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "useCases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "communicativeIntent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "tone": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "targetRole": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "usageExamples": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "avoidContexts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "style": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "profileIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              },
+              "chatIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000
+              }
+            },
+            "required": [
+              "id",
+              "revision"
+            ]
+          },
+          "id": "save",
+          "export": "save"
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "remove",
+          "export": "remove"
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "update",
+          "export": "update"
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "job",
+          "export": "job"
+        },
+        {
+          "kind": "native",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "settings",
+          "export": "saveSettings"
+        },
+        {
+          "kind": "job",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "process",
+          "export": "process",
+          "permission": "member",
+          "restartable": true,
+          "timeoutMs": 3600000
+        },
+        {
+          "kind": "job",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "id": "sync",
+          "export": "sync",
+          "permission": "owner",
+          "restartable": true,
+          "timeoutMs": 3600000
+        },
+        {
+          "id": "detail",
+          "kind": "native",
+          "export": "detail",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        },
+        {
+          "id": "importBundle",
+          "kind": "job",
+          "export": "importBundle",
+          "restartable": true,
+          "timeoutMs": 3600000,
+          "permission": "owner",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 32
+              }
+            },
+            "required": [
+              "refs"
+            ]
+          }
+        },
+        {
+          "id": "syncProfiles",
+          "kind": "job",
+          "export": "syncProfiles",
+          "restartable": true,
+          "timeoutMs": 3600000,
+          "permission": "owner",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "id": "exportBundle",
+          "kind": "job",
+          "export": "exportBundle",
+          "restartable": false,
+          "timeoutMs": 3600000,
+          "permission": "owner",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500
+              }
+            }
+          }
+        },
+        {
+          "id": "stop",
+          "kind": "native",
+          "export": "stop",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        {
+          "id": "history",
+          "kind": "native",
+          "export": "history",
+          "readOnly": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "cursor": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "layout": "settings",
+        "sections": [],
+        "views": [
+          {
+            "id": "library",
+            "title": "表情包",
+            "entry": "ui/index.html",
+            "actions": [
+              "list",
+              "import",
+              "save",
+              "remove",
+              "update",
+              "job",
+              "settings",
+              "sync",
+              "detail",
+              "importBundle",
+              "exportBundle",
+              "stop",
+              "history"
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "changelog": "完整素材库接入共享检索、角色与聊天设置；表情可用状态改为持久增量上下文，重复状态不再追加，冷却状态包含截止时间，发送前重新校验。",
+        "requirements": [
+          "需要 OpenBot 0.1.84 或更新版本，支持持久上下文接口。",
+          "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
+          "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
+          "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
+        ]
+      },
+      "networkHosts": [
+        "qpic.cn",
+        "*.qpic.cn",
+        "multimedia.nt.qq.com.cn",
+        "*.qq.com.cn",
+        "huggingface.co",
+        "hf-mirror.com",
+        "*.hf.co",
+        "*.huggingface.co"
+      ],
+      "background": {
+        "export": "recover",
+        "intervalSeconds": 900,
+        "startupDelaySeconds": 30,
+        "jitterSeconds": 30
+      },
+      "execution": {
+        "concurrency": "parallel"
       }
     }
-  },
-  "ui": {
-    "version": 1,
-    "layout": "settings",
-    "sections": [
-      {
-        "id": "settings",
-        "title": "设置",
-        "fields": [
-          "replyToSource",
-          "emptyKeywordFallsBack"
-        ],
-        "widgets": []
-      }
-    ]
-  },
-  "metadata": {
-    "builtinFeature": "stickers",
-    "changelog": "更新插件市场分类。"
-  },
-  "category": "entertainment"
+  }
 }

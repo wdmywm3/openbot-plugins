@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "engine": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/engine/server.cjs", "${PLUGIN_DATA}"],
+      "native_tools": ["sticker_engine"],
+      "enabled_tools": []
+    }
+  }
+}

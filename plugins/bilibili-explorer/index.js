@@ -598,14 +598,23 @@ async function explore(ctx, manual) {
       state.pendingQuestions = await biliLearning(ctx, noteScope).pending();
     }
     state.agentTaskId ||= `explore-${config.browseUid || "public"}-${now}`;
+    if (ctx.api.avatars && ctx.api.activities && state.hostActivityTaskId !== state.agentTaskId) {
+      const avatar = (await ctx.api.avatars({ action: "declare", key: `browse:${config.browseUid || "public"}:${chatId || "independent"}`,
+        name: "视频探索分身", purpose: "持续探索公开内容、阅读真实资料、区分作者说法与观察；有值得分享的新收获时再由业务流程安排通知。" })).avatar;
+      const activity = (await ctx.api.activities({ action: "create", requestKey: state.agentTaskId, avatarId: avatar.id,
+        title: "探索公开内容", goal: interests })).activity;
+      state.hostActivityId = activity.id; state.hostAvatarId = avatar.id; state.hostActivityTaskId = state.agentTaskId;
+    }
     await saveExploration(ctx, state);
     const result = await ctx.api.runAgent({ taskId: state.agentTaskId, skill: "explore-videos",
+      ...(state.hostActivityTaskId === state.agentTaskId ? { activityId: state.hostActivityId, avatarId: state.hostAvatarId } : {}),
       ...(chatId ? { chatId } : {}), ...(Array.isArray(config.tools) && config.tools.length ? { tools: config.tools } : {}),
       timeoutMs: 90000,
       ...(ctx.api.database ? { storage: { database: HISTORY_DB, scope: noteScope, sharedRead: true, sharedCollections: ["contents", "evidence", "notes"], writeCollections: ["notes"] } } : {}),
       externalContent: [{ source: "exploration-history-and-feed", content: { feedback: (state.feedback || []).slice(-20), nextQuery: String(state.nextQuery || "").slice(0, 400), feed: state.agentCandidates || [], savedNotes: state.noteSeed || [], lessons: state.learningSeed || [], questions: state.pendingQuestions || [] } }],
       prompt: [
         "按自己的兴趣浏览B站公开内容，可以继续旧线索、查阅资料和保存收获；本轮活动不要求向QQ分享。",
+        "memory 工具可用时，跨轮可复用的经历与认识通过统一记忆保存，带实际来源，未核实内容保持 pending；视频原文、播放进度和业务 notes 继续放在插件资料库。不要因为一条资料被读到就宣称任务或分享完成。",
         "先搜索少量候选，阅读标题、简介和已有笔记。必须使用工具获得真实视频链接；只有标题/简介时不要声称看过视频。不要操作QQ或在发现阶段发送站内互动。",
         "已有笔记足以回答时直接复用；存在值得核实的内容问题时，在最终 inspect 中明确填写一个已取得链接的视频 bvid、part、question。插件随后续跑字幕优先的深读，按证据缺口调用音频与画面，再决定分享和评论；不要要求所有候选全量深读。",
         "可以没有特别想继续看的候选。最多选择一个值得关注的视频；候选评分只表示本次兴趣匹配，不代表必须分享或留言。",

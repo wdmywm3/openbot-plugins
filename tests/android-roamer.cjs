@@ -38,7 +38,10 @@ if(require.main===module)(async()=>{
  assert.deepEqual(manifest.tools.map(tool=>tool.name),['use','status','resume','learning','revise_learning']);
  assert.ok(manifest.commands.every(command=>command.scope==='private'&&command.permission==='owner'));
  const plugin=load(),normal=fixture();normal.ctx.tool='use';normal.ctx.input={goal:'继续自己的游戏'};
+ normal.ctx.api.avatars=async input=>({avatar:{id:'persistent-phone',key:input.key}});
+ normal.ctx.api.activities=async input=>({activity:{id:'persistent-phone-activity',avatarId:'persistent-phone',status:'active'}});
  let result=await plugin.agentTool(normal.ctx);assert.match(result.report,/第三关/);assert.equal(normal.calls[0].resource.mode,'self');assert.equal(normal.shares.length,0);
+ assert.equal(normal.calls[0].activityId,'persistent-phone-activity');assert.equal(normal.calls[0].avatarId,'persistent-phone');
  assert.equal(normal.activity().lowBenefitRounds,0,'quiet enjoyable play is worthwhile without sharing');
  await plugin.agentTool(normal.ctx);assert.match(JSON.stringify(normal.calls[1].externalContent),/第四关/);assert.match(JSON.stringify(normal.calls[1].externalContent),/已过第三关/);
  assert.ok(!normal.calls[1].prompt.includes('已过第三关'),'progress remains data, never an instruction');

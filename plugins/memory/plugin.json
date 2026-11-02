@@ -1,0 +1,41 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "memory",
+  "version": "2.1.0",
+  "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
+  "extensions": { "com.openbot": {
+    "displayName": "记忆 Plus", "category": "assistant", "apiVersion": 1, "main": "index.js",
+    "requiredFeatures": ["unifiedMemory", "persistentContextItems", "visibleContextItems", "sourceHead", "offlineBackground", "persistentActivities", "persistentAvatars"],
+    "permissions": ["process", "state", "sources", "memory:read", "memory:write", "memory:manage", "history", "retrieval", "model", "agent", "conversation", "push", "jobs", "assets", "hook:loaded", "hook:beforeModel", "hook:afterModel", "hook:replyDelivered", "hook:stopping", "prompt:system"],
+    "dependencies": { "node": { "lockfile": "package-lock.json" } },
+    "execution": { "concurrency": "parallel", "process": { "protocol": 1, "command": "node", "entry": "process.cjs", "concurrency": 4 } },
+    "background": { "export": "recover", "requiresConnection": false, "intervalSeconds": 60, "startupDelaySeconds": 5, "jitterSeconds": 5 },
+    "hooks": [
+      { "type": "beforeModel", "export": "beforeModel" }, { "type": "afterModel", "export": "afterModel" },
+      { "type": "replyDelivered", "export": "replyDelivered" }, { "type": "stopping", "export": "stopping" }
+    ],
+    "configSchema": { "type": "object", "properties": {
+      "retrievalModelId": { "type": "string", "title": "检索模型", "default": "" },
+      "semanticThreshold": { "type": "number", "title": "语义匹配下限", "default": 0.45, "minimum": 0, "maximum": 1 }
+    } },
+    "tools": [{ "name": "memory", "permissionAliases": ["memory"], "compatibilityOnly": true, "export": "memory", "scope": "all", "permission": "member", "mutating": true,
+      "description": "记住、召回、纠正、遗忘或追溯当前聊天的事实。search 可查经历、事项、话题和笔记；read 按返回的 id 读取正文与来源。只有写入返回 ok=true 才能确认已记住。",
+      "inputSchema": { "type": "object", "properties": {
+        "action": { "type": "string", "enum": ["remember", "recall", "revise", "history", "update", "forget", "search", "read"] },
+        "query": { "type": "string" }, "content": { "type": "string", "maxLength": 500 }, "memoryId": { "type": "string" },
+        "id": { "type": "string" }, "collection": { "type": "string", "enum": ["facts", "history", "records", "topics", "notes"] },
+        "fact": { "type": "object", "additionalProperties": true }, "supersedes": { "type": "object", "additionalProperties": true },
+        "changeType": { "type": "string", "enum": ["correction", "change"] }, "sourceQuote": { "type": "string" }, "sourceMessageId": { "type": "string" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 20 }, "offset": { "type": "integer", "minimum": 0 }, "includePending": { "type": "boolean" }
+      }, "required": ["action"], "additionalProperties": true } }],
+    "actions": [
+      { "id": "list", "kind": "native", "export": "list", "permission": "owner", "inputSchema": { "type": "object", "additionalProperties": true } },
+      { "id": "manage", "kind": "native", "export": "manage", "permission": "owner", "inputSchema": { "type": "object", "additionalProperties": true } },
+      { "id": "process", "kind": "job", "export": "process", "permission": "member", "restartable": true, "timeoutMs": 3600000, "inputSchema": { "type": "object", "additionalProperties": true } },
+      { "id": "followup", "kind": "job", "export": "followup", "permission": "member", "restartable": false, "timeoutMs": 300000, "inputSchema": { "type": "object", "additionalProperties": true } },
+      { "id": "import", "kind": "job", "export": "importBundle", "permission": "owner", "restartable": true, "timeoutMs": 3600000, "inputSchema": { "type": "object", "additionalProperties": true } }
+    ],
+    "ui": { "version": 1, "views": [{ "id": "library", "title": "记忆 Plus", "entry": "ui/index.html", "actions": ["list", "manage", "process", "import"] }] },
+    "metadata": { "requirements": ["需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"], "changelog": "修复整理时机、闲置判断、积压接续、暂停恢复与重复写入；过滤失效来源，评估当前可见记忆，并支持稳定事项关联的单次、周期和新证据复查。旧资料通过公开接口迁移。" }
+  } }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "openbot-meme-library-engine",
+  "version": "2.2.0",
+  "private": true,
+  "dependencies": {
+    "sharp": "0.35.5"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

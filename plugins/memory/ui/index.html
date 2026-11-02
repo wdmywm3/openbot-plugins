@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>记忆 Plus</title><link rel="stylesheet" href="style.css"></head><body>
+<div class="toolbar"><select id="chat" aria-label="聊天"><option value="">默认设置</option></select><button id="import">导入旧数据</button><button id="settings">整理设置</button></div>
+<p id="error" role="alert" hidden></p><p id="status" aria-live="polite"></p><div id="items"></div><button id="more" hidden>加载更多</button>
+<details id="followups" hidden><summary>复查记录</summary><div id="followup-items"></div></details>
+<details id="maintenance" hidden><summary>整理建议</summary><div id="maintenance-items"></div></details>
+<dialog id="preferences"><form id="settings-form"><div class="dialog-top"><strong>整理设置</strong><button type="button" data-close="preferences" aria-label="关闭">×</button></div>
+<label id="inherit-label" class="check"><input id="inherit" type="checkbox">使用默认设置</label><label>整理时间<select id="schedule"><option value="off">关闭</option><option value="daily">每天</option><option value="hourly">每小时</option></select></label><label>每天时间<input id="daily-time" type="time"></label><label>空闲整理<select id="idle"><option value="0">关闭</option><option value="5">5 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">60 分钟</option></select></label>
+<details id="style"><summary>交流偏好</summary><label class="check"><input id="style-lock" type="checkbox">固定偏好</label><div id="style-fields"></div><button type="button" id="style-reset">恢复默认</button></details><p id="settings-error" role="alert"></p><div class="dialog-actions"><button type="button" id="run">现在整理</button><button type="button" id="stop">暂停自动整理</button><button type="button" id="resume" hidden>恢复自动整理</button><button class="primary">保存</button></div></form></dialog>
+<dialog id="details"><div class="dialog-top"><strong>整理记录</strong><button type="button" data-close="details" aria-label="关闭">×</button></div><div id="details-body"></div><button id="older" hidden>更早的记录</button><p id="details-error" role="alert"></p><div class="dialog-actions"><button id="rollback-preview">预览回滚</button><button id="rollback-confirm" hidden class="danger">确认回滚</button></div></dialog>
+<script type="module" src="app.js"></script></body></html>

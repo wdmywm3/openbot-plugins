@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
   "extensions": {
     "com.openbot": {
@@ -9,6 +9,8 @@
       "category": "ai",
       "permissions": [
         "agent",
+        "memory:read",
+        "memory:write",
         "resource:android",
         "resource:android:autonomous",
         "hook:context",
@@ -506,10 +508,11 @@
       "metadata": {
         "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
         "requirements": [
+          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存跨会话经验",
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "修复原生插件工具启用时的能力提示，更新任务完成与续查说明；调整市场分类。"
+        "changelog": "通过宿主统一记忆接口保存与读取活动经验，补齐相应授权和任务能力提示；保留设备操作及自主活动的独立权限。"
       }
     }
   }
