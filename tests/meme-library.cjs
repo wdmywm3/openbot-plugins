@@ -90,6 +90,27 @@ function fixture() {
     onGenerate(fn) { beforeGenerate = fn; }, onEmbed(fn) { beforeEmbed = fn; }, modelReady(value) { modelReady = value; } };
 }
 async function main() {
+  const migrated = fixture(), provenance = { caption: "旧表情", tags: ["高兴"], displayedEmotion: ["开心"], inducedEffect: ["庆祝"],
+    safetyLabels: ["普通表情"], intensity: "medium", analysisModelId: "legacy-vision", analyzedAt: 1700000000000 };
+  const originalEngine = migrated.ctx.api.callTool; let exportedAnnotation;
+  migrated.ctx.principal = { channelId: "bot" };
+  migrated.ctx.api.jobs = async () => ({ id: "export", checkpoint: null });
+  migrated.ctx.api.callTool = async request => {
+    const input = request.arguments;
+    if (input.action === "bundleInfo") return { structuredContent: { count: 1, preferences: [], sourceInstanceId: "legacy" } };
+    if (input.action === "bundleItem") return { structuredContent: { legacyId: "legacy-sticker", mimeType: "image/png", data: "aGk=",
+      annotation: { ...provenance, analysisStatus: "ready", scope: { enabled: false, chatMode: "include", chatIds: ["group"] } } } };
+    if (input.action === "exportAdd") { exportedAnnotation = copy(input.item.annotation); return { structuredContent: {} }; }
+    if (input.action === "exportFinish") return { structuredContent: { files: [] } };
+    if (["bundlePut", "exportBegin"].includes(input.action)) return { structuredContent: {} };
+    return originalEngine(request);
+  };
+  await plugin.importBundle({ ...migrated.ctx, input: { refs: ["import"] } });
+  const migratedRow = [...migrated.records.values()].find(row => row.value.source?.legacyId === "legacy-sticker");
+  for (const [key, value] of Object.entries(provenance)) assert.deepEqual(migratedRow.value[key], value);
+  assert.equal(migratedRow.value.enabled, false); assert(!migrated.calls.includes("recognize"));
+  await plugin.exportBundle({ ...migrated.ctx, input: {} });
+  for (const [key, value] of Object.entries(provenance)) assert.deepEqual(exportedAnnotation[key], value);
   const f = fixture();
   await plugin.importFiles({ ...f.ctx, input: { refs: ["import"] } });
   assert.equal(f.jobs.length, 1); assert.equal(f.get("a").value.analysisStatus, "pending");

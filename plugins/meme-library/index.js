@@ -70,6 +70,14 @@ function visible(ctx, v) {
 function descriptions(input) {
   return Object.fromEntries(FIELDS.filter(k => Object.hasOwn(input, k)).map(k => [k, SCALARS.has(k) ? text(input[k], k === "ocrText" ? 3000 : 1200) : strings(input[k])]));
 }
+function annotations(input) {
+  const value = descriptions(input);
+  for (const field of ["displayedEmotion", "inducedEffect", "safetyLabels"]) if (Array.isArray(input[field])) value[field] = strings(input[field]);
+  if (typeof input.intensity === "string") value.intensity = text(input.intensity, 80);
+  if (typeof input.analysisModelId === "string") value.analysisModelId = text(input.analysisModelId, 200);
+  if (Number.isSafeInteger(input.analyzedAt) && input.analyzedAt >= 0) value.analyzedAt = input.analyzedAt;
+  return value;
+}
 const indexText = v => FIELDS.map(k => Array.isArray(v[k]) ? v[k].join("；") : text(v[k], 3000)).filter(Boolean).join("\n").slice(0, 15000) || "图片表情";
 function tokens(value) {
   const out = [];
@@ -124,7 +132,7 @@ async function ingest(ctx, ref, source = {}, annotation = null, schedule = true)
     }
     if (old && newReference) value.indexStatus = "pending";
     value.deleted = false; value.updatedAt = Date.now();
-    if (!old && annotation) Object.assign(value, descriptions(annotation), { manual: annotation.manual === true,
+    if (!old && annotation) Object.assign(value, annotations(annotation), { manual: annotation.manual === true,
       analysisStatus: annotation.analysisStatus === "ready" ? "ready" : "pending", descriptionVersion: 1, ...annotation.scope,
       scopeEdited: !!annotation.scope });
     let saved;
@@ -461,7 +469,7 @@ module.exports.exportBundle = async ctx => {
     const item = items[index].value, info = await transfer(ctx, usableRef(item, "")?.ref);
     await engine(ctx, { action: "exportAdd", id: job.id, hash: info.sha256, item: {
       legacyId: item.source?.legacyId || item.id, mimeType: info.mimeType, name: item.caption || item.name || "表情",
-      annotation: { ...descriptions(item), manual: item.manual === true, analysisStatus: item.analysisStatus,
+      annotation: { ...annotations(item), manual: item.manual === true, analysisStatus: item.analysisStatus,
         scope: { enabled: item.enabled !== false, profileIds: item.profileIds, chatMode: item.chatMode, chatIds: item.chatIds } },
     } });
     await ctx.api.jobs({ action: "checkpoint", progress: { phase: "export", completed: index + 1, total: items.length } });
