@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.2.1",
+      "version": "2.2.2",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -370,7 +370,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "e2219f9036360ecc714a6a0012023a4aa5ca3389",
+      "ref": "b72cdae199b77268df71213d3f25ef0d6fa16d0d",
       "files": [
         {
           "path": "README.md",
@@ -405,17 +405,17 @@
         {
           "path": "package-lock.json",
           "size": 20840,
-          "sha256": "d60045f1fd411704130c357d38c0c940f582207defc08a4b9adbe657bdf8f9a8"
+          "sha256": "d144e84a5645e5b82fd47ec8c6d19f65f08db2ebcc17eababd9b7aa4f33b450a"
         },
         {
           "path": "package.json",
           "size": 175,
-          "sha256": "19f80ea7a9a82f71cae0aa5b3fbab961f59ee3165fe6b77d0cb6c7e604908e39"
+          "sha256": "fd82dcbb9ad03df3b58979ea35094e796b1a236f71f0d36a08d0c7ead4e5727a"
         },
         {
           "path": "plugin.json",
-          "size": 14014,
-          "sha256": "1353fc4865996370b9d24a2a60b6bb65d2e2dd3ffb71b09c799f816e5cba5256"
+          "size": 14267,
+          "sha256": "0f20f48ae4263330cecc6dcd5c96bbd3f2eff1031a97c152ab41b46833386c52"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -424,8 +424,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 12228,
-          "sha256": "4ac4051c834116cf9cbdac1f0e43da6086435a0654e5afc14d1cfb1c3197ea07"
+          "size": 12264,
+          "sha256": "e6875f5ab23adcdd8480c06cc15f7ccf17f872afd5d66dc456b2e69d051c785e"
         },
         {
           "path": "ui/index.html",
@@ -442,7 +442,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -475,7 +475,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "b72cdae199b77268df71213d3f25ef0d6fa16d0d",
       "files": [
         {
           "path": "LICENSE",
@@ -509,8 +509,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 10216,
-          "sha256": "c236b77285177a4dee8f541cdb9521b17f6768f2575eb220427ecf392579da9e"
+          "size": 10499,
+          "sha256": "352eed496c34012b77a49106dd2fc6eeefa76ca825d6ee3d2b5b512c5a1c22ad"
         },
         {
           "path": "requirements.lock",
@@ -529,15 +529,15 @@
         },
         {
           "path": "ui/terms.html",
-          "size": 4427,
-          "sha256": "006b5ebe43eb4ab791c6748bf4ef5b77b61c57c90ecd08dbc45bb0fbf54aafa0"
+          "size": 4418,
+          "sha256": "25bfdfe34b6d6f9e22c9d633b41db0e600b5fb60efca0bb65561b6d3ff71b291"
         }
       ]
     },
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -578,7 +578,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "b72cdae199b77268df71213d3f25ef0d6fa16d0d",
       "files": [
         {
           "path": "README.md",
@@ -728,17 +728,17 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "3c841fc9301e52ddc428504a4106009907eeb87c0a2146dc7cb1a98b220dfa28"
+          "sha256": "6a2b4da926ef1b353650a95e55ca5725594d4059d177134015a4d2faa67ac2e9"
         },
         {
           "path": "package.json",
-          "size": 154,
-          "sha256": "9ace19dbbe5a1ac1b972a861300683380347d08ebafb6d7274784a318e9f49cc"
+          "size": 166,
+          "sha256": "9193854c70596351dfb323c99b7f581ce797a23c9867b8c0c5a6ff7b59f3f27d"
         },
         {
           "path": "plugin.json",
-          "size": 8469,
-          "sha256": "928d64029da20c5a3c030fcc2f5bccba19e5adb7ff8ce4270b169e75e7938318"
+          "size": 8710,
+          "sha256": "f9c77a145a6f44786dbae4f3cc873e8ab122ab0d4f27e60d1f5f50a55b009d41"
         },
         {
           "path": "process.cjs",
@@ -777,8 +777,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 9295,
-          "sha256": "754b244971c5fca60f8ccf05d0b24db54941bddc376b77dc022aca84466432fe"
+          "size": 9331,
+          "sha256": "f6d210bbfb8d73b4e6fee5f94f45a280b454502104a3be3e0163335a3dbafcf2"
         },
         {
           "path": "ui/index.html",
