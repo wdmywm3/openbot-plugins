@@ -9,7 +9,8 @@ const wikiPython = process.env.MEMEWIKI_TEST_PYTHON || (fs.existsSync(pythonIn("
 const env = { ...process.env, OPENBOT_HOST_ROOT: host, OPENBOT_SOURCE: host, OPENBOT_TEST_MEMORY_UI: "1", OPENBOT_TEST_MEME_UI: "1", WATCH_TEST_PYTHON: watchPython, MEMEWIKI_TEST_PYTHON: wikiPython };
 const runs = [
   [watchPython, ["-c", "import PIL, filelock"]], [wikiPython, ["-c", "import PIL"]],
-  ...["memory-lifecycle.cjs", "meme-host.cjs", "memewiki-host.cjs", "search-host.cjs", "watch-host.cjs"].map(name => [process.execPath, [path.join(root, "tests", name), host]]),
+  ...["memory-unified.cjs", "memory-plus.cjs", "memory-index.cjs", "memory-host.cjs", "memory-lifecycle.cjs", "memory-context.cjs",
+    "meme-host.cjs", "memewiki-host.cjs", "search-host.cjs", "watch-host.cjs"].map(name => [process.execPath, [path.join(root, "tests", name), host]]),
   [watchPython, ["-B", "-m", "unittest", "discover", "-s", "tests", "-p", "watch*_test.py", "-v"]],
   [wikiPython, ["-B", "-m", "unittest", "discover", "-s", "tests", "-p", "memewiki_test.py", "-v"]],
 ];

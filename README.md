@@ -68,6 +68,8 @@
 
 ## 开发验证与候选包
 
-`npm test` 执行快速和本地逻辑检查；`npm run test:integration` 执行真实宿主、配置页面和 Python 集成；`npm run test:all` 执行两者。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。缺少依赖会明确失败，不静默略过。
+测试使用 Node.js 24。独立检出插件仓库后，先运行 `npm ci --prefix plugins/memory --ignore-scripts` 和 `npm ci --prefix plugins/meme-library --ignore-scripts` 安装锁定依赖，再运行 `npm test`。这个入口不读取 OpenBot 源码，包含记忆策略的独立测试和表情图片引擎测试；GitHub Actions 使用同样的环境执行。
+
+`npm run test:integration` 执行全部六个记忆宿主测试、表情／词库／搜索／视频宿主测试、配置页面和 Python 集成；`npm run test:all` 执行独立测试和完整集成。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。集成环境或依赖缺失会明确失败，不静默略过。`npm run test:memory` 保留为六个记忆宿主测试的单独入口，CI 的独立记忆入口为 `npm run test:memory:unit`。
 
 `npm run prepare:candidates -- <新目录>` 为当前工作区生成 12 个本地安装目录、ZIP 和内容摘要，`npm run prepare:candidates -- <目录> --verify` 重验。它们是未发布候选；正式发布仍用真实提交运行 `npm run catalog -- <提交SHA>`，不可用工作区摘要伪造远端提交。

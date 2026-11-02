@@ -23,8 +23,16 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: npm test
+          node-version: 24
+      - name: Install locked plugin test dependencies
+        run: |
+          npm ci --prefix plugins/memory --ignore-scripts --no-audit --no-fund
+          npm ci --prefix plugins/meme-library --ignore-scripts --no-audit --no-fund
+      - name: Check standalone plugins without a host checkout
+        env:
+          OPENBOT_HOST_ROOT: ${{ runner.temp }}/no-openbot-checkout
+          OPENBOT_SOURCE: ${{ runner.temp }}/no-openbot-checkout
+        run: npm test
   watch:
     runs-on: ubuntu-latest
     steps:
