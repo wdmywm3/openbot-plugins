@@ -6,7 +6,7 @@ const runtime = require("../plugins/memory/unified-runtime.cjs");
 const scheduling = require("../plugins/memory/unified-scheduling.cjs");
 const material = require("../plugins/memory/unified-material-policy.cjs");
 const { candidates } = require("../plugins/memory/unified-candidates.cjs");
-const { current, state, save } = require("../plugins/memory/unified-state.cjs");
+const { current, state, save, get, put } = require("../plugins/memory/unified-state.cjs");
 const { close } = require("../plugins/memory/storage.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-standalone-"));
 const chatId = "onebot:private:owner", source = { id: "message", version: "v1", chatId, content: "我喜欢茶", direction: "in", event: { type: "message" } };
@@ -109,6 +109,59 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
       await assert.rejects(runtime.memory({ ...ctx, input: { action: "remember", content: "不得恢复" } }), /原始消息已不可用/);
       source.deleted = false;
       await assert.rejects(runtime.memory({ ...ctx, input: { action: "forget", id: "mem-existing" } }), /永久遗忘请使用宿主/);
+    });
+    await check("explicit cutover drops unfinished work but preserves memories and disabled settings", async () => {
+      await manage({ action: "settings", settings: { enabled: false } });
+      const { storage, scope } = current(ctx), beforeWrites = writes.length;
+      save(storage, scope, { job: { upper: 90, prepared: true } }); put(storage, `plus:plan:${chatId}`, { operations: [{ action: "create" }] });
+      head = { upper: 77, observedAt: now };
+      await manage({ action: "startFromNow", requestKey: "cutover-one" });
+      const page = await runtime.list(ctx);
+      assert.equal(page.checkpoint.cursor, 77); assert.equal(page.pending, false); assert.equal(page.settings.enabled, false);
+      assert.equal(writes.length, beforeWrites); assert.equal(get(storage, `plus:plan:${chatId}`), null);
+      close(); assert.equal((await runtime.list(ctx)).checkpoint.cursor, 77, "cutover persists across storage restart");
+    });
+    await check("cutover retry does not skip messages received after the first request", async () => {
+      head.upper = 78;
+      const receipt = await manage({ action: "startFromNow", requestKey: "cutover-one" });
+      assert.equal(receipt.chats[0].cursor, 77); assert.equal((await runtime.list(ctx)).checkpoint.cursor, 77);
+    });
+    await check("running jobs and source failures leave checkpoints unchanged", async () => {
+      await assert.rejects(runtime.manage({ ...ctx, input: { chatId, action: "startFromNow", requestKey: "busy" }, api: { ...ctx.api,
+        jobs: async () => ({ jobs: [{ action: "process", status: "running" }] }) } }), /请先暂停/);
+      await assert.rejects(runtime.manage({ ...ctx, input: { chatId, action: "startFromNow", requestKey: "failed-head" }, api: { ...ctx.api,
+        sources: async () => { throw Error("source temporarily unavailable"); } } }), /temporarily unavailable/);
+      assert.equal((await runtime.list(ctx)).checkpoint.cursor, 77);
+    });
+    await check("idle checks and completed empty scans share the committed cursor", async () => {
+      await manage({ action: "settings", settings: { enabled: true, schedule: "hourly", idleMinutes: 5 } });
+      const { storage, scope } = current(ctx); head = { upper: 78, observedAt: now - 600000 };
+      assert.equal(await scheduling.due(ctx, storage, scope), "idle"); assert.equal(state(storage, scope).cursor, 77);
+      const empty = { ...ctx, input: { chatId, mode: "dream" }, api: { ...ctx.api,
+        sources: async input => input.action === "head" ? head : { items: [], upper: 78, nextCursor: null } } };
+      await runtime.process(empty); assert.equal((await runtime.list(ctx)).checkpoint.cursor, 78);
+      assert.equal(await scheduling.due(ctx, storage, scope), ""); assert.equal(generated, 0);
+    });
+    await check("instance cutover validates all source heads before changing any chat", async () => {
+      const other = "onebot:group:second", scoped = { ...ctx, message: {}, input: { action: "startFromNow", requestKey: "instance-failure" }, api: { ...ctx.api,
+        sources: async input => input.action === "scopes" ? { scopes: [{ chatId }, { chatId: other }] } : input.chatId === other ? { upper: 9 } : { upper: -1 } } };
+      await assert.rejects(runtime.manage(scoped), /起点未修改/);
+      assert.equal((await runtime.list(ctx)).checkpoint.cursor, 78);
+      const success = await runtime.manage({ ...scoped, input: { action: "startFromNow", requestKey: "instance-success" }, api: { ...scoped.api,
+        sources: async input => input.action === "scopes" ? { scopes: [{ chatId }, { chatId: other }] } : { upper: input.chatId === other ? 9 : 80 } } });
+      assert.equal(success.chats.length, 2); assert.equal((await runtime.list(ctx)).checkpoint.cursor, 80);
+      assert.equal(state(current(ctx).storage, { channelId: "bot", chatId: other }).cursor, 9);
+    });
+    await check("concurrent instance retry keeps the first committed cutover", async () => {
+      let release, entered; const waiting = new Promise(resolve => { entered = resolve; });
+      const scoped = { ...ctx, message: {}, input: { action: "startFromNow", requestKey: "concurrent-instance" }, api: { ...ctx.api,
+        sources: async input => input.action === "scopes" ? { scopes: [{ chatId }] } : { upper: 81 } } };
+      const delayed = runtime.manage({ ...scoped, api: { ...scoped.api, sources: async input => {
+        if (input.action === "scopes") { entered(); await new Promise(resolve => { release = resolve; }); return { scopes: [{ chatId }] }; }
+        return { upper: 82 };
+      } } });
+      await waiting; const first = await runtime.manage(scoped); release(); const retry = await delayed;
+      assert.deepEqual(retry, first); assert.equal((await runtime.list(ctx)).checkpoint.cursor, 81);
     });
     console.log(`Memory standalone: ${passed}/${passed} plugin policy checks passed; host API doubles, real plugin SQLite, no host checkout.`);
   } finally {

@@ -66,6 +66,9 @@ $("settings").onclick = () => task(async () => {
     label.append(select); $("style-fields").append(label);
   }
   $("run").disabled = !$("chat").value; $("stop").hidden = !!snapshot.paused;
+  $("start-now").hidden = !$("chat").value;
+  $("scan-start").hidden = !snapshot.checkpoint?.start;
+  $("scan-start").textContent = snapshot.checkpoint?.start ? "整理起点更新于 " + new Date(snapshot.checkpoint.start.at).toLocaleString() : "";
   $("stop").disabled = !$("chat").value || !snapshot.settings.enabled && !snapshot.busy && !snapshot.pending;
   $("resume").hidden = !snapshot.paused; error("", "settings-error"); $("preferences").showModal();
 });
@@ -79,6 +82,12 @@ $("settings-form").onsubmit = event => { event.preventDefault(); task(async () =
 $("run").onclick = () => task(async () => { await call("manage", { action: "run" }); $("preferences").close(); await refresh(); }, "settings-error");
 $("stop").onclick = () => task(async () => { await call("manage", { action: "stop" }); $("preferences").close(); await refresh(); }, "settings-error");
 $("resume").onclick = () => task(async () => { await call("manage", { action: "resume" }); $("preferences").close(); await refresh(); }, "settings-error");
+$("start-now").onclick = () => task(async () => {
+  $("start-now").disabled = true;
+  try { await call("manage", { action: "startFromNow", requestKey: "checkpoint:" + Date.now() + ":" + Math.random().toString(36).slice(2) });
+    $("preferences").close(); await refresh(); }
+  finally { $("start-now").disabled = false; }
+}, "settings-error");
 $("style-reset").onclick = () => task(async () => { await call("manage", { action: "style", values: {}, locked: true }); $("preferences").close(); await refresh(); }, "settings-error");
 $("import").onclick = () => task(async () => { const picked = await api.selectFiles({ extensions: ["json"] }); if (picked.files?.length) await call("import", { refs: picked.files.map(file => file.ref) }); await refresh(); });
 $("more").onclick = () => task(() => refresh(true));

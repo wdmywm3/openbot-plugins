@@ -166,7 +166,7 @@ async function commit(ctx, storage, scope, job) {
   put(storage, auditKey, audit);
   const live = state(storage, scope);
   const pending = prepared.after < job.upper;
-  save(storage, scope, { cursor: prepared.after, job: pending ? { ...job, prepared: false } : null,
+  save(storage, scope, { cursor: prepared.after, checkpointAt: Date.now(), job: pending ? { ...job, prepared: false } : null,
     ...(!pending ? { lastRun: Date.now(), nextRun: nextRun(live.settings, Date.now()) } : {}), error: "", failures: 0,
     ...(prepared.style && !live.styleLocked ? { style: { ...prepared.style, updatedAt: Date.now() } } : {}) });
   put(storage, `plus:topics:${scope.chatId}`, prepared.topics);
@@ -188,7 +188,8 @@ async function batch(ctx, storage, scope, trigger) {
       ...(job?.upper != null ? { upper: job.upper } : {}), limit: job?.limit || 12 });
     if (!page.items.length) {
       if (job?.runId) storage.dreamRepository.runs.finish(scope, job.runId, "completed");
-      save(storage, scope, { job: null, nextRun: nextRun(live.settings, Date.now()) });
+      save(storage, scope, { cursor: Math.max(live.cursor || 0, Number.isSafeInteger(page.upper) ? page.upper : 0),
+        checkpointAt: Date.now(), lastRun: Date.now(), job: null, nextRun: nextRun(live.settings, Date.now()) });
       return { completed: true, saved: 0, idle: true };
     }
     const after = page.items.at(-1).seq;

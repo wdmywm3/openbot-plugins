@@ -25,7 +25,10 @@ module.exports = async ({ fromHost, runtime, channel, plugin, action, scope, roo
     await page.locator("#inherit").uncheck(); await page.locator("#schedule").selectOption("daily"); await page.locator("#daily-time").fill("04:30");
     await page.locator('#settings-form button[type="submit"],#settings-form button.primary').click();
     await expect(page.locator("#preferences")).not.toBeVisible(); await page.locator("#settings").click();
-    try { await expect(page.locator("#daily-time")).toHaveValue("04:30"); } catch (error) { console.error(JSON.stringify(calls.slice(-10))); throw error; } await page.locator('[data-close="preferences"]').click();
+    try { await expect(page.locator("#daily-time")).toHaveValue("04:30"); } catch (error) { console.error(JSON.stringify(calls.slice(-10))); throw error; }
+    await page.locator("#start-now").click(); await expect(page.locator("#preferences")).not.toBeVisible();
+    await page.locator("#settings").click(); await expect(page.locator("#scan-start")).toContainText("整理起点更新于");
+    await page.locator('[data-close="preferences"]').click();
     await expect(page.locator("#error")).not.toBeVisible(); assert.deepEqual(errors, []);
     if (process.env.OPENBOT_MEMORY_UI_SCREENSHOT) await page.screenshot({ path: path.resolve(process.env.OPENBOT_MEMORY_UI_SCREENSHOT), fullPage: true });
     console.log("Memory Plus UI: browser reads actual migrated journals and changes strategy settings through public desktop actions passed");
