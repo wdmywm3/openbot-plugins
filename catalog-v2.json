@@ -4,12 +4,14 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "ai",
       "main": "index.js",
       "permissions": [
         "agent",
+        "memory:read",
+        "memory:write",
         "resource:android",
         "resource:android:autonomous",
         "hook:context",
@@ -22,10 +24,11 @@
         "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
         "platforms": [],
         "requirements": [
+          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存跨会话经验",
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "修复原生插件工具启用时的能力提示，更新任务完成与续查说明；调整市场分类。",
+        "changelog": "通过宿主统一记忆接口保存与读取活动经验，补齐相应授权和任务能力提示；保留设备操作及自主活动的独立权限。",
         "components": [
           "commands",
           "hooks",
@@ -35,17 +38,17 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
       "files": [
         {
           "path": "index.js",
-          "size": 46029,
-          "sha256": "108e2eba4d805a5ec43e7f9966f6a0bbacc67ab2b924e94f07989e484c609ec0"
+          "size": 47465,
+          "sha256": "25305b26a38f90bfeff8ab07671561801601a9f6430a630d37808bb638e810bd"
         },
         {
           "path": "plugin.json",
-          "size": 15751,
-          "sha256": "febe2fe5dbbef4792e83305153d217d2fd256363e67f493f2b7945c344722280"
+          "size": 15936,
+          "sha256": "34808e0664a03c8dc1350a6d2cb05297becdea41ae62bf184ec22ed1a83de176"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
@@ -57,12 +60,14 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.14.1",
+      "version": "1.15.0",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
       "permissions": [
         "agent",
+        "memory:read",
+        "memory:write",
         "state",
         "conversation",
         "push",
@@ -79,8 +84,10 @@
       "metadata": {
         "usage": "/explore 立即浏览一次，有适合当前聊天的发现时再分享\n/explorestatus 查看上次探索、分享及下次运行时间\n/explorelike 记录希望多看的主题：/explorelike 主题\n/exploreavoid 记录希望避开的主题：/exploreavoid 主题\n/biliaccounts 验证大号或小号登录：/biliaccounts main 或 browse\n/bilifolders 列出大号收藏夹\n/biliscan 分页扫描收藏；new 开始新扫描\n/biliplan 分批生成收藏分类方案\n/bilipreview 分页预览方案：/bilipreview 偏移量\n/biliapply 应用已生成的收藏方案\n/bilidraft 以小号拟评论：/bilidraft BV号 内容\n/bilipost 发送指定评论草稿：/bilipost 草稿编号\n/biliinteractions 查看自动评论和回复的处理记录\n/bilianalyze 分段分析视频：/bilianalyze BV号 [分P序号] [new]\n/bilisummary 读取分析总结：/bilisummary BV号 [分P序号] [页码]",
         "platforms": [],
-        "requirements": [],
-        "changelog": "修复原生插件工具启用时的笔记与浏览能力提示，更新工具调用说明；调整市场分类。",
+        "requirements": [
+          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
+        ],
+        "changelog": "笔记与活动经验接入宿主统一记忆，补齐读写授权及能力提示；浏览、收藏、互动和分享策略继续由插件负责。",
         "components": [
           "commands",
           "hooks",
@@ -90,7 +97,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
       "files": [
         {
           "path": "MEDIA.md",
@@ -99,8 +106,8 @@
         },
         {
           "path": "index.js",
-          "size": 223138,
-          "sha256": "c474001e7f5edd3a04c625a8fef92bf6e3d6388b0a546452829dbe92099ae8ed"
+          "size": 224310,
+          "sha256": "0e95c040d1fbbb32afc55d0ebc0cd1687576043b9166bfc8eae8e0bf503f0f24"
         },
         {
           "path": "media-mcp/launch.py",
@@ -119,8 +126,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 58184,
-          "sha256": "a44c87568263bf4a910c05e3eeba3484dbaa9c7ec39b6a784a57803fa8779ba2"
+          "size": 58382,
+          "sha256": "3822b62714aa08c4fa038960ad34d3a8f9684be58b35846d5849d4edfc98f25d"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -313,37 +320,119 @@
     },
     {
       "id": "meme-library",
-      "name": "表情素材库",
-      "version": "1.0.2",
-      "description": "从当前 QQ 账号的 NapCat 收藏表情中检索并发送表情",
+      "name": "表情包",
+      "version": "2.2.0",
+      "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
-        "napcat:fetch_custom_face"
+        "state",
+        "assets",
+        "jobs",
+        "history",
+        "model",
+        "model:select",
+        "retrieval",
+        "mcp",
+        "network",
+        "napcat:fetch_custom_face",
+        "hook:loaded",
+        "hook:beforeModel",
+        "hook:beforeSend",
+        "hook:afterSend",
+        "hook:messageReceived",
+        "prompt:system",
+        "hook:beforeDispatch",
+        "profiles:media",
+        "hook:profileChanged"
       ],
       "metadata": {
-        "usage": "/meme 随机或按关键词发送收藏表情\n/memeinfo 查看收藏表情数量",
+        "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
-        "requirements": [],
-        "changelog": "更新插件市场分类。",
-        "builtinFeature": "stickers",
+        "requirements": [
+          "需要 OpenBot 0.1.84 或更新版本，支持持久上下文接口。",
+          "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
+          "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
+          "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
+        ],
+        "changelog": "完整素材库接入共享检索、角色与聊天设置；表情可用状态改为持久增量上下文，重复状态不再追加，冷却状态包含截止时间，发送前重新校验。",
         "components": [
-          "commands"
+          "commands",
+          "hooks",
+          "tools",
+          "background",
+          "skills",
+          "mcp"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
       "files": [
         {
+          "path": "README.md",
+          "size": 3970,
+          "sha256": "4f7d93fa58a74a387679b137dde3366ddddeb9a584d0463ff2283bb3edce7d49"
+        },
+        {
+          "path": "engine/animation-NOTICE.txt",
+          "size": 1213,
+          "sha256": "6db55be8697bd8f5c5aa743b0ab21353949341a6f84886fc06d4dc2c76fcac4b"
+        },
+        {
+          "path": "engine/animation-image.cjs",
+          "size": 5308,
+          "sha256": "420c00e088f9781dadb66a39edfd2693b896123412c76c1f5b4e34b420e6764d"
+        },
+        {
+          "path": "engine/server.cjs",
+          "size": 10504,
+          "sha256": "8192324450d05a0b5eb8ffdc40f6c0852e25b8750cafa6288ede27ae927c64e1"
+        },
+        {
           "path": "index.js",
-          "size": 2337,
-          "sha256": "adc33ecfa533283876c01f6b451d75e2da4d2fdda2df2f77de3a15d75a662959"
+          "size": 45779,
+          "sha256": "142ede2d08c658635756409690918351d5a3e04230cc54576ae4b6aa759613f1"
+        },
+        {
+          "path": "mcp.json",
+          "size": 234,
+          "sha256": "877ae73a8a45ecfcd41e18269a25c75626ad184ea13ec331487c0bf6d487bbf0"
+        },
+        {
+          "path": "package-lock.json",
+          "size": 20840,
+          "sha256": "6bb6b3ec461849fac99ac3a22bbfa8dc75f7c6de6e64be57ed9bf83ef27d3e2a"
+        },
+        {
+          "path": "package.json",
+          "size": 175,
+          "sha256": "c5bbf31f8cc220872fc091e909bdb36ea33bc5c2609500fc7ed92b17e736804c"
         },
         {
           "path": "plugin.json",
-          "size": 1486,
-          "sha256": "f50241a3f47749c76790efcfa5c37a4c6ee0047859d42da6120b46193d2f7443"
+          "size": 14014,
+          "sha256": "d957148a491d7ff2fc32f9ead58a2c0a4c8da9d99865da5a59dbef07a353814e"
+        },
+        {
+          "path": "skills/stickers/SKILL.md",
+          "size": 1852,
+          "sha256": "040dc9f3690c9614313439c04328b7ee33f1fb9279809b07887024c1ff0d7872"
+        },
+        {
+          "path": "ui/app.js",
+          "size": 12228,
+          "sha256": "4ac4051c834116cf9cbdac1f0e43da6086435a0654e5afc14d1cfb1c3197ea07"
+        },
+        {
+          "path": "ui/index.html",
+          "size": 4330,
+          "sha256": "bb44754f22dcb6d49ada07f9e8f7cf5b61ced60c830cb6f5b0a9ccd9a9ec60e2"
+        },
+        {
+          "path": "ui/style.css",
+          "size": 2967,
+          "sha256": "a65b464a3cdb2da345a88d23e4947d58ebcd38c550b236963c87448fd92395a1"
         }
       ]
     },
@@ -438,6 +527,324 @@
           "path": "ui/terms.html",
           "size": 4427,
           "sha256": "006b5ebe43eb4ab791c6748bf4ef5b77b61c57c90ecd08dbc45bb0fbf54aafa0"
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "name": "记忆 Plus",
+      "version": "2.1.0",
+      "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
+      "category": "assistant",
+      "main": "index.js",
+      "permissions": [
+        "process",
+        "state",
+        "sources",
+        "memory:read",
+        "memory:write",
+        "memory:manage",
+        "history",
+        "retrieval",
+        "model",
+        "agent",
+        "conversation",
+        "push",
+        "jobs",
+        "assets",
+        "hook:loaded",
+        "hook:beforeModel",
+        "hook:afterModel",
+        "hook:replyDelivered",
+        "hook:stopping",
+        "prompt:system"
+      ],
+      "metadata": {
+        "usage": "",
+        "platforms": [],
+        "requirements": [
+          "需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"
+        ],
+        "changelog": "修复整理时机、闲置判断、积压接续、暂停恢复与重复写入；过滤失效来源，评估当前可见记忆，并支持稳定事项关联的单次、周期和新证据复查。旧资料通过公开接口迁移。",
+        "components": [
+          "hooks",
+          "tools",
+          "background",
+          "skills"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3127,
+          "sha256": "fc85c36bb756dcb195939257d066a84287e7142bf0a07476773bebb02b917c2b"
+        },
+        {
+          "path": "followup-runtime.cjs",
+          "size": 5826,
+          "sha256": "6a096cae63251edf90ba3090e63cbdb5042bf3c43090422e8e2e93aba182a2f5"
+        },
+        {
+          "path": "index.js",
+          "size": 118,
+          "sha256": "f7a396d05798265d3db5d03bbbad63c9a6ccbce34f245454817118bd7722747f"
+        },
+        {
+          "path": "lib/context/channel-document-repository.cjs",
+          "size": 17852,
+          "sha256": "b1ee0a546c8a68d9ab35b40e91df527fb8c3c9b75166e95d75529d9563f7b23e"
+        },
+        {
+          "path": "lib/context/channel-dream-repository.cjs",
+          "size": 19930,
+          "sha256": "9339311b51144adbfe2ee8081f8e90b7fe786e3f7f3e2d76bae1dcce6eba9fc1"
+        },
+        {
+          "path": "lib/context/channel-dream-rollback.cjs",
+          "size": 17083,
+          "sha256": "333f21e85c40bc273ea1912930c2cecf106571f5705ba68bdd24abf01b49f628"
+        },
+        {
+          "path": "lib/context/channel-dream-run-repository.cjs",
+          "size": 9399,
+          "sha256": "e45656a89c64cec5430229276b7ae05ce4919661888848d7b731a8b4259b7ba6"
+        },
+        {
+          "path": "lib/context/channel-memory-repository.cjs",
+          "size": 25057,
+          "sha256": "64702148e1d1702739929b876ea0167ca92c8bf8aa3a0e15ecb5a8df4baf6016"
+        },
+        {
+          "path": "lib/context/scheduled-task-repository.cjs",
+          "size": 7860,
+          "sha256": "f4c2458c6a475229ecc99f90f2c75c91d26cfa7025ea1c57b7cfb4856e2dd07f"
+        },
+        {
+          "path": "lib/context/task-activity-index.cjs",
+          "size": 7920,
+          "sha256": "9aa828c3881ce78acdf17c8a603486ca0c76f04e763acf4c96442d4c7d6ab980"
+        },
+        {
+          "path": "lib/features/channels/channel-document-file-lock.cjs",
+          "size": 613,
+          "sha256": "5ac6ebafbd9b743d0465af5f7cf25b22a151f23bc12d4ae1460c4f14ed52db34"
+        },
+        {
+          "path": "lib/features/channels/channel-document-service.cjs",
+          "size": 21838,
+          "sha256": "9d9aef32d9cad8c7b8336dfdf56d45fcd0eef911b5b885058672272a7359cfb2"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-analysis.cjs",
+          "size": 14021,
+          "sha256": "85fdb4ba85e04f5df9ce72e297dcafdbc59fa6ebefba01e3a82c4f1afc15f9ff"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-coordinator.cjs",
+          "size": 14166,
+          "sha256": "2bf58004ffac160d9845b19edf4bd9cd67361b3bc033f6867a75be295005cf8b"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-documents-format.cjs",
+          "size": 5777,
+          "sha256": "c01e8b875e7d24ce4be4a701947e1691a649df8a64a8e431e398006d485ff965"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-documents.cjs",
+          "size": 15128,
+          "sha256": "5d0fd2a01f9d7300e7a9af37a1e1c91d1bd4582689cfe7bf42cf05a07ff4ea2b"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-followups.cjs",
+          "size": 5570,
+          "sha256": "c2a6de11dae0940ea94dee0b3b3f2877b777f5699c30884b1d592c4e1e3c3c88"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-record-selection.cjs",
+          "size": 7037,
+          "sha256": "236c2b1915cadd27da562dd18f8d4056a8ece940134eee66a0c59bf586af3932"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-service.cjs",
+          "size": 26245,
+          "sha256": "658ffecd0a5352fc961869885b92dbe4fbd477e7647a3a59a5e5b0b30048c548"
+        },
+        {
+          "path": "lib/features/channels/channel-dream-settings.cjs",
+          "size": 1035,
+          "sha256": "55d190ed197db2a6f2dc20dc6587aa55dd439472676aa9b6b975d0169975a743"
+        },
+        {
+          "path": "lib/features/channels/channel-memory-policy.cjs",
+          "size": 5484,
+          "sha256": "624ee9f5188503b22e2d03f59c1beff514a375fddbdc9fd54147d9b6e3527865"
+        },
+        {
+          "path": "lib/features/channels/channel-memory-retrieval.cjs",
+          "size": 3362,
+          "sha256": "bdcb40a5eadc8ba9c9b541ff975fdbc5a2aab6b402be59ac5110379bcf7c8e7f"
+        },
+        {
+          "path": "lib/features/channels/channel-memory-rules.cjs",
+          "size": 1824,
+          "sha256": "ce4f4f544314ed71a8a5359b14ed57ba21c296ec4f33f4bb416043ab58036013"
+        },
+        {
+          "path": "lib/features/channels/channel-memory-service.cjs",
+          "size": 16478,
+          "sha256": "55f51102317a28e9a3dbb0453b1e99b8b5eb6db7f2ed93735ee0865869970f3b"
+        },
+        {
+          "path": "lib/features/channels/channel-memory-write.cjs",
+          "size": 13948,
+          "sha256": "84e5659f1391af7e2be2d066cf4e6c6d672df9d1fdd38dcc614d7e18ec33d5ef"
+        },
+        {
+          "path": "lib/features/channels/channel-recall-input.cjs",
+          "size": 10108,
+          "sha256": "1781723c6e336fbc2ef3e26193cc65217420b2c6f553962e4b2aa57617b84413"
+        },
+        {
+          "path": "lib/llm/compact-boundary.cjs",
+          "size": 677,
+          "sha256": "69bcd15b9332e4f2b680db4f618bffad74fad90a2b88ce2b4debb761ffda7a72"
+        },
+        {
+          "path": "lib/llm/system-reminder.cjs",
+          "size": 5248,
+          "sha256": "1aaed97daea03e8e618d36c2813c17a8214b7107d786b49969a98203431f7ca9"
+        },
+        {
+          "path": "lib/plugins/plugin-record-codec.cjs",
+          "size": 1409,
+          "sha256": "16ecff2a10d38134b086382cc4fe40b8d2e54e6d6b56f7208a2dce93cf33e277"
+        },
+        {
+          "path": "package-lock.json",
+          "size": 1241,
+          "sha256": "2097a8cc99f1f3b98521253dc83582f84982aba67aa1eb8e5e49f6ea31382a9b"
+        },
+        {
+          "path": "package.json",
+          "size": 154,
+          "sha256": "f461d5d701493ecdced3fd957d3fd952eb75c99895998b6043e46945f4d927c5"
+        },
+        {
+          "path": "plugin.json",
+          "size": 4567,
+          "sha256": "88eed64a47ddaed5fd154112682fb56f596c2411e0d166b6d08aef3e48ca5182"
+        },
+        {
+          "path": "process.cjs",
+          "size": 2083,
+          "sha256": "57545f375d216eccb4de322481a3c64669d316e9b38365b71643a5c8b62681e6"
+        },
+        {
+          "path": "recall-context.cjs",
+          "size": 3146,
+          "sha256": "d8af0185a6cb589180d93d6294da3746901b7e0ba6045a57e31f1f51f1fb01e2"
+        },
+        {
+          "path": "retrieval.cjs",
+          "size": 7564,
+          "sha256": "01c66a11750efd73e2cc10882c78e25ba4020a6973b19c0b8515b756a74db5c3"
+        },
+        {
+          "path": "runtime.cjs",
+          "size": 32334,
+          "sha256": "0823f8656f2cf1e688c3344db2b07d9d75ea62b1cc1c467277c3c7fc9c9f1c5e"
+        },
+        {
+          "path": "skills/memory/SKILL.md",
+          "size": 2830,
+          "sha256": "faaee3aa909e5be91461c7b3ac6d11b278b26472c943ca6d2be4d53a8a8d857e"
+        },
+        {
+          "path": "sources.cjs",
+          "size": 4499,
+          "sha256": "bc3b80b0617661150c88e0b44db881c7ad6fcf62bd4c8ec432a556cb05433c11"
+        },
+        {
+          "path": "storage.cjs",
+          "size": 4042,
+          "sha256": "b310c8602800354bb53506073ddaf84f691a1369320cd99e5209ad65397dcf02"
+        },
+        {
+          "path": "ui/app.js",
+          "size": 8701,
+          "sha256": "92bb56c8097b710f2871ca37662b7ac290c0c3442d3ed9ef1870ae7c2d713b1e"
+        },
+        {
+          "path": "ui/index.html",
+          "size": 2563,
+          "sha256": "4f5ea9c28eda0544f53391391beffdea76cabaf3ff952ead3438b10eceee355f"
+        },
+        {
+          "path": "ui/style.css",
+          "size": 2040,
+          "sha256": "13b2e6ef060fd94a7d38e9bc1fe8949fd1e27e5063cd804b8854baac7ccc4d9a"
+        },
+        {
+          "path": "unified-assessment.cjs",
+          "size": 5996,
+          "sha256": "64d51ae84fb38e4ceb739b574628dfcefe8fb3848087544c8338f8c74af78bd1"
+        },
+        {
+          "path": "unified-candidates.cjs",
+          "size": 1891,
+          "sha256": "288e074a619b9e5ccc73c215a9ea14d444a11e99bf51e313edec8d06571ce454"
+        },
+        {
+          "path": "unified-dream.cjs",
+          "size": 17791,
+          "sha256": "49662300e571c7d868c0ea8e43eccd45d69f9ceead90a2a69624f9216365f1a7"
+        },
+        {
+          "path": "unified-followup-activity.cjs",
+          "size": 3883,
+          "sha256": "a21152d059201028eacac8286beaae606ee53e7f644ae5c4d9230e73f4f190c8"
+        },
+        {
+          "path": "unified-followup.cjs",
+          "size": 10277,
+          "sha256": "e87988fb9558b840a691cd1bad61375838158b59c249443b1df02d70fefc3bc9"
+        },
+        {
+          "path": "unified-legacy-rollback.cjs",
+          "size": 2952,
+          "sha256": "bcf22f377980e55f895de817a35aa7beeb6326e0a335b7db93ac9742a4365086"
+        },
+        {
+          "path": "unified-material-policy.cjs",
+          "size": 672,
+          "sha256": "828ff94c2140ef5da6c6c3a20de188ad522328e83523415496e4ad4df760d179"
+        },
+        {
+          "path": "unified-migration.cjs",
+          "size": 17682,
+          "sha256": "e0e1496a45a87e95ca62c19fa99765e9a36fd318547a4aeb38e563fbd6718c5d"
+        },
+        {
+          "path": "unified-retrieval.cjs",
+          "size": 9085,
+          "sha256": "cdd754c7d30bd3c8ec0435314e99b7d0ebbec9eb44322c4ef4c092f2caa5c837"
+        },
+        {
+          "path": "unified-runtime.cjs",
+          "size": 22751,
+          "sha256": "ea517bbe30cb0f864050ce6d0fdfdc193ce43e3596d7b5ea0142d49ce102d38c"
+        },
+        {
+          "path": "unified-scheduling.cjs",
+          "size": 1795,
+          "sha256": "a30d7667c8ba92a3906b889633db888a1a21e9eda81d2955b3d764e96d3e295a"
+        },
+        {
+          "path": "unified-state.cjs",
+          "size": 3616,
+          "sha256": "cd69af3f0895af8c6345cefba318a971361f1b3102c21a51a32bea5c3e58551e"
         }
       ]
     },
