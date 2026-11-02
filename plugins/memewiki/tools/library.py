@@ -123,6 +123,18 @@ class Library:
                 row = db.execute("SELECT * FROM memes WHERE length(title)>=2 AND instr(?,title)>0 ORDER BY length(title) DESC,title LIMIT 1", (q,)).fetchone()
             return entry(row) if row else None
 
+    def entries(self, offset=0, limit=16):
+        if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 32:
+            raise ValueError("词库分页参数无效")
+        with self.open_base() as db:
+            rows = db.execute("SELECT * FROM memes ORDER BY title LIMIT ? OFFSET ?", (limit + 1, offset)).fetchall()
+        values = []
+        for row in rows[:limit]:
+            value = entry(row)
+            encoded = json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
+            values.append({**value, "revision": int(hashlib.sha256(encoded).hexdigest()[:12], 16)})
+        return {"entries": values, "nextOffset": offset + limit if len(rows) > limit else None, "version": self.snapshot["sha256"]}
+
     def lookup(self, query, online=False):
         if not isinstance(query, str) or not 1 <= len(query.strip()) <= 80:
             raise ValueError("查询词须为 1–80 个字")

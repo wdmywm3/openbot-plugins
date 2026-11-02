@@ -9,7 +9,7 @@ description: 使用宿主统一记忆保存、查询和追溯事实、偏好、�
 
 用户纠正旧说法时使用 revise，携带 id、expectedRevision 和稳定 requestKey。changeType 区分 edit、correction 和 change，现实变化明确 validFrom。版本冲突后重新读取，不覆盖人工修改。forget 只用于用户明确要求永久遗忘。
 
-search 查当前有效记忆，历史审计显式选择 history 模式；read 按编号读取正文，续页携带 revision。类型为 fact、preference、experience、matter；层级为 working、long_term；生命周期与事项进度分别保存。针对当前问题写检索词，必要时补充有效前文；没有匹配不等于从未发生。
+按含义查当前有效记忆使用本插件 recall，融合关键词与向量。需要以聊天图片查找时传实际 imageMessageId，可选从 0 开始的 imageIndex；query 可与图片一起使用。返回原图只说明与记忆有关，不能把相似画面当作同一事件。宿主 search 提供文字查询，历史审计显式选择 history 模式；read 按编号读取正文，续页携带 revision。类型为 fact、preference、experience、matter；层级为 working、long_term；生命周期与事项进度分别保存。针对当前问题写检索词，必要时补充有效前文；没有匹配不等于从未发生。
 
 待确认、已失效、被纠正、条件不符或来源被删除的内容不可当作当前事实。简短追问需找到同一说话人的有效前文；换题后不把旧话题硬接进来。戳一戳等单独的平台通知不触发自动召回。
 

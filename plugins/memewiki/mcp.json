@@ -19,7 +19,8 @@
         "memewiki_card",
         "memewiki_sync_step",
         "memewiki_info"
-      ]
+      ],
+      "native_tools": ["memewiki_entries"]
     }
   }
 }

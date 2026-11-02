@@ -1,5 +1,5 @@
 // Bundled into each plugin at build time; no host or cross-plugin filesystem dependency.
-function createActivityLearning(database) {
+function createActivityLearning(database, vectorIndex) {
   const clean = (value, max = 1000) => String(value || "").trim().slice(0, max);
   const hash = value => { let a = 2166136261, b = 5381; for (const c of value) { a = Math.imul(a ^ c.codePointAt(0), 16777619); b = Math.imul(b, 33) ^ c.codePointAt(0); } return (a >>> 0).toString(16) + (b >>> 0).toString(16); };
   const words = value => {
@@ -37,6 +37,9 @@ function createActivityLearning(database) {
     if (previous) operations.push({ action: "put", collection: "lesson_revisions", key: `${id}:${previous.revision}`, expectedRevision: 0, value: previous.value });
     operations.push({ action: "put", collection: "lessons", key: id, expectedRevision: previous?.revision || 0, value });
     const saved = await database({ action: "batch", operations });
+    if (vectorIndex) try { const row = saved.results.at(-1).record;
+      await vectorIndex({ action: "sync", records: [{ id, revision: row.revision, text: [topic, understanding, application, body.uncertainty].join("\n") }], complete: false });
+    } catch { /* The source write remains successful; the next lookup repairs its derived index. */ }
     return { id, revision: saved.results.at(-1).record.revision };
   }
   async function remember(items, sources) {
@@ -54,13 +57,19 @@ function createActivityLearning(database) {
         if (row.value.status !== "active") continue;
         const value = row.value, relevance = overlap(tokens, value.topic) * 3 + overlap(tokens, value.application) * 2 + overlap(tokens, value.understanding)
           + (value.sourceIds || []).filter(id => sourceIds.includes(id)).length * 6;
-        if (tokens.size && !relevance) continue;
         scored.push({ id: row.key, revision: row.revision, topic: value.topic, understanding: value.understanding,
           application: value.application, uncertainty: value.uncertainty, evidence: value.evidence, relevance, at: row.updatedAt || value.changedAt });
       }
       cursor = result.nextCursor; if (!cursor) break;
     }
-    return scored.sort((a, b) => b.relevance - a.relevance || b.at - a.at).slice(0, Math.min(10, limit));
+    if (vectorIndex && String(query || "").trim() && scored.length) try {
+      const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
+      try { await vectorIndex({ action: "sync", records, complete: !cursor }); } catch { /* Read-only invocations can still search already indexed sources. */ }
+      const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: Math.min(10, limit), threshold: 0.7, timeoutMs: 15000 });
+      const byId = new Map(scored.map(row => [row.id, row]));
+      if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => ({ ...byId.get(hit.id), relevance: hit.score }));
+    } catch { /* Shared model unavailable: retain lexical matching. */ }
+    return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, Math.min(10, limit));
   }
   async function retract(id, expectedRevision) {
     const row = await read(id);

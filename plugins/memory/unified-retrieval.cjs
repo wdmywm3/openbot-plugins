@@ -16,11 +16,19 @@ async function remove(ctx, storage, scope, id) {
   const ids = JSON.parse(row.chunk_ids);
   for (let offset = 0; offset < ids.length; offset += 256) await ctx.api.vectorIndex({ action: "delete", chatId: scope.chatId, collection: COLLECTION, ids: ids.slice(offset, offset + 256) });
   storage.db.prepare("DELETE FROM embedding_receipts WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, COLLECTION, id);
+  if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE name='embedding_media'").get()) storage.db.prepare("DELETE FROM embedding_media WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, COLLECTION, id);
+  if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE name='embedding_media_retry'").get()) storage.db.prepare("DELETE FROM embedding_media_retry WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, COLLECTION, id);
 }
 async function index(ctx, storage, scope) {
   if (!ctx.api.embeddings || !ctx.api.vectorIndex) return { mode: "text" };
-  const key = `plus:index:${scope.chatId}`, old = get(storage, key, { after: 0 });
+  const key = `plus:index:${scope.chatId}`;
   const model = await ctx.api.embeddings({ action: "status", ...(ctx.config.retrievalModelId ? { modelId: ctx.config.retrievalModelId } : {}) });
+  const mediaKey = `plus:media-index:${scope.chatId}`;
+  if (model.modalities?.includes("image") && !get(storage, mediaKey) && (await ctx.api.getCapabilities?.())?.features?.sourceAttachments) {
+    storage.db.prepare("UPDATE embedding_receipts SET complete=0,cursor=0 WHERE chat_id=? AND collection=?").run(scope.chatId, COLLECTION);
+    put(storage, key, { after: 0, version: model.version }); put(storage, mediaKey, true);
+  }
+  const old = get(storage, key, { after: 0 });
   const start = old.version === model.version ? old.after : 0;
   const page = await ctx.api.memory({ action: "changes", chatId: scope.chatId, after: start, limit: 20 });
   for (const change of page.items) {
@@ -40,6 +48,12 @@ async function index(ctx, storage, scope) {
   for (const row of stale) {
     let current; try { current = await readMemory(ctx, scope, row.id, { complete: false }); } catch (error) { if (error.code !== "MEMORY_NOT_FOUND") throw error; }
     if (!current) await remove(ctx, storage, scope, row.id);
+    else if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE name='embedding_media_retry'").get()
+      && storage.db.prepare("SELECT 1 FROM embedding_media_retry WHERE chat_id=? AND collection=? AND id=? AND retry_at<=?").get(scope.chatId, COLLECTION, row.id, Date.now())) {
+      const full = await readMemory(ctx, scope, row.id);
+      storage.db.prepare("UPDATE embedding_receipts SET complete=0,cursor=0 WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, COLLECTION, row.id);
+      await createRetrieval(ctx, storage, scope).index(COLLECTION, [full], { completeSet: false });
+    }
   }
   put(storage, cursorKey, stale.length === 20 ? stale.at(-1).id : "");
   if (stale.length < 20) put(storage, `plus:sweepAt:${scope.chatId}`, Date.now());
@@ -61,12 +75,13 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
     }
   }
   const entries = [...byId.values()];
-  const ranked = lexicalRanks(query, entries.map(item => ({ ...item, content: item.preview })), Date.now()).filter(row => row.lexicalScore > 0);
+  const ranked = options.imageOnly ? [] : lexicalRanks(query, entries.map(item => ({ ...item, content: item.preview })), Date.now()).filter(row => row.lexicalScore > 0);
   const scores = new Map(ranked.map((row, index) => [row.entry.id, 0.35 / (61 + index)]));
   let mode = "text", fallbackReason = "";
   if (ctx.api.embeddings && ctx.api.vectorIndex) try {
     const model = await ctx.api.embeddings({ action: "status", ...(ctx.config.retrievalModelId ? { modelId: ctx.config.retrievalModelId } : {}) });
     if (!model.ready) throw Error("检索模型尚未就绪");
+    if (options.imageOnly && !model.modalities?.includes("image")) throw Error("当前检索模型不支持图片查询");
     const owners = new Map(), candidates = [];
     for (const receipt of storage.db.prepare("SELECT * FROM embedding_receipts WHERE chat_id=? AND collection=? ORDER BY id").all(scope.chatId, COLLECTION)) {
       if (byId.get(receipt.id)?.revision !== receipt.revision || receipt.version !== model.version) continue;
@@ -75,7 +90,8 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
     const semantic = new Map();
     for (let offset = 0; offset < candidates.length; offset += 20000) {
       const result = await ctx.api.vectorIndex({ action: "search", chatId: scope.chatId, collection: COLLECTION, modelId: model.id,
-        candidates: candidates.slice(offset, offset + 20000), query: { text: query }, limit: 100, timeoutMs: 1200 });
+        candidates: candidates.slice(offset, offset + 20000), query: { text: options.imageOnly ? "" : query,
+          ...(options.queryImage && model.modalities?.includes("image") ? { messageImage: options.queryImage } : {}) }, limit: 100, timeoutMs: 15000 });
       for (const hit of result.matches) if (hit.score >= (ctx.config.semanticThreshold ?? 0.45)) semantic.set(owners.get(hit.id), Math.max(semantic.get(owners.get(hit.id)) || 0, hit.score));
     }
     [...semantic].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).forEach(([id], index) => scores.set(id, (scores.get(id) || 0) + 0.65 / (61 + index)));
@@ -107,6 +123,7 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
     }
     groups.push(group);
   }
+  if (options.raw === true) return { records: groups.flat().slice(0, limit), mode, fallbackReason };
   const records = []; let used = 0;
   for (const group of groups) {
     const values = group.map(({ id, revision, kind, subtype, content, conditions, progress, validFrom, validTo, recallExcerpt, recallOffset, nextOffset }) => ({ id, revision, kind, subtype,

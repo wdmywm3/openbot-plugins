@@ -10,6 +10,7 @@ def schema(properties=None, required=None):
 
 
 TOOLS = [
+    {"name": "memewiki_entries", "description": "分页读取公共词库以建立本地检索索引。", "inputSchema": schema({"offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 32}})},
     {"name": "memewiki_lookup", "description": "查询公共梗词库。当前聊天的自定义黑话请使用 memewiki 插件的 search_meme_wiki。",
      "inputSchema": schema({"query": {"type": "string", "minLength": 1, "maxLength": 80}, "online": {"type": "boolean"}}, ["query"])},
     {"name": "memewiki_card", "description": "将查到的词条绘制成图片卡片。",
@@ -35,9 +36,13 @@ def call(library, name, args):
             raise ValueError("开关参数须为布尔值")
         if prop["type"] == "string" and (not isinstance(value, str) or len(value) > prop["maxLength"]):
             raise ValueError("文本参数无效或过长")
+        if prop["type"] == "integer" and (type(value) is not int or value < prop.get("minimum", 0) or value > prop.get("maximum", 1000000)):
+            raise ValueError("分页参数无效")
     if name == "memewiki_card":
         return {"content": [{"type": "image", "mimeType": "image/png", "data": card(args)}], "isError": False}
-    if name == "memewiki_lookup":
+    if name == "memewiki_entries":
+        value = library.entries(args.get("offset", 0), args.get("limit", 16))
+    elif name == "memewiki_lookup":
         value = library.lookup(args["query"], args.get("online", False))
     elif name == "memewiki_sync_step":
         value = library.sync_step()

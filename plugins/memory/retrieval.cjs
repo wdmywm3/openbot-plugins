@@ -8,10 +8,37 @@ const inputText = entry => String(entry.title || "") + "\n" + String(entry.conte
 const ids = entry => { const text = inputText(entry), version = hash(text).slice(0, 24);
   return memoryChunks(text).map((text, i) => ({ id: `${entry.id}@${revision(entry)}:${version}:${i}`, revision: revision(entry), input: { text } })); };
 function createRetrieval(ctx, storage, scope) {
+  storage.db.exec("CREATE TABLE IF NOT EXISTS embedding_media(chat_id TEXT,collection TEXT,id TEXT,revision INTEGER,assets_json TEXT NOT NULL,PRIMARY KEY(chat_id,collection,id))");
+  storage.db.exec("CREATE TABLE IF NOT EXISTS embedding_media_retry(chat_id TEXT,collection TEXT,id TEXT,retry_at INTEGER,PRIMARY KEY(chat_id,collection,id))");
   let selected, calls = 0;
   const MAX_WRITES = 32;
   const write = input => { if (calls >= MAX_WRITES) return null; calls++; return ctx.api.vectorIndex({ ...input, chatId: scope.chatId }); };
   const model = () => selected ||= ctx.api.embeddings({ action: "status", ...(ctx.config.retrievalModelId ? { modelId: ctx.config.retrievalModelId } : {}) });
+  async function mediaChunks(entry, current, collection) {
+    if (!current.modalities?.includes("image") || !ctx.api.assets || !ctx.api.sources) return [];
+    const chunks = [], references = [], seen = new Set(); let failed = false;
+    const save = () => { storage.db.prepare("INSERT INTO embedding_media VALUES(?,?,?,?,?) ON CONFLICT(chat_id,collection,id) DO UPDATE SET revision=excluded.revision,assets_json=excluded.assets_json")
+      .run(scope.chatId, collection, entry.id, revision(entry), JSON.stringify(references));
+      if (failed) storage.db.prepare("INSERT OR REPLACE INTO embedding_media_retry VALUES(?,?,?,?)").run(scope.chatId, collection, entry.id, Date.now() + 300000);
+      else storage.db.prepare("DELETE FROM embedding_media_retry WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, collection, entry.id);
+      return chunks; };
+    for (const source of (entry.sources || []).slice(0, 8)) {
+      if (source.chatId && source.chatId !== scope.chatId) continue;
+      try {
+        const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, id: source.id, version: source.version })).item;
+        if (!item || item.deleted || item.routeBlocked || item.memoryExcluded) continue;
+        for (const attachment of (item.attachments || []).filter(item => item.type === "image").slice(0, 4)) {
+          const asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: source.id, sourceVersion: item.version, index: attachment.index, kind: "image" });
+          if (!asset.ref || seen.has(asset.ref)) continue; seen.add(asset.ref);
+          chunks.push({ id: `${entry.id}@${revision(entry)}:image:${hash(asset.ref).slice(0, 24)}`, revision: revision(entry),
+            input: { assetRef: asset.ref, ...(current.modalities.includes("joint") ? { text: inputText(entry).slice(0, 4000) } : {}) } });
+          references.push({ assetRef: asset.ref, sourceId: source.id, sourceVersion: item.version, index: attachment.index });
+          if (chunks.length >= 4) return save();
+        }
+      } catch { ctx.signal?.throwIfAborted(); failed = true; /* Preserve text indexing and retry transient image failures separately. */ }
+    }
+    return save();
+  }
   async function index(collection, entries, { completeSet = true } = {}) {
     const current = await model();
     if (!current.ready) { await ctx.api.embeddings({ action: "ensure", modelId: current.id }); return { indexed: 0, pendingModel: true, version: current.version }; }
@@ -27,11 +54,15 @@ function createRetrieval(ctx, storage, scope) {
         if (!operation) return { indexed: count, pending: true, version: current.version }; await operation;
       }
       storage.db.prepare("DELETE FROM embedding_receipts WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, collection, receipt.id);
+      storage.db.prepare("DELETE FROM embedding_media WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, collection, receipt.id);
+      storage.db.prepare("DELETE FROM embedding_media_retry WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, collection, receipt.id);
     }
     const changed = entries.filter(entry => { const old = lookup.get(scope.chatId, collection, entry.id); return old?.revision !== revision(entry) || old.version !== current.version || !old.complete; });
+    const prepared = new Map();
+    for (const entry of changed) prepared.set(entry.id, [...ids(entry), ...await mediaChunks(entry, current, collection)]);
     const completed = new Set();
     const chunks = changed.flatMap(entry => {
-      const old = lookup.get(scope.chatId, collection, entry.id), records = ids(entry);
+      const old = lookup.get(scope.chatId, collection, entry.id), records = prepared.get(entry.id);
       const cursor = old?.revision === revision(entry) && old.version === current.version && !old.complete ? old.cursor : 0;
       records.slice(0, cursor).forEach(record => completed.add(record.id)); return records.slice(cursor);
     });
@@ -44,7 +75,7 @@ function createRetrieval(ctx, storage, scope) {
     }
     for (const entry of changed) {
       const previous = lookup.get(scope.chatId, collection, entry.id);
-      const records = ids(entry);
+      const records = prepared.get(entry.id);
       const cursor = records.findIndex(record => !completed.has(record.id));
       if (cursor >= 0) {
         pending = true;
@@ -74,7 +105,7 @@ function createRetrieval(ctx, storage, scope) {
       const result = { matches: [], missing: 0 };
       for (let offset = 0; offset < candidates.length; offset += 20000) {
         const page = await ctx.api.vectorIndex({ action: "search", chatId: scope.chatId, collection, modelId: current.id, query: { text: query },
-          candidates: candidates.slice(offset, offset + 20000), limit: 100, timeoutMs: 1200 });
+          candidates: candidates.slice(offset, offset + 20000), limit: 100, timeoutMs: 15000 });
         result.matches.push(...page.matches); result.missing += page.missing;
       }
       const semantic = new Map();

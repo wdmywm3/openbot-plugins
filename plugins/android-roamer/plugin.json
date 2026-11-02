@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
   "extensions": {
     "com.openbot": {
@@ -11,6 +11,7 @@
         "agent",
         "memory:read",
         "memory:write",
+        "retrieval",
         "resource:android",
         "resource:android:autonomous",
         "hook:context",
@@ -512,7 +513,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "通过宿主统一记忆接口保存与读取活动经验，补齐相应授权和任务能力提示；保留设备操作及自主活动的独立权限。"
+        "changelog": "探索经验接入共享混合检索，复用宿主模型并核对当前经验版本。"
       }
     }
   }

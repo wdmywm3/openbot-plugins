@@ -127,5 +127,21 @@ function fixture() {
   }
   assert.equal(manifest.tools.filter(t => t.name === "watch_start").length, 1);
   assert.ok(!server.enabled_tools.includes("watch_start")); assert.ok(!server.enabled_tools.includes("watch_ingest"));
-  console.log("Watch native: provider-neutral attachments, bounded chunks, signed URLs, approved local roots, errors and single entry passed");
+  const module = { exports: {} }; vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/watch/index.js"), "utf8"), { module });
+  const api = module.exports, state = new Map(), jobId = "a".repeat(32); let broken = true, reads = [], indexed = [];
+  const ctx = { input: { job_id: jobId }, api: {
+    embeddings: async () => ({ id: "model", version: "v1", ready: true }),
+    getState: async key => state.get(key), setState: async (key, value) => state.set(key, value),
+    getCapabilities: async () => ({ features: { hybridRetrieval: true } }),
+    callTool: async ({ arguments: args }) => { reads.push(args.offset); if (args.offset === 32 && broken) throw Error("transient error"); return { structuredContent: {
+      segments: [{ text: args.offset === 0 ? "海边旅行" : "山间露营", start: args.offset, end: args.offset + 2 }], next_offset: args.limit === 1 || args.offset === 32 ? null : 32 } }; },
+    vectorIndex: async input => { if (input.action === "sync") { indexed.push(...input.records); return { indexed: input.records.length }; }
+      return { mode: "hybrid", matches: indexed.map(row => ({ ...row, metadata: row.metadata })) }; },
+  } };
+  await assert.rejects(api.index_media(ctx), /transient/); broken = false; reads = [];
+  await api.index_media(ctx); assert.equal(reads[0], 32, "subtitle indexing resumes from the committed page");
+  const found = await api.watch_search({ ...ctx, input: { query: "旅行" } }); assert.equal(found.matches.length, 2);
+  ctx.api.callTool = async () => { throw Error("source expired"); };
+  assert.equal((await api.watch_search({ ...ctx, input: { query: "旅行" } })).matches.length, 0);
+  console.log("Watch native: provider-neutral attachments, bounded chunks, signed URLs, approved local roots, subtitle checkpoints, semantic source validation and single entry passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

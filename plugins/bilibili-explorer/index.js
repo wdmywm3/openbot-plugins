@@ -152,7 +152,10 @@ async function history(ctx, input, scope = "channel", chatId = ctx.message?.chat
   if (!ctx.api.database) return null;
   return ctx.api.database({ ...input, name: HISTORY_DB, scope, ...(chatId ? { chatId } : {}) });
 }
-const biliLearning = (ctx, scope = "channel") => createActivityLearning(input => history(ctx, input, scope));
+const biliLearning = (ctx, scope = "channel") => createActivityLearning(input => history(ctx, input, scope), ctx.api.vectorIndex ? async input => {
+  if (!(await ctx.api.getCapabilities())?.features?.hybridRetrieval) return null;
+  return ctx.api.vectorIndex({ ...input, collection: "activity-lessons", scope });
+} : null);
 const biliNoteSource = value => ({ id: videoKey(value.bvid, value.part || 1), kind: "video-note",
   url: `https://www.bilibili.com/video/${value.bvid}?p=${value.part || 1}`, text: [value.summary, ...(value.focusedReadings || []).map(item => item.summary)].filter(Boolean).join("\n") });
 async function biliLearn(ctx, parsed, notes, scope) {
@@ -165,7 +168,32 @@ async function biliLearn(ctx, parsed, notes, scope) {
 async function historyPut(ctx, collection, key, value, scope = "channel", chatId) {
   if (!ctx.api.database) return;
   const prior = await history(ctx, { action: "get", collection, key }, scope, chatId);
-  return history(ctx, { action: "put", collection, key, expectedRevision: prior.record?.revision || 0, value }, scope, chatId);
+  const result = await history(ctx, { action: "put", collection, key, expectedRevision: prior.record?.revision || 0, value }, scope, chatId);
+  if (collection === "notes" && result.record) try { await biliNoteIndex(ctx, [result.record], scope, chatId); } catch { /* Derived search can be repaired without failing a saved note. */ }
+  return result;
+}
+const biliNoteRecord = row => ({ id: row.key, revision: row.revision,
+  text: [row.value.title, row.value.summary, row.value.reason, row.value.content].filter(Boolean).join("\n").slice(0, 65536),
+  metadata: { bvid: String(row.value.bvid || ""), part: Number(row.value.part || 1) } });
+async function biliNoteIndex(ctx, rows, scope, chatId) {
+  if (!ctx.api.vectorIndex || !(await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) return;
+  return ctx.api.vectorIndex({ action: "sync", collection: "reading-notes", scope, ...(chatId ? { chatId } : {}), records: rows.map(biliNoteRecord), complete: false });
+}
+async function biliRepairNoteIndex(ctx) {
+  if (!ctx.api.vectorIndex || !ctx.api.listContexts || !(await ctx.api.getCapabilities?.())?.features?.hybridRetrieval || !(await ctx.api.embeddings({ action: "status" })).ready) return;
+  const contexts = ["", ...(await ctx.api.listContexts()).chats.map(chat => chat.id)], state = await ctx.api.getState("note-index", "channel") || {};
+  const model = await ctx.api.embeddings({ action: "status" });
+  if (state.version !== model.version) { state.index = 0; state.cursor = null; }
+  const chatId = contexts[(state.index || 0) % contexts.length], scope = chatId ? "chat" : "channel";
+  try {
+    const page = await history(ctx, { action: "query", collection: "notes", limit: 16, ...(state.cursor ? { cursor: state.cursor } : {}) }, scope, chatId);
+    if (page.records.length) await biliNoteIndex(ctx, page.records, scope, chatId);
+    await ctx.api.setState("note-index", { index: (state.index || 0) + (page.nextCursor ? 0 : 1), cursor: page.nextCursor, version: model.version }, "channel");
+  } catch (error) {
+    ctx.signal?.throwIfAborted();
+    await ctx.api.setState("note-index", { index: (state.index || 0) + 1, cursor: null, version: model.version }, "channel");
+    throw error;
+  }
 }
 async function observeVideo(ctx, input) {
   if (!ctx.api.database) return;
@@ -773,6 +801,7 @@ async function biliFinishDiscovery(ctx, state, chosen, actions, now) {
 }
 
 module.exports.poll = async ctx => {
+  try { await biliRepairNoteIndex(ctx); } catch { /* Keep the plugin's other background work available. */ }
   await migrateBiliActivities(ctx);
   if (ctx.config?.backupEnabled === true) await biliAutoBackup(ctx);
   if (ctx.config?.autoOrganize === true) await biliAutoOrganize(ctx);
@@ -1830,6 +1859,17 @@ module.exports.agentTool = async ctx => {
     if (input.bvid && !/^BV[A-Za-z0-9]{10}$/.test(input.bvid)) throw new Error('需要有效的 BV 号');
     if (!ctx.api.database) return '请更新 OpenBot 以查询阅读笔记。';
     const collection = input.content === true ? 'contents' : 'notes', scope = input.content === true || input.public === true ? 'channel' : 'chat';
+    if (input.query && !input.bvid && collection === 'notes') {
+      const rows = []; let cursor;
+      do { const page = await history(ctx, { action: 'query', collection, limit: 50, ...(cursor ? { cursor } : {}) }, scope); rows.push(...page.records); cursor = page.nextCursor; } while (cursor && rows.length < 2000);
+      const query = String(input.query).trim().slice(0, 4000);
+      if (ctx.api.vectorIndex && (await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) try {
+        const found = await ctx.api.vectorIndex({ action: 'rank', collection: 'reading-notes', scope, records: rows.map(biliNoteRecord), query, limit: 10, threshold: 0.7, timeoutMs: 15000 });
+        const byId = new Map(rows.map(row => [row.key, row]));
+        return { records: found.matches.map(hit => byId.get(hit.id)).filter(Boolean), retrieval: found.mode, truncated: !!cursor };
+      } catch { /* Fall through to local matching when the shared model is unavailable. */ }
+      return { records: rows.filter(row => biliNoteRecord(row).text.toLowerCase().includes(query.toLowerCase())).slice(0, 10), retrieval: 'text', truncated: !!cursor };
+    }
     const result = await history(ctx, input.bvid ? { action: 'get', collection, key: videoKey(input.bvid, input.part || 1) }
       : { action: 'query', collection, limit: 10, cursor: input.cursor }, scope);
     if (input.bvid && collection === 'notes' && ctx.api.dataFiles) result.note = await ctx.api.dataFiles({ action: 'read', scope,
@@ -2635,7 +2675,7 @@ async function biliRecoveryToolLocked(ctx, account, tool, input) {
 
 // BEGIN SHARED ACTIVITY LEARNING
 // Bundled into each plugin at build time; no host or cross-plugin filesystem dependency.
-function createActivityLearning(database) {
+function createActivityLearning(database, vectorIndex) {
   const clean = (value, max = 1000) => String(value || "").trim().slice(0, max);
   const hash = value => { let a = 2166136261, b = 5381; for (const c of value) { a = Math.imul(a ^ c.codePointAt(0), 16777619); b = Math.imul(b, 33) ^ c.codePointAt(0); } return (a >>> 0).toString(16) + (b >>> 0).toString(16); };
   const words = value => {
@@ -2673,6 +2713,9 @@ function createActivityLearning(database) {
     if (previous) operations.push({ action: "put", collection: "lesson_revisions", key: `${id}:${previous.revision}`, expectedRevision: 0, value: previous.value });
     operations.push({ action: "put", collection: "lessons", key: id, expectedRevision: previous?.revision || 0, value });
     const saved = await database({ action: "batch", operations });
+    if (vectorIndex) try { const row = saved.results.at(-1).record;
+      await vectorIndex({ action: "sync", records: [{ id, revision: row.revision, text: [topic, understanding, application, body.uncertainty].join("\n") }], complete: false });
+    } catch { /* The source write remains successful; the next lookup repairs its derived index. */ }
     return { id, revision: saved.results.at(-1).record.revision };
   }
   async function remember(items, sources) {
@@ -2690,13 +2733,19 @@ function createActivityLearning(database) {
         if (row.value.status !== "active") continue;
         const value = row.value, relevance = overlap(tokens, value.topic) * 3 + overlap(tokens, value.application) * 2 + overlap(tokens, value.understanding)
           + (value.sourceIds || []).filter(id => sourceIds.includes(id)).length * 6;
-        if (tokens.size && !relevance) continue;
         scored.push({ id: row.key, revision: row.revision, topic: value.topic, understanding: value.understanding,
           application: value.application, uncertainty: value.uncertainty, evidence: value.evidence, relevance, at: row.updatedAt || value.changedAt });
       }
       cursor = result.nextCursor; if (!cursor) break;
     }
-    return scored.sort((a, b) => b.relevance - a.relevance || b.at - a.at).slice(0, Math.min(10, limit));
+    if (vectorIndex && String(query || "").trim() && scored.length) try {
+      const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
+      try { await vectorIndex({ action: "sync", records, complete: !cursor }); } catch { /* Read-only invocations can still search already indexed sources. */ }
+      const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: Math.min(10, limit), threshold: 0.7, timeoutMs: 15000 });
+      const byId = new Map(scored.map(row => [row.id, row]));
+      if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => ({ ...byId.get(hit.id), relevance: hit.score }));
+    } catch { /* Shared model unavailable: retain lexical matching. */ }
+    return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, Math.min(10, limit));
   }
   async function retract(id, expectedRevision) {
     const row = await read(id);

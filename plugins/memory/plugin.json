@@ -1,41 +1,308 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
-  "extensions": { "com.openbot": {
-    "displayName": "记忆 Plus", "category": "assistant", "apiVersion": 1, "main": "index.js",
-    "requiredFeatures": ["unifiedMemory", "persistentContextItems", "visibleContextItems", "sourceHead", "offlineBackground", "persistentActivities", "persistentAvatars"],
-    "permissions": ["process", "state", "sources", "memory:read", "memory:write", "memory:manage", "history", "retrieval", "model", "agent", "conversation", "push", "jobs", "assets", "hook:loaded", "hook:beforeModel", "hook:afterModel", "hook:replyDelivered", "hook:stopping", "prompt:system"],
-    "dependencies": { "node": { "lockfile": "package-lock.json" } },
-    "execution": { "concurrency": "parallel", "process": { "protocol": 1, "command": "node", "entry": "process.cjs", "concurrency": 4 } },
-    "background": { "export": "recover", "requiresConnection": false, "intervalSeconds": 60, "startupDelaySeconds": 5, "jitterSeconds": 5 },
-    "hooks": [
-      { "type": "beforeModel", "export": "beforeModel" }, { "type": "afterModel", "export": "afterModel" },
-      { "type": "replyDelivered", "export": "replyDelivered" }, { "type": "stopping", "export": "stopping" }
-    ],
-    "configSchema": { "type": "object", "properties": {
-      "retrievalModelId": { "type": "string", "title": "检索模型", "default": "" },
-      "semanticThreshold": { "type": "number", "title": "语义匹配下限", "default": 0.45, "minimum": 0, "maximum": 1 }
-    } },
-    "tools": [{ "name": "memory", "permissionAliases": ["memory"], "compatibilityOnly": true, "export": "memory", "scope": "all", "permission": "member", "mutating": true,
-      "description": "记住、召回、纠正、遗忘或追溯当前聊天的事实。search 可查经历、事项、话题和笔记；read 按返回的 id 读取正文与来源。只有写入返回 ok=true 才能确认已记住。",
-      "inputSchema": { "type": "object", "properties": {
-        "action": { "type": "string", "enum": ["remember", "recall", "revise", "history", "update", "forget", "search", "read"] },
-        "query": { "type": "string" }, "content": { "type": "string", "maxLength": 500 }, "memoryId": { "type": "string" },
-        "id": { "type": "string" }, "collection": { "type": "string", "enum": ["facts", "history", "records", "topics", "notes"] },
-        "fact": { "type": "object", "additionalProperties": true }, "supersedes": { "type": "object", "additionalProperties": true },
-        "changeType": { "type": "string", "enum": ["correction", "change"] }, "sourceQuote": { "type": "string" }, "sourceMessageId": { "type": "string" },
-        "limit": { "type": "integer", "minimum": 1, "maximum": 20 }, "offset": { "type": "integer", "minimum": 0 }, "includePending": { "type": "boolean" }
-      }, "required": ["action"], "additionalProperties": true } }],
-    "actions": [
-      { "id": "list", "kind": "native", "export": "list", "permission": "owner", "inputSchema": { "type": "object", "additionalProperties": true } },
-      { "id": "manage", "kind": "native", "export": "manage", "permission": "owner", "inputSchema": { "type": "object", "additionalProperties": true } },
-      { "id": "process", "kind": "job", "export": "process", "permission": "member", "restartable": true, "timeoutMs": 3600000, "inputSchema": { "type": "object", "additionalProperties": true } },
-      { "id": "followup", "kind": "job", "export": "followup", "permission": "member", "restartable": false, "timeoutMs": 300000, "inputSchema": { "type": "object", "additionalProperties": true } },
-      { "id": "import", "kind": "job", "export": "importBundle", "permission": "owner", "restartable": true, "timeoutMs": 3600000, "inputSchema": { "type": "object", "additionalProperties": true } }
-    ],
-    "ui": { "version": 1, "views": [{ "id": "library", "title": "记忆 Plus", "entry": "ui/index.html", "actions": ["list", "manage", "process", "import"] }] },
-    "metadata": { "requirements": ["需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"], "changelog": "完善群聊、私聊与主人事项的整理规则；修复事项改期未同步复查时间，支持明确约定的周期、按新资料复查和事项订阅；取消或停止时清除复查设置，明确重开不恢复旧订阅。" }
-  } }
+  "extensions": {
+    "com.openbot": {
+      "displayName": "记忆 Plus",
+      "category": "assistant",
+      "apiVersion": 1,
+      "main": "index.js",
+      "requiredFeatures": [
+        "unifiedMemory",
+        "persistentContextItems",
+        "visibleContextItems",
+        "sourceHead",
+        "offlineBackground",
+        "persistentActivities",
+        "persistentAvatars"
+      ],
+      "permissions": [
+        "process",
+        "state",
+        "sources",
+        "memory:read",
+        "memory:write",
+        "memory:manage",
+        "history",
+        "retrieval",
+        "model",
+        "agent",
+        "conversation",
+        "push",
+        "jobs",
+        "assets",
+        "hook:loaded",
+        "hook:beforeModel",
+        "hook:afterModel",
+        "hook:replyDelivered",
+        "hook:stopping",
+        "prompt:system"
+      ],
+      "dependencies": {
+        "node": {
+          "lockfile": "package-lock.json"
+        }
+      },
+      "execution": {
+        "concurrency": "parallel",
+        "process": {
+          "protocol": 1,
+          "command": "node",
+          "entry": "process.cjs",
+          "concurrency": 4
+        }
+      },
+      "background": {
+        "export": "recover",
+        "requiresConnection": false,
+        "intervalSeconds": 60,
+        "startupDelaySeconds": 5,
+        "jitterSeconds": 5
+      },
+      "hooks": [
+        {
+          "type": "beforeModel",
+          "export": "beforeModel"
+        },
+        {
+          "type": "afterModel",
+          "export": "afterModel"
+        },
+        {
+          "type": "replyDelivered",
+          "export": "replyDelivered"
+        },
+        {
+          "type": "stopping",
+          "export": "stopping"
+        }
+      ],
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "retrievalModelId": {
+            "type": "string",
+            "title": "检索模型",
+            "default": ""
+          },
+          "semanticThreshold": {
+            "type": "number",
+            "title": "语义匹配下限",
+            "default": 0.45,
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "tools": [
+        {
+          "name": "recall",
+          "export": "recall",
+          "scope": "all",
+          "permission": "member",
+          "mutating": false,
+          "description": "按含义查找当前聊天有权访问的记忆，结合关键词与共享向量索引；支持文字、图片以及图文联合查询。返回当前版本、来源和可用的原图预览。按编号读全文、修改或遗忘仍使用宿主 memory。",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 4000
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "imageMessageId": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "可选，使用当前聊天中这条消息的图片参与检索。"
+              },
+              "imageIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 11
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "memory",
+          "permissionAliases": [
+            "memory"
+          ],
+          "compatibilityOnly": true,
+          "export": "memory",
+          "scope": "all",
+          "permission": "member",
+          "mutating": true,
+          "description": "记住、召回、纠正、遗忘或追溯当前聊天的事实。search 可查经历、事项、话题和笔记；read 按返回的 id 读取正文与来源。只有写入返回 ok=true 才能确认已记住。",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "remember",
+                  "recall",
+                  "revise",
+                  "history",
+                  "update",
+                  "forget",
+                  "search",
+                  "read"
+                ]
+              },
+              "query": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "memoryId": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "collection": {
+                "type": "string",
+                "enum": [
+                  "facts",
+                  "history",
+                  "records",
+                  "topics",
+                  "notes"
+                ]
+              },
+              "fact": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "supersedes": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "changeType": {
+                "type": "string",
+                "enum": [
+                  "correction",
+                  "change"
+                ]
+              },
+              "sourceQuote": {
+                "type": "string"
+              },
+              "sourceMessageId": {
+                "type": "string"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "includePending": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": true
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "list",
+          "kind": "native",
+          "export": "list",
+          "permission": "owner",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        {
+          "id": "manage",
+          "kind": "native",
+          "export": "manage",
+          "permission": "owner",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        {
+          "id": "process",
+          "kind": "job",
+          "export": "process",
+          "permission": "member",
+          "restartable": true,
+          "timeoutMs": 3600000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        {
+          "id": "followup",
+          "kind": "job",
+          "export": "followup",
+          "permission": "member",
+          "restartable": false,
+          "timeoutMs": 300000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        {
+          "id": "import",
+          "kind": "job",
+          "export": "importBundle",
+          "permission": "owner",
+          "restartable": true,
+          "timeoutMs": 3600000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "views": [
+          {
+            "id": "library",
+            "title": "记忆 Plus",
+            "entry": "ui/index.html",
+            "actions": [
+              "list",
+              "manage",
+              "process",
+              "import"
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "requirements": [
+          "需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"
+        ],
+        "changelog": "融合关键词与语义召回；Gemma 支持记忆来源图片索引及纯图片、图文共同查询，保留增量上下文与图片补建断点。"
+      }
+    }
+  }
 }

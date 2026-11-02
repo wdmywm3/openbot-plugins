@@ -67,5 +67,16 @@ function stateApi(initial = {}) {
   await monitor.poll(partial.ctx); refuseSecond = false;
   await monitor.handle({ ...partial.ctx, command: { name: "monitorcheck" } });
   assert.deepEqual(recipients, ["onebot:group:OPEN_ID-a_b", "onebot:group:123", "onebot:group:123"], "retry only the destination that was not sent");
+  const semantic = monitoring({ networkStatus: "sent" }); let vectorCalls = 0;
+  Object.assign(semantic.ctx.config.subscriptions[0], { semantic: true, include: ["新鲜资讯"] });
+  semantic.ctx.api.getCapabilities = async () => ({ features: { hybridRetrieval: true } });
+  semantic.ctx.api.vectorIndex = async input => { vectorCalls++; return input.action === "sync" ? { indexed: 1 } : { matches: [{ id: "0", similarity: 0.9 }] }; };
+  await monitor.poll(semantic.ctx); assert.equal(semantic.calls(), 1); assert(vectorCalls >= 2, "semantic filter runs inside the restricted plugin VM");
+  await monitor.handle({ ...semantic.ctx, command: { name: "monitorcheck" } }); assert.equal(semantic.calls(), 1, "semantic hits preserve delivery deduplication");
+  const excluded = monitoring({ networkStatus: "sent" });
+  Object.assign(excluded.ctx.config.subscriptions[0], { semantic: true, include: ["新鲜资讯"], exclude: ["Fresh"] });
+  excluded.ctx.api.getCapabilities = semantic.ctx.api.getCapabilities;
+  excluded.ctx.api.vectorIndex = async () => { throw Error("exclusions must win before semantic ranking"); };
+  await monitor.poll(excluded.ctx); assert.equal(excluded.calls(), 0);
   console.log("Plugin reliability: concurrent check-ins/stats, bounded state, legacy migration, QQ capability gates, official targets, delivery recovery and uncertain-send fences passed (memory mocks)");
 })().catch(error => { console.error(error); process.exitCode = 1; });

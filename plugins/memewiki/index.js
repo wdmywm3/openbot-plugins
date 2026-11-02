@@ -85,6 +85,15 @@ async function lookup(ctx, q, options = {}) {
 module.exports.search = async ctx => {
   try {
     const value = await lookup(ctx, term(ctx.input?.query));
+    if (!value.found && ctx.config.semanticSearch === true && ctx.api.vectorIndex && (await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) try {
+      const found = await ctx.api.vectorIndex({ action: "rank", collection: "dictionary", scope: "channel", query: term(ctx.input?.query), limit: 3, threshold: 0.76, timeoutMs: 15000 });
+      const related = [];
+      for (const hit of found.matches || []) {
+        const result = (await service(ctx, "memewiki_lookup", { query: hit.metadata.title, online: false }, 6000)).structuredContent;
+        if (result?.found) related.push(result.entry);
+      }
+      if (related.length) return { found: false, related, via: "semantic", text: "找到含义相近的候选词条，请结合语境核对，不能直接认定是同一个梗。" };
+    } catch { /* Exact dictionary lookup remains available. */ }
     return { ...value, text: value.found ? text(value.entry) : value.unavailable ? "在线词库暂不可用，本地没有查到。" : "词库未收录。", ...(value.modelSearch ? { suggestion: "如当前会话已授权网页搜索，可继续查证；否则说明未查到。" } : {}) };
   } catch (error) { failure(ctx); return { found: false, unavailable: true, text: String(error.message || error) }; }
 };
@@ -179,6 +188,21 @@ module.exports.beforeModel = async ctx => {
   return ctx.config.injectGuidance === false ? {} : { systemPromptAppend: String(ctx.config.guidance || GUIDANCE).slice(0, 3500) };
 };
 module.exports.poll = async ctx => {
+  if (ctx.config.semanticSearch === true && ctx.api.vectorIndex && (await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) try {
+    const model = await ctx.api.embeddings({ action: "status" });
+    if (model.ready) {
+      const progress = await ctx.api.getState("semantic-index", "channel") || {};
+      const snapshot = (await service(ctx, "memewiki_info", {}, 6000)).structuredContent;
+      if (progress.model !== model.version || progress.version !== snapshot.sha256 || !progress.done) {
+        const offset = progress.model === model.version && progress.version === snapshot.sha256 ? progress.offset || 0 : 0;
+        const page = (await service(ctx, "memewiki_entries", { offset, limit: 16 }, 6000)).structuredContent;
+        if (page.entries.length) await ctx.api.vectorIndex({ action: "sync", collection: "dictionary", scope: "channel", complete: false,
+          records: page.entries.map(entry => ({ id: entry.title, revision: entry.revision,
+            text: [entry.title, entry.usage, entry.origin, entry.summary].filter(Boolean).join("\n").slice(0, 6000), metadata: { title: entry.title } })) });
+        await ctx.api.setState("semantic-index", { model: model.version, version: page.version, offset: page.nextOffset ?? offset + page.entries.length, done: page.nextOffset == null }, "channel");
+      }
+    }
+  } catch { /* Index preparation retries on a later background tick. */ }
   const state = await ctx.api.getState("sync", "channel") || {};
   const now = new Date(), day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   if (!state.active && (!ctx.config.autoSync || state.day === day || now.getHours() < (ctx.config.syncHour ?? 4))) return;

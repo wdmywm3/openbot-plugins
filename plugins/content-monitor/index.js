@@ -148,6 +148,7 @@ function normalizeSubscription(value, index) {
     targetChatIds: list(item.targetChatIds).filter((chatId) => /^onebot:(?:group|private):[A-Za-z0-9_-]+$/.test(chatId)),
     include: list(item.include),
     exclude: list(item.exclude),
+    semantic: item.semantic === true,
     template: text(item.template),
   };
 }
@@ -156,6 +157,20 @@ function matchesFilter(item, subscription) {
   const haystack = `${item.title} ${item.summary} ${item.author}`.toLowerCase();
   if (subscription.exclude.some((word) => haystack.includes(word.toLowerCase()))) return false;
   return !subscription.include.length || subscription.include.some((word) => haystack.includes(word.toLowerCase()));
+}
+async function matchesSemantic(ctx, item, subscription) {
+  const text = `${item.title || ""} ${item.summary || ""} ${item.author || ""}`.slice(0, 4000);
+  if (!subscription.semantic || !subscription.include.length || subscription.exclude.some(word => text.toLowerCase().includes(word.toLowerCase()))
+    || !ctx.api.vectorIndex || !(await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) return false;
+  try {
+    const records = subscription.include.map((text, index) => ({ id: String(index), revision: 1, text }));
+    let fingerprint = 14695981039346656037n;
+    for (const char of String(subscription.id)) fingerprint = BigInt.asUintN(64, (fingerprint ^ BigInt(char.codePointAt(0))) * 1099511628211n);
+    const collection = `subscription-${fingerprint.toString(16)}`;
+    await ctx.api.vectorIndex({ action: "sync", collection, scope: "channel", records, complete: true, timeoutMs: 60000 });
+    const found = await ctx.api.vectorIndex({ action: "rank", collection, scope: "channel", records, query: text, limit: 1, threshold: 0.72, timeoutMs: 15000 });
+    return !!found.matches?.some(hit => hit.similarity >= 0.72);
+  } catch { return false; }
 }
 
 function renderEvent(subscription, item, eventType) {
@@ -350,7 +365,8 @@ async function poll(ctx, options = {}) {
         ? await fetchRss(ctx.api, subscription)
         : await fetchBilibili(ctx.api, subscription);
       const allItems = fetched.items;
-      const items = allItems.filter((item) => matchesFilter(item, subscription));
+      const items = [];
+      for (const item of allItems) if (matchesFilter(item, subscription) || await matchesSemantic(ctx, item, subscription)) items.push(item);
       const itemIds = allItems.map((item) => item.id).filter(Boolean).slice(0, 100);
       const seen = new Set(list(cursor.seenIds));
       const checkedAt = Date.now();

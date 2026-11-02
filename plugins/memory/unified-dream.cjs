@@ -218,7 +218,12 @@ async function batch(ctx, storage, scope, trigger) {
     const messages = page.items.filter(materialPolicy.admit);
     job ||= { runId: randomUUID(), trigger, cutoff: Date.now(), upper: page.upper, limit: 12 };
     job.runId = storage.dreamRepository.runs.start(scope, job); save(storage, scope, { job });
-      const existing = (await catalog(ctx, scope)).slice(0, 60);
+      const all = await catalog(ctx, scope);
+      const query = messages.map(item => item.content || "").filter(Boolean).join("\n").slice(-4000);
+      const related = query ? await require("./unified-retrieval.cjs").search(ctx, storage, scope, query, 40, { raw: true }) : { records: [] };
+      const candidates = new Map(related.records.map(item => [item.id, item]));
+      for (const item of all) if (!candidates.has(item.id)) candidates.set(item.id, item);
+      const existing = [...candidates.values()].slice(0, 60);
       const prepared = messages.length ? await (async () => {
         const response = await analyze(ctx, storage, scope, messages, existing, job.upper,
           (kind, payload) => storage.dreamRepository.runs.trace(scope, job.runId, kind, payload));

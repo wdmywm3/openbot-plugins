@@ -7,6 +7,8 @@ description: 通用视频阅读：读取聊天视频附件、HTTP/HTTPS 视频�
 
 使用本插件的 `watch_*` 工具。实际工具名可能带 MCP 服务前缀，以当前已发现的工具为准。工具负责下载、抽帧和字幕处理；无需开放聊天 Shell，也不要通过 Shell 绕过工具限制。
 
+查找此前已读取内容可用原生 `watch_search({query,job_id?})`。安装统一检索模型后，`watch_status` 在任务就绪时安排字幕或转写的增量索引；结果包含真实时间戳，需要画面证据时仍按该时间补看。此索引覆盖已读取的文字内容，不包含所有视频画面；未命中不代表视频没有相关内容。
+
 OpenBot 中的原生 `watch_start` 和 `watch_zoom` 使用宿主包装格式：`action: "start"`、稳定的 `requestKey`，以及包含下述视频参数的 `input`。回执若为 `completed`，从 `result` 取 Watch 的 `job_id`；若为 `running`，保存宿主回执的 `id`，用同一个原生工具的 `action: "status", jobId: id` 查询到 `completed/result` 后再取 `job_id`。随后才用 MCP `watch_status` 查询视频处理进度，不要混用宿主任务编号和视频任务编号。独立 MCP 的 `watch_start` 直接接收视频参数并返回 `job_id`，以实际工具 Schema 为准。
 
 Watch 把视频转为图片和字幕，理解画面只需要能接收图片的模型。其他工具提示“没有可用的视频模型”时，仍应使用 Watch；不要据此判断视频无法读取，也不要要求用户为了聊天附件手动生成导入标识。

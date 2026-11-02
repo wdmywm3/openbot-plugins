@@ -226,3 +226,56 @@ module.exports.watch_zoom = async ctx => {
     start_seconds: prior.start_seconds, end_seconds: prior.end_seconds, frame_count: input.frame_count || 6,
     ...(input.crop ? { crop: input.crop } : {}), ...(input.request_id ? { request_id: input.request_id } : {}) } });
 };
+
+module.exports.watch_status = async ctx => {
+  const result = await call(ctx, "watch_status", { job_id: ctx.input?.job_id });
+  if (result.status === "ready" && ctx.api.jobs && ctx.api.vectorIndex && (await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) try {
+    const model = await ctx.api.embeddings({ action: "status" });
+    if (model.ready) await ctx.api.jobs({ action: "start", actionId: "index_media", requestKey: `index:${ctx.input.job_id}:${model.version}`,
+      input: { job_id: ctx.input.job_id } });
+  } catch { /* Reading the video remains available while index preparation is retried. */ }
+  return result;
+};
+
+module.exports.index_media = async ctx => {
+  const jobId = String(ctx.input?.job_id || "");
+  if (!/^[a-f0-9]{32}$/.test(jobId)) throw Error("视频记录编号无效");
+  const model = await ctx.api.embeddings({ action: "status" });
+  if (!model.ready) return { pendingModel: true };
+  const key = `media-index:${jobId}:${model.version}`, saved = await ctx.api.getState(key, "chat") || {};
+  if (saved.done) return saved;
+  let offset = saved.offset || 0;
+  for (;;) {
+    ctx.signal?.throwIfAborted();
+    if ((await ctx.api.embeddings({ action: "status", modelId: model.id })).version !== model.version) throw Error("检索模型已变化，请重新建立字幕索引");
+    const page = await call(ctx, "watch_transcript", { job_id: jobId, offset, limit: 32 });
+    const records = (page.segments || []).map((segment, i) => ({ id: `${jobId}:${offset + i}`, revision: 1, text: String(segment.text || "").slice(0, 6000),
+      metadata: { job_id: jobId, segment: offset + i, start: Number(segment.start || 0), end: Number(segment.end || 0), original: String(segment.text || "").slice(0, 6000) } }));
+    if (records.length) await ctx.api.vectorIndex({ action: "sync", collection: "transcripts", modelId: model.id, records, complete: false });
+    const next = page.next_offset;
+    if (next != null && next <= offset) throw Error("字幕索引断点未推进");
+    const progress = { offset: next ?? offset + records.length, done: next == null };
+    await ctx.api.setState(key, progress, "chat");
+    if (progress.done) return progress;
+    offset = next;
+  }
+};
+
+module.exports.watch_search = async ctx => {
+  if (!(await ctx.api.getCapabilities?.())?.features?.hybridRetrieval) throw Error("请更新 OpenBot 以使用语义检索");
+  const query = String(ctx.input?.query || "").trim(); if (!query || query.length > 4000) throw Error("请输入要查找的内容");
+  const jobId = ctx.input?.job_id;
+  if (jobId && !/^[a-f0-9]{32}$/.test(jobId)) throw Error("视频记录编号无效");
+  const found = await ctx.api.vectorIndex({ action: "rank", collection: "transcripts", query, limit: 12, threshold: 0.7,
+    ...(jobId ? { filter: { job_id: jobId } } : {}), timeoutMs: 15000 });
+  const matches = [];
+  for (const hit of found.matches || []) {
+    try {
+      const meta = hit.metadata, page = await call(ctx, "watch_transcript", { job_id: meta.job_id, offset: meta.segment, limit: 1 });
+      const segment = page.segments?.[0];
+      if (segment && String(segment.text || "").slice(0, 6000) === meta.original) matches.push({ job_id: meta.job_id, start: segment.start, end: segment.end, text: segment.text });
+    } catch { /* Deleted, expired or out-of-scope jobs cannot be recalled from a derived index. */ }
+    if (matches.length >= 6) break;
+  }
+  return { matches, retrieval: found.mode, instruction: "结果来自已经读取的字幕或转写。需要确认画面时按时间补看；未命中不代表未读取区间里没有相关内容。" };
+};

@@ -27,7 +27,7 @@ async function main() {
   const server = pkg.mcpServers[0];
   await client.connect(new StdioClientTransport({ command: python, args: server.args.map(s => s.replaceAll("${PLUGIN_ROOT}", source).replaceAll("${PLUGIN_DATA}", path.join(root, "mcp"))), env: { ...process.env, ...server.env }, stderr: "pipe" }));
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 4);
+  assert.equal(tools.length, 5);
   const plugin = { ...pkg.manifest, type: "js-plugin", enabled: true, basePath: source, scriptPath: pkg.scriptPath, config: { ...pkg.manifest.config, replyMode: "text", online: false } };
   plugin.commands = plugin.commands.map(command=>({...command,prefixes:plugin.commandPrefixes,aliases:[]}));
   const channel = { id: "bot", name: "Test", enabled: true, connected: true, config: { ownerUsers: ["owner"], toolConfig: { enabledTools: ["plugin"] } } };

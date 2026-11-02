@@ -20,7 +20,8 @@
         "watch_start",
         "watch_zoom",
         "watch_ingest",
-        "watch_browser"
+        "watch_browser",
+        "watch_status"
       ],
       "enabled_tools": [
         "watch_preview",

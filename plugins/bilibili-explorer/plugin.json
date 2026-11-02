@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -11,6 +11,7 @@
         "agent",
         "memory:read",
         "memory:write",
+        "retrieval",
         "state",
         "conversation",
         "push",
@@ -1137,7 +1138,7 @@
         },
         {
           "name": "notes",
-          "description": "查阅当前聊天或自主浏览的公开视频笔记，以及实际取得的资料范围。",
+          "description": "按含义查询当前聊天或自主浏览的公开视频笔记；也可按 BV 号读取原文与实际取得的资料范围。",
           "export": "agentTool",
           "scope": "all",
           "permission": "member",
@@ -1145,6 +1146,11 @@
           "inputSchema": {
             "type": "object",
             "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 4000,
+                "description": "按含义查找笔记；命中后使用返回的 BV 号和分 P 读取完整笔记。"
+              },
               "bvid": {
                 "type": "string",
                 "pattern": "^BV[A-Za-z0-9]{10}$"
@@ -1908,8 +1914,10 @@
         ]
       },
       "metadata": {
-        "requirements": ["推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"],
-        "changelog": "笔记与活动经验接入宿主统一记忆，补齐读写授权及能力提示；浏览、收藏、互动和分享策略继续由插件负责。"
+        "requirements": [
+          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
+        ],
+        "changelog": "阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。"
       }
     }
   }

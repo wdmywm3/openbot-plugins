@@ -15,7 +15,7 @@
     "test:search": "node tests/search.cjs && node tests/search-content.cjs",
     "test:memes": "node tests/meme-library.cjs && node tests/meme-engine.cjs",
     "test:meme-host": "node tests/meme-host.cjs",
-    "test:memory": "node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs && node tests/memory-dream-host.cjs"
+    "test:memory": "node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-multimodal.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs && node tests/memory-dream-host.cjs"
   },
   "engines": {
     "node": ">=24"

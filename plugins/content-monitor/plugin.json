@@ -1,13 +1,13 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "metadata": {
     "platforms": [
       "napcat",
       "qqbot"
     ],
-    "changelog": "更新插件市场分类。"
+    "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。"
   },
   "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
   "main": "index.js",
@@ -18,6 +18,7 @@
   "permissions": [
     "reply",
     "state",
+    "retrieval",
     "network",
     "push",
     "secret"
@@ -173,6 +174,12 @@
                 "maxLength": 120
               },
               "default": []
+            },
+            "semantic": {
+              "type": "boolean",
+              "title": "按含义匹配兴趣",
+              "description": "在包含关键词的基础上补充同义表达；需要可用的检索模型。",
+              "default": false
             },
             "exclude": {
               "type": "array",

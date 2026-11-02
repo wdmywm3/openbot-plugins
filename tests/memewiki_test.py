@@ -88,7 +88,7 @@ class DictionaryTests(unittest.TestCase):
 
     def test_mcp_validation_and_tools(self):
         tools = dispatch(self.library, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]
-        self.assertEqual(len(tools), 4)
+        self.assertEqual(len(tools), 5)
         bad = dispatch(self.library, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "memewiki_lookup", "arguments": {"query": "x", "online": "false"}}})
         self.assertTrue(bad["result"]["isError"])
         self.assertIsNone(dispatch(self.library, {"jsonrpc": "2.0", "method": "notifications/initialized"}))

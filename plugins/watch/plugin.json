@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
   "extensions": {
     "com.openbot": {
@@ -9,6 +9,9 @@
       "category": "utility",
       "permissions": [
         "history",
+        "state",
+        "retrieval",
+        "jobs",
         "mcp",
         "browser",
         "network"
@@ -20,7 +23,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "参照 claude-video 的本地流程补齐转写依赖、模型初始化与试运行；字幕优先，支持独立音频、内嵌文字字幕及仅读取文字，保留部分可用资料。"
+        "changelog": "已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。"
       },
       "dependencies": {
         "python": {
@@ -79,6 +82,52 @@
         "additionalProperties": false
       },
       "tools": [
+        {
+          "name": "watch_status",
+          "export": "watch_status",
+          "description": "查询视频读取进度。就绪后会后台建立字幕索引，以便用 watch_search 按含义检索片段。",
+          "scope": "all",
+          "permission": "member",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              }
+            },
+            "required": [
+              "job_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "watch_search",
+          "export": "watch_search",
+          "description": "按含义查询当前聊天已读取的视频字幕和音频转写，返回真实时间戳；可指定 job_id 限定视频。",
+          "scope": "all",
+          "permission": "member",
+          "mutating": false,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "job_id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          }
+        },
         {
           "name": "watch_start",
           "export": "watch_start",
@@ -306,6 +355,29 @@
       ],
       "networkHosts": [
         "*"
+      ],
+      "actions": [
+        {
+          "id": "index_media",
+          "kind": "job",
+          "export": "index_media",
+          "permission": "member",
+          "restartable": true,
+          "timeoutMs": 3600000,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              }
+            },
+            "required": [
+              "job_id"
+            ],
+            "additionalProperties": false
+          }
+        }
       ]
     }
   }
