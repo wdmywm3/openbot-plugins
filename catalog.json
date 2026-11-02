@@ -321,7 +321,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -367,7 +367,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
+      "ref": "e2219f9036360ecc714a6a0012023a4aa5ca3389",
       "files": [
         {
           "path": "README.md",
@@ -391,8 +391,8 @@
         },
         {
           "path": "index.js",
-          "size": 45779,
-          "sha256": "142ede2d08c658635756409690918351d5a3e04230cc54576ae4b6aa759613f1"
+          "size": 46313,
+          "sha256": "98ed8e0410dc98a5856f463eaa02c0255cda02b712997b1bbb3e9b2a3f18fc7d"
         },
         {
           "path": "mcp.json",
@@ -402,17 +402,17 @@
         {
           "path": "package-lock.json",
           "size": 20840,
-          "sha256": "6bb6b3ec461849fac99ac3a22bbfa8dc75f7c6de6e64be57ed9bf83ef27d3e2a"
+          "sha256": "d60045f1fd411704130c357d38c0c940f582207defc08a4b9adbe657bdf8f9a8"
         },
         {
           "path": "package.json",
           "size": 175,
-          "sha256": "c5bbf31f8cc220872fc091e909bdb36ea33bc5c2609500fc7ed92b17e736804c"
+          "sha256": "19f80ea7a9a82f71cae0aa5b3fbab961f59ee3165fe6b77d0cb6c7e604908e39"
         },
         {
           "path": "plugin.json",
           "size": 14014,
-          "sha256": "d957148a491d7ff2fc32f9ead58a2c0a4c8da9d99865da5a59dbef07a353814e"
+          "sha256": "1353fc4865996370b9d24a2a60b6bb65d2e2dd3ffb71b09c799f816e5cba5256"
         },
         {
           "path": "skills/stickers/SKILL.md",
