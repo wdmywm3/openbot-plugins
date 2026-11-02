@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memewiki",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
   "extensions": {
     "com.openbot": {
@@ -362,7 +362,14 @@
               "list_terms",
               "save_term",
               "delete_term"
-            ]
+            ],
+            "sidebar": {
+              "label": "自定义黑话",
+              "icon": "book-open",
+              "order": 30,
+              "location": "instance",
+              "group": "memory"
+            }
           }
         ]
       },
@@ -377,7 +384,10 @@
         ],
         "usage": "/梗 词语；/黑话 名称 含义；/黑话 列表；/黑话 删除 名称；/网搜 状态",
         "changelog": "可选语义查梗，后台增量索引本地词库；返回相关候选并保留精确查询。"
-      }
+      },
+      "requiredFeatures": [
+        "instanceSettingsViews"
+      ]
     }
   }
 }

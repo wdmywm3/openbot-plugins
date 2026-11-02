@@ -3,7 +3,7 @@ const api = window.openbotPlugin, $ = id => document.getElementById(id);
 const statusNames = { running: "整理中", completed: "已完成", interrupted: "已中断", paused: "已暂停", failed: "失败", rolled_back: "已回滚", rollback_pending: "回滚待处理" };
 let snapshot, runId, preview, nextOffset = null, before = 0, refreshing = null, generation = 0;
 const call = (action, input = {}) => api.callAction(action, { chatId: $("chat").value, ...input });
-function error(cause, id = "error") { $(id).textContent = cause?.message || String(cause || ""); $(id).hidden = !cause; }
+function error(cause, id = "error") { $(id).textContent = ""; $(id).hidden = true; if (cause) window.openbotPlugin.notify(cause?.message || String(cause)); }
 async function task(work, id = "error") { error("", id); try { await work(); } catch (cause) { error(cause, id); } }
 function button(text, handler) { const element = document.createElement("button"); element.type = "button"; element.textContent = text; element.onclick = () => task(handler); return element; }
 function option(value, text) { const element = document.createElement("option"); element.value = value; element.textContent = text; return element; }

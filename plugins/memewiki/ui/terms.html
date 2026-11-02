@@ -13,7 +13,7 @@ const $=id=>document.getElementById(id), bridge=window.openbotPlugin;
 let revision=0,cursor, nextCursor, history=[];
 const setBusy=value=>document.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=value);
 function reset(){ $('form').reset();revision=0;$('name').readOnly=false;$('cancel').hidden=true; }
-async function run(action){setBusy(true);$('notice').textContent='';try{await action();}catch(e){$('notice').textContent=e.message||'操作失败，请重试。';}finally{setBusy(false);}}
+async function run(action){setBusy(true);$('notice').textContent='';try{await action();}catch(e){bridge.notify(e.message||'操作失败，请重试。');}finally{setBusy(false);}}
 async function load(){
  const result=await bridge.callAction('list_terms',cursor?{cursor}:{});
  $('list').replaceChildren(); nextCursor=result.nextCursor;

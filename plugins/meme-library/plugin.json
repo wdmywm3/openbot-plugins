@@ -1,14 +1,17 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
       "displayName": "表情包",
       "category": "entertainment",
       "apiVersion": 1,
-      "requiredFeatures": ["persistentContextItems"],
+      "requiredFeatures": [
+        "persistentContextItems",
+        "instanceSettingsViews"
+      ],
       "main": "index.js",
       "permissions": [
         "reply",
@@ -500,7 +503,14 @@
               "exportBundle",
               "stop",
               "history"
-            ]
+            ],
+            "sidebar": {
+              "label": "表情包",
+              "icon": "image",
+              "order": 20,
+              "location": "instance",
+              "group": "memory"
+            }
           }
         ]
       },

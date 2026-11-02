@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -16,7 +16,8 @@
         "sourceHead",
         "offlineBackground",
         "persistentActivities",
-        "persistentAvatars"
+        "persistentAvatars",
+        "instanceSettingsViews"
       ],
       "permissions": [
         "process",
@@ -286,14 +287,21 @@
         "views": [
           {
             "id": "library",
-            "title": "记忆 Plus",
+            "title": "记忆整理",
             "entry": "ui/index.html",
             "actions": [
               "list",
               "manage",
               "process",
               "import"
-            ]
+            ],
+            "sidebar": {
+              "label": "记忆整理",
+              "icon": "brain",
+              "order": 10,
+              "location": "instance",
+              "group": "memory"
+            }
           }
         ]
       },

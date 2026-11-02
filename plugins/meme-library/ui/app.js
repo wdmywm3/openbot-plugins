@@ -3,7 +3,7 @@ const api = window.openbotPlugin, $ = id => document.getElementById(id);
 let snapshot, editing, offset = 0, loading = false, prefRevision = 0;
 let exportJob = "";
 const call = (action, input = {}) => api.callAction(action, input);
-function showError(error, id = "error") { $(id).textContent = error?.message || String(error || ""); $(id).hidden = !error; }
+function showError(error, id = "error") { $(id).textContent = ""; $(id).hidden = true; if (error) window.openbotPlugin.notify(error?.message || String(error)); }
 function button(label, handler) { const el = document.createElement("button"); el.type = "button"; el.textContent = label; el.onclick = () => task(handler); return el; }
 async function task(work, errorId = "error") { showError("", errorId); try { await work(); } catch (error) { showError(error, errorId); } }
 function options(select, rows, selected = []) {
