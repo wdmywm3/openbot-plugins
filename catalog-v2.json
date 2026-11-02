@@ -533,7 +533,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -565,7 +565,7 @@
         "requirements": [
           "需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"
         ],
-        "changelog": "修复整理时机、闲置判断、积压接续、暂停恢复与重复写入；过滤失效来源，评估当前可见记忆，并支持稳定事项关联的单次、周期和新证据复查。旧资料通过公开接口迁移。",
+        "changelog": "支持按聊天跳过此前记录，持久保存整理起点；闲置、定时和手动整理共用成功断点，空扫描也正常推进，失败可重试；减少从普通闲聊和临时状态中生成无用记忆。",
         "components": [
           "hooks",
           "tools",
@@ -574,12 +574,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2bc68635a8116b6a1c66100b24dcbc3cb93be3b0",
+      "ref": "5a5a5ab70002abf2c4e7236c8071dc7235b3abd7",
       "files": [
         {
           "path": "README.md",
-          "size": 3127,
-          "sha256": "fc85c36bb756dcb195939257d066a84287e7142bf0a07476773bebb02b917c2b"
+          "size": 3974,
+          "sha256": "25ac037ef1a0bd2f1ebca1953c0f3d00d44823be89f331537dec51ba22c8ca71"
         },
         {
           "path": "followup-runtime.cjs",
@@ -638,8 +638,8 @@
         },
         {
           "path": "lib/features/channels/channel-dream-analysis.cjs",
-          "size": 14021,
-          "sha256": "85fdb4ba85e04f5df9ce72e297dcafdbc59fa6ebefba01e3a82c4f1afc15f9ff"
+          "size": 14605,
+          "sha256": "6e41f8dfc622eec8f35f212d70a412bd7664ea12cd553cbb12bb4cc374ba924d"
         },
         {
           "path": "lib/features/channels/channel-dream-coordinator.cjs",
@@ -724,17 +724,17 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "2097a8cc99f1f3b98521253dc83582f84982aba67aa1eb8e5e49f6ea31382a9b"
+          "sha256": "f3fdadd6f1d38f41643dfffa35927f6524e26de0a9c600513a8792d809f4bd9d"
         },
         {
           "path": "package.json",
           "size": 154,
-          "sha256": "f461d5d701493ecdced3fd957d3fd952eb75c99895998b6043e46945f4d927c5"
+          "sha256": "515a2b79888bde4d856f4885b24aad4bb1303467e79fbf81afde40666f10d213"
         },
         {
           "path": "plugin.json",
-          "size": 4567,
-          "sha256": "88eed64a47ddaed5fd154112682fb56f596c2411e0d166b6d08aef3e48ca5182"
+          "size": 4555,
+          "sha256": "2f59d561e5b28c6358c9c8aeb7874a3a2af95b095c3089fbc5a878e6887ab7f7"
         },
         {
           "path": "process.cjs",
@@ -773,13 +773,13 @@
         },
         {
           "path": "ui/app.js",
-          "size": 8701,
-          "sha256": "92bb56c8097b710f2871ca37662b7ac290c0c3442d3ed9ef1870ae7c2d713b1e"
+          "size": 9295,
+          "sha256": "754b244971c5fca60f8ccf05d0b24db54941bddc376b77dc022aca84466432fe"
         },
         {
           "path": "ui/index.html",
-          "size": 2563,
-          "sha256": "4f5ea9c28eda0544f53391391beffdea76cabaf3ff952ead3438b10eceee355f"
+          "size": 2738,
+          "sha256": "28647e9c6665eb75257879e267b54b75badceecaefb2d626f4da3b578eb9b35b"
         },
         {
           "path": "ui/style.css",
@@ -797,9 +797,14 @@
           "sha256": "288e074a619b9e5ccc73c215a9ea14d444a11e99bf51e313edec8d06571ce454"
         },
         {
+          "path": "unified-checkpoints.cjs",
+          "size": 3828,
+          "sha256": "c261460d2064a121788cbd678a083556e5ea6d3ca3fea2425beb7309aa7f28f1"
+        },
+        {
           "path": "unified-dream.cjs",
-          "size": 17791,
-          "sha256": "49662300e571c7d868c0ea8e43eccd45d69f9ceead90a2a69624f9216365f1a7"
+          "size": 17959,
+          "sha256": "9da119cf0f8a1422b3c6f228aa0de4613d54089786a08fc24d41c3d427d4af1e"
         },
         {
           "path": "unified-followup-activity.cjs",
@@ -833,8 +838,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 22751,
-          "sha256": "ea517bbe30cb0f864050ce6d0fdfdc193ce43e3596d7b5ea0142d49ce102d38c"
+          "size": 23144,
+          "sha256": "1aacfcc770ea161cd32b4ee8ee51fc4fa4d9ecdc88672e708d24231580a8f87a"
         },
         {
           "path": "unified-scheduling.cjs",
