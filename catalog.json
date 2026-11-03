@@ -452,7 +452,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.3.1",
+      "version": "2.3.2",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -482,9 +482,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.91 或提供 modelHookTextInput 及清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
+          "需要 OpenBot 0.1.92 或提供清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "文字、图片和图文混合召回统一按发言插入参考资料；同一发言的多张图分别查询后合并去重。普通聊天图片也进入共享向量索引，历史记录分批补建。修复多图片聊天触发 32 MiB 插件进程限制，模型原始图片保持完整。请先更新到 OpenBot 0.1.91。",
+        "changelog": "改善多消息、多图片召回：增加通用前台调用时间声明和独立取消，召回超时不会中断同进程后台索引。配合 OpenBot 0.1.92 的动态批处理、CPU 有限并行和 GPU 推理调度。",
         "components": [
           "hooks",
           "tools",
@@ -493,12 +493,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "e6d6cc7749826411a7146779aafa1062cf37303c",
+      "ref": "55b331305d74c85f0e9c2525fcc70fb3193bde89",
       "files": [
         {
           "path": "README.md",
-          "size": 8178,
-          "sha256": "d87e2d31d430565287b2edecae87aac38aedfa67d19096fb3882d24b290b135f"
+          "size": 8515,
+          "sha256": "2be4eec436223ed77531a8ec85b760fd20ed0ff393fbad275fa64c4241be4c23"
         },
         {
           "path": "followup-runtime.cjs",
@@ -643,22 +643,22 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "6a2b4da926ef1b353650a95e55ca5725594d4059d177134015a4d2faa67ac2e9"
+          "sha256": "e3ab642a3b8b92c9e71b84607cdefa082abb7db89c210df3aedfc41e62b9e104"
         },
         {
           "path": "package.json",
           "size": 166,
-          "sha256": "9193854c70596351dfb323c99b7f581ce797a23c9867b8c0c5a6ff7b59f3f27d"
+          "sha256": "6abe7f412e18587fb5d6cfe73ce7ff158a0086732de5bc4f52a4c22f6e545129"
         },
         {
           "path": "plugin.json",
-          "size": 10840,
-          "sha256": "c7dbbffd4461bfd28125698084eedc24c05a3617d655df86f41349105f5996bd"
+          "size": 10852,
+          "sha256": "9f71a219ba0ac9b4d09dc43a29ff09348538b24987a9d77ca1b028317e25380f"
         },
         {
           "path": "process.cjs",
-          "size": 2083,
-          "sha256": "57545f375d216eccb4de322481a3c64669d316e9b38365b71643a5c8b62681e6"
+          "size": 2528,
+          "sha256": "c7fd75df6e63df3bf7e7a4b24cc51892a32047ffd99e2bd4a9dc51c52271da69"
         },
         {
           "path": "recall-context.cjs",
@@ -682,8 +682,8 @@
         },
         {
           "path": "source-retrieval.cjs",
-          "size": 6142,
-          "sha256": "e2e259cb58a9059c25e149d65f7f2dadbe3560448e1d11e9058bdc14f6dea54f"
+          "size": 6455,
+          "sha256": "8e29b5c33cbf1f237fec2ae1acff23504673e5659fd10b735795c447a5183cb0"
         },
         {
           "path": "sources.cjs",
@@ -787,8 +787,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 24986,
-          "sha256": "40565db743a7d16b0484043c2572a6dbda78c9aeabf77dcb38be0d42b9de7f4a"
+          "size": 25111,
+          "sha256": "055bd942ce5678d896f02eb863f99c11ad0fa02adc9f1b2849ffd5be5a84ff5d"
         },
         {
           "path": "unified-scheduling.cjs",
@@ -803,7 +803,7 @@
         {
           "path": "utterance-recall.cjs",
           "size": 6238,
-          "sha256": "3e6adde4985598ef5625829ab9b913aad2aadb4d856940cc2ca051cb5ed27679"
+          "sha256": "94bdf19e6e58ae8fcc101ff15b38a963d637b43c102d48ce70e475f6bd50fb19"
         }
       ]
     },
