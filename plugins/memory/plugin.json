@@ -20,7 +20,10 @@
         "instanceSettingsViews",
         "pluginNavigationV2",
         "pluginOverlays",
-        "modelHookTextInput"
+        "modelHookTextInput",
+        "inlineContextItems",
+        "hybridRetrieval",
+        "sourceAttachments"
       ],
       "permissions": [
         "process",
@@ -372,7 +375,7 @@
         "requirements": [
           "需要 OpenBot 0.1.91 或提供 modelHookTextInput 及清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "修复图片较多的聊天在记忆召回时触发 32 MiB 插件进程限制：只接收召回所需文字和图片引用，模型实际收到的图片保持完整。需要先更新到支持该输入接口的 OpenBot。"
+        "changelog": "文字、图片和图文混合召回统一按发言插入参考资料；同一发言的多张图分别查询后合并去重。普通聊天图片也进入共享向量索引，历史记录分批补建。修复多图片聊天触发 32 MiB 插件进程限制，模型原始图片保持完整。请先更新到 OpenBot 0.1.91。"
       }
     }
   }
