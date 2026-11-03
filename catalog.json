@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -354,12 +354,12 @@
         "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.84 或更新版本，支持持久上下文接口。",
+          "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "完整素材库接入共享检索、角色与聊天设置；表情可用状态改为持久增量上下文，重复状态不再追加，冷却状态包含截止时间，发送前重新校验。",
+        "changelog": "重整表情管理：新增多条件筛选与批量选择，明确发送开关及角色、聊天范围；编辑、导入和设置使用宿主弹窗，固定标题与保存区，保护未保存的修改。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +370,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b72cdae199b77268df71213d3f25ef0d6fa16d0d",
+      "ref": "cbfe176f951ebe80b84b965f1dd2601f7273f689",
       "files": [
         {
           "path": "README.md",
-          "size": 3970,
-          "sha256": "4f7d93fa58a74a387679b137dde3366ddddeb9a584d0463ff2283bb3edce7d49"
+          "size": 4615,
+          "sha256": "59f4eec35677e534e01b9f8cb1d36ebf6f4ed71655d9f4864db016a1c3c8c6f0"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +394,8 @@
         },
         {
           "path": "index.js",
-          "size": 46313,
-          "sha256": "98ed8e0410dc98a5856f463eaa02c0255cda02b712997b1bbb3e9b2a3f18fc7d"
+          "size": 50182,
+          "sha256": "4a70c825ba5a9e8bdbc2aa13be6b5528b1c21d6ecab6131bd1fb3561f1d9a3c8"
         },
         {
           "path": "mcp.json",
@@ -414,8 +414,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14267,
-          "sha256": "0f20f48ae4263330cecc6dcd5c96bbd3f2eff1031a97c152ab41b46833386c52"
+          "size": 20106,
+          "sha256": "5052167db9fab22e7c6d70ab8483f0de9e5c4cd94fae389fdcc47e4edf6a516a"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -424,25 +424,35 @@
         },
         {
           "path": "ui/app.js",
-          "size": 12264,
-          "sha256": "e6875f5ab23adcdd8480c06cc15f7ccf17f872afd5d66dc456b2e69d051c785e"
+          "size": 8342,
+          "sha256": "c8c4acd14951d313015e7b6c698ae94bdede6163ae339080a75d5fd5eff5d017"
         },
         {
           "path": "ui/index.html",
-          "size": 4330,
-          "sha256": "bb44754f22dcb6d49ada07f9e8f7cf5b61ced60c830cb6f5b0a9ccd9a9ec60e2"
+          "size": 2496,
+          "sha256": "a334874df3250b5108a9c45195d0aead7badab9ad54320d34901f90c038c74f7"
+        },
+        {
+          "path": "ui/panel.html",
+          "size": 368,
+          "sha256": "7eb9ef59e10ab4095cab3d14fcd7beafe97a4fe9780ae7ae43517b995142b518"
+        },
+        {
+          "path": "ui/panel.js",
+          "size": 12531,
+          "sha256": "f3fc51a503fd2c33c2c6fea708fc2b721a1c6aa39f5b4d1818553a528a3bd2e5"
         },
         {
           "path": "ui/style.css",
-          "size": 2967,
-          "sha256": "a65b464a3cdb2da345a88d23e4947d58ebcd38c550b236963c87448fd92395a1"
+          "size": 1997,
+          "sha256": "754a426247cb614f8fc60123a190c01168a370fc9da3f7d9cc64f59f7e5b20a6"
         }
       ]
     },
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -472,9 +482,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"
+          "需要支持插件导航 v2、宿主弹窗及清单声明的统一记忆、持久上下文和持续事项能力的新版本 OpenBot；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "融合关键词与语义召回；Gemma 支持记忆来源图片索引及纯图片、图文共同查询，保留增量上下文与图片补建断点。",
+        "changelog": "整理设置并入记忆页面，支持改为独立分类；设置自动保存，区分实例默认值与聊天覆盖；运行详情使用宿主弹窗，暂停自动整理与停止当前任务分别操作。",
         "components": [
           "hooks",
           "tools",
@@ -483,12 +493,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b72cdae199b77268df71213d3f25ef0d6fa16d0d",
+      "ref": "cbfe176f951ebe80b84b965f1dd2601f7273f689",
       "files": [
         {
           "path": "README.md",
-          "size": 5999,
-          "sha256": "3c5ac441873f8d49be000190e5730737a785fac2bd8c5e9ad0fe42962c146454"
+          "size": 6465,
+          "sha256": "e0a4c3bd1a4bbd6e41575093729249ac68faa9694d36a404121d2dda37a0b65e"
         },
         {
           "path": "followup-runtime.cjs",
@@ -642,8 +652,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 8710,
-          "sha256": "f9c77a145a6f44786dbae4f3cc873e8ab122ab0d4f27e60d1f5f50a55b009d41"
+          "size": 10621,
+          "sha256": "ea72ac801e900c91196afb78bb93b2050aa0c01e2621ebc0460d710810b9bacd"
         },
         {
           "path": "process.cjs",
@@ -682,18 +692,28 @@
         },
         {
           "path": "ui/app.js",
-          "size": 9331,
-          "sha256": "f6d210bbfb8d73b4e6fee5f94f45a280b454502104a3be3e0163335a3dbafcf2"
+          "size": 9263,
+          "sha256": "9e0f8c4cf1fa66192f66b2084f96d924c96cc298c7a272d6a45ba4119692ed40"
+        },
+        {
+          "path": "ui/details.html",
+          "size": 456,
+          "sha256": "7d295f434150a3a59c1d53837f4c7cead17c06dc07ae1c2b1926512d3a39fbf1"
+        },
+        {
+          "path": "ui/details.js",
+          "size": 1886,
+          "sha256": "b984be32135fac37c02c5006703db34372a4eff27ecb2ae141977f0ebcf119df"
         },
         {
           "path": "ui/index.html",
-          "size": 2738,
-          "sha256": "28647e9c6665eb75257879e267b54b75badceecaefb2d626f4da3b578eb9b35b"
+          "size": 2698,
+          "sha256": "7fac09aaf9d781930b2a0e47d24adf8ae4f022519b267f8b0c5a9ab53b538dc2"
         },
         {
           "path": "ui/style.css",
-          "size": 2040,
-          "sha256": "13b2e6ef060fd94a7d38e9bc1fe8949fd1e27e5063cd804b8854baac7ccc4d9a"
+          "size": 1036,
+          "sha256": "4a7636175a797d7679b2e633fc836554161bc7820e6c89ab35b656bdc602cec4"
         },
         {
           "path": "unified-assessment.cjs",
@@ -762,8 +782,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 25705,
-          "sha256": "3fe902d3c4f160e3b19e304b77869ad25f807f36544adce3d9184d0cf473d9fd"
+          "size": 25902,
+          "sha256": "08b6a22fccfae49e3a1c46fa4a0cfd28060e9914fdf75936fdd3249e64099d69"
         },
         {
           "path": "unified-scheduling.cjs",
