@@ -97,6 +97,13 @@ async function main() {
     await call("process", { chatId: scope.chatId });
     for (let i = 0; i < 100; i++) { page = await call("list", { chatId: scope.chatId }); if (page.jobs.every(item => !["queued", "running"].includes(item.status))) break; await wait(20); }
     const prompt = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", payload, principal);
+    const largeImage = { type: "image_url", image_url: { url: "data:image/png;base64," + "A".repeat(3 * 1024 * 1024) } };
+    const imageTurn = { role: "user", content: [{ type: "text", text: "咖啡" }, ...Array(12).fill(largeImage)] };
+    const largePayload = { ...payload, messages: [...messages, imageTurn] };
+    assert(Buffer.byteLength(JSON.stringify(largePayload)) > 32 * 1024 * 1024);
+    const largePrompt = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", largePayload, principal);
+    assert.deepEqual(largePrompt.messages.find(message => Array.isArray(message.content)), imageTurn,
+      "real Memory Plus recalls from text without duplicating oversized image bodies into its process or dropping model images");
     assert(prompt.messages.some(message => String(message.content).includes("拿铁")), JSON.stringify(prompt));
     const poked = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", { ...payload, inputMessages: [{ ...source, oneBotEvent: { noticeType: "notify", subType: "poke" }, event: { type: "notice", kind: "notify", subtype: "poke" } }] }, principal);
     assert(!poked.messages.some(message => String(message.content).includes("legacy-fact")), "notification-only turns skip automatic recall");

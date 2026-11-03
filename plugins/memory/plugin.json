@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -19,7 +19,8 @@
         "persistentAvatars",
         "instanceSettingsViews",
         "pluginNavigationV2",
-        "pluginOverlays"
+        "pluginOverlays",
+        "modelHookTextInput"
       ],
       "permissions": [
         "process",
@@ -67,7 +68,8 @@
       "hooks": [
         {
           "type": "beforeModel",
-          "export": "beforeModel"
+          "export": "beforeModel",
+          "inputMode": "text"
         },
         {
           "type": "afterModel",
@@ -368,9 +370,9 @@
       },
       "metadata": {
         "requirements": [
-          "需要支持插件导航 v2、宿主弹窗及清单声明的统一记忆、持久上下文和持续事项能力的新版本 OpenBot；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
+          "需要 OpenBot 0.1.91 或提供 modelHookTextInput 及清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "整理设置并入记忆页面，支持改为独立分类；设置自动保存，区分实例默认值与聊天覆盖；运行详情使用宿主弹窗，暂停自动整理与停止当前任务分别操作。"
+        "changelog": "修复图片较多的聊天在记忆召回时触发 32 MiB 插件进程限制：只接收召回所需文字和图片引用，模型实际收到的图片保持完整。需要先更新到支持该输入接口的 OpenBot。"
       }
     }
   }
