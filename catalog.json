@@ -452,7 +452,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -482,9 +482,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "需要支持插件导航 v2、宿主弹窗及清单声明的统一记忆、持久上下文和持续事项能力的新版本 OpenBot；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
+          "需要 OpenBot 0.1.91 或提供 modelHookTextInput 及清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "整理设置并入记忆页面，支持改为独立分类；设置自动保存，区分实例默认值与聊天覆盖；运行详情使用宿主弹窗，暂停自动整理与停止当前任务分别操作。",
+        "changelog": "修复图片较多的聊天在记忆召回时触发 32 MiB 插件进程限制：只接收召回所需文字和图片引用，模型实际收到的图片保持完整。需要先更新到支持该输入接口的 OpenBot。",
         "components": [
           "hooks",
           "tools",
@@ -493,12 +493,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cbfe176f951ebe80b84b965f1dd2601f7273f689",
+      "ref": "5acd8e792aa7d48314837974a7cdd1b0a428544c",
       "files": [
         {
           "path": "README.md",
-          "size": 6465,
-          "sha256": "e0a4c3bd1a4bbd6e41575093729249ac68faa9694d36a404121d2dda37a0b65e"
+          "size": 6783,
+          "sha256": "69c31d9406d3d2b23bda0c3ec7e5739a9df4577555cc1df92005726f44e4c415"
         },
         {
           "path": "followup-runtime.cjs",
@@ -652,8 +652,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 10621,
-          "sha256": "ea72ac801e900c91196afb78bb93b2050aa0c01e2621ebc0460d710810b9bacd"
+          "size": 10651,
+          "sha256": "e649dd4ce72f0647aecbd5ec6697d11b2e256a76d4a5c57af60f3332f5a15b09"
         },
         {
           "path": "process.cjs",
