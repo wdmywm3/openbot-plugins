@@ -484,7 +484,7 @@
         "requirements": [
           "需要 OpenBot 0.1.91 或提供 modelHookTextInput 及清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "修复图片较多的聊天在记忆召回时触发 32 MiB 插件进程限制：只接收召回所需文字和图片引用，模型实际收到的图片保持完整。需要先更新到支持该输入接口的 OpenBot。",
+        "changelog": "文字、图片和图文混合召回统一按发言插入参考资料；同一发言的多张图分别查询后合并去重。普通聊天图片也进入共享向量索引，历史记录分批补建。修复多图片聊天触发 32 MiB 插件进程限制，模型原始图片保持完整。请先更新到 OpenBot 0.1.91。",
         "components": [
           "hooks",
           "tools",
@@ -493,12 +493,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "5acd8e792aa7d48314837974a7cdd1b0a428544c",
+      "ref": "2fe7a7210ffe032bcb78d3b2d36bd483284f1d09",
       "files": [
         {
           "path": "README.md",
-          "size": 6783,
-          "sha256": "69c31d9406d3d2b23bda0c3ec7e5739a9df4577555cc1df92005726f44e4c415"
+          "size": 7945,
+          "sha256": "5a013d1becf9d9e624864ffb89c1b728b7649b8cebffe60b3c02cbfe4722aa29"
         },
         {
           "path": "followup-runtime.cjs",
@@ -652,8 +652,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 10651,
-          "sha256": "e649dd4ce72f0647aecbd5ec6697d11b2e256a76d4a5c57af60f3332f5a15b09"
+          "size": 10840,
+          "sha256": "c7dbbffd4461bfd28125698084eedc24c05a3617d655df86f41349105f5996bd"
         },
         {
           "path": "process.cjs",
@@ -679,6 +679,11 @@
           "path": "skills/memory/SKILL.md",
           "size": 3570,
           "sha256": "0a8f3358332a7b7518f4e06eb55cb39c7ab071fa7af66cf5dac787f569819826"
+        },
+        {
+          "path": "source-retrieval.cjs",
+          "size": 6121,
+          "sha256": "f5f1d5f84d62f5af0f64236880437b871c738f702250a737c63e36026003b72a"
         },
         {
           "path": "sources.cjs",
@@ -782,8 +787,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 25902,
-          "sha256": "08b6a22fccfae49e3a1c46fa4a0cfd28060e9914fdf75936fdd3249e64099d69"
+          "size": 24986,
+          "sha256": "40565db743a7d16b0484043c2572a6dbda78c9aeabf77dcb38be0d42b9de7f4a"
         },
         {
           "path": "unified-scheduling.cjs",
@@ -794,6 +799,11 @@
           "path": "unified-state.cjs",
           "size": 3616,
           "sha256": "cd69af3f0895af8c6345cefba318a971361f1b3102c21a51a32bea5c3e58551e"
+        },
+        {
+          "path": "utterance-recall.cjs",
+          "size": 5090,
+          "sha256": "460179dc04dea59678f33433de346a5da18f1b45b062a77041e26f7c71cb8cc7"
         }
       ]
     },
