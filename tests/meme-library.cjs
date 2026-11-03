@@ -82,7 +82,7 @@ function fixture() {
       async getCapabilities() { return { platform: "napcat", features: { persistentContextItems: true } }; },
       async callNapCat(action) { assert.equal(action, "fetch_custom_face"); return { data: [{ url: "https://qpic.cn/image", id: "face" }] }; },
       async request() { return { ok: true, headers: { "content-type": "image/png" }, body: "aGk=" }; },
-      async listContexts() { return { profiles: [], chats: [] }; }, async listModels() { return []; },
+      async listContexts() { return { profiles: [{ id: "p", name: "当前角色" }, { id: "other", name: "其他角色" }], chats: [{ id: "group", name: "当前聊天" }, { id: "other", name: "其他聊天" }] }; }, async listModels() { return []; },
     } };
   const asset = (ref, id, shared = true) => assets.set(ref, { ref, sha256: id.repeat(64), mimeType: "image/png", bytes: 2, revision: "1", shared, chatId: shared ? "" : "group", chats: [] });
   asset("import", "a"); asset("chat", "b", false); asset("qq", "c");

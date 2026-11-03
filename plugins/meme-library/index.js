@@ -316,7 +316,11 @@ module.exports.syncProfiles = async ctx => {
 module.exports.importFiles = async ctx => {
   const refs = strings(ctx.input?.refs, 32);
   if (!refs.length) throw Error("请选择图片");
-  for (const ref of refs) await ingest(ctx, ref, { type: "import" });
+  for (const ref of refs) {
+    const info = await ctx.api.assets({ action: "info", ref }), existing = await get(ctx, info.sha256);
+    const saved = await ingest(ctx, ref, { type: "import" });
+    if (ctx.input.chatMode && !existing) await module.exports.save({ ...ctx, input: { id: saved.key, revision: saved.revision, chatMode: ctx.input.chatMode, chatIds: ctx.input.chatIds || [], profileIds: ctx.input.profileIds || [], enabled: ctx.input.enabled !== false } });
+  }
   return { imported: refs.length };
 };
 module.exports.collect = async ctx => {
@@ -330,6 +334,12 @@ module.exports.save = async ctx => {
   const input = ctx.input || {}, row = await get(ctx, input.id);
   if (!row || row.value.deleted) throw Error("表情不存在");
   if (row.revision !== input.revision) throw Error("这张表情已被更新，请刷新后再保存");
+  if (Object.hasOwn(input, "chatMode") && (!["all", "include", "exclude"].includes(input.chatMode) || input.chatMode !== "all" && !strings(input.chatIds, 1000).length)) throw Error("请至少选择一个聊天");
+  if (Object.hasOwn(input, "chatIds") || Object.hasOwn(input, "profileIds")) {
+    const contexts = await ctx.api.listContexts();
+    if (Array.isArray(input.chatIds) && input.chatIds.some(id => !contexts.chats.some(chat => chat.id === id) && !row.value.chatIds?.includes(id))) throw Error("所选聊天不存在");
+    if (Array.isArray(input.profileIds) && input.profileIds.some(id => !contexts.profiles.some(profile => profile.id === id) && !row.value.profileIds?.includes(id))) throw Error("所选角色不存在");
+  }
   const changes = descriptions(input), changed = Object.keys(changes).some(k => JSON.stringify(changes[k]) !== JSON.stringify(row.value[k]));
   const value = { ...row.value, ...changes, userEdited: true, scopeEdited: row.value.scopeEdited ?? !!row.value.userEdited,
     ...(Object.hasOwn(input, "chatMode") || Object.hasOwn(input, "chatIds") ? { scopeEdited: true } : {}),
@@ -378,6 +388,10 @@ module.exports.stop = async ctx => {
 module.exports.saveSettings = async ctx => {
   const p = ctx.input || {}, key = text(p.chatId, 200) || "default", row = (await db(ctx, "settings", key)).record;
   if ((row?.revision || 0) !== p.revision) throw Error("设置已变化，请刷新后再试");
+  if (key !== "default" && p.inherit === true) {
+    if (row) await db(ctx, "settings", key, "delete", { expectedRevision: row.revision });
+    return { saved: true, inherited: true };
+  }
   const value = { frequency: Math.max(0, Math.min(100, Math.round(Number(p.frequency) || 0))),
     cooldownSeconds: Math.max(0, Math.min(3600, Number(p.cooldownSeconds) || 0)), autoCollect: p.autoCollect === true };
   value.retrievalModelId = text(p.retrievalModelId ?? row?.value.retrievalModelId, 200);
@@ -405,19 +419,50 @@ module.exports.history = ctx => ctx.input?.key
   ? journal(ctx, { action: "get", key: text(ctx.input.key, 256) })
   : journal(ctx, { action: "query", limit: 20, ...(ctx.input?.cursor ? { cursor: ctx.input.cursor } : {}),
     where: ctx.input?.id ? { stream: "recognition", subject: text(ctx.input.id, 256) } : { stream: "search" } });
+function matchesFilter(row, input = {}) {
+  const value = row.value, query = text(input.query, 200).toLowerCase();
+  if (query && !(indexText(value) + " " + (value.name || "")).toLowerCase().includes(query)) return false;
+  if (input.status === "enabled" && value.enabled === false || input.status === "disabled" && value.enabled !== false) return false;
+  if (input.profileId && value.profileIds?.length && !value.profileIds.includes(input.profileId)) return false;
+  if (input.chatId && (!usableRef(value, input.chatId) || value.chatMode === "include" && !value.chatIds?.includes(input.chatId) || value.chatMode === "exclude" && value.chatIds?.includes(input.chatId))) return false;
+  if (input.source && value.source?.type !== input.source) return false;
+  if (input.analysis === "failed" && !value.error || input.analysis === "pending" && (value.error || value.analysisStatus === "ready") || input.analysis === "ready" && (value.error || value.analysisStatus !== "ready")) return false;
+  return true;
+}
 module.exports.list = async ctx => {
-  const rows = await all(ctx), query = text(ctx.input?.query, 200).toLowerCase(), offset = Math.max(0, Math.trunc(Number(ctx.input?.offset) || 0));
-  const filtered = rows.filter(r => !query || indexText(r.value).toLowerCase().includes(query));
-  const pref = (await db(ctx, "settings", text(ctx.input?.chatId, 200) || "default")).record;
-  return { items: filtered.slice(offset, offset + 48).map(r => ({ id: r.key, caption: r.value.caption, name: r.value.name, enabled: r.value.enabled,
-    indexStatus: r.value.indexStatus, error: r.value.error, assetRef: usableRef(r.value, "")?.ref })),
+  const rows = await all(ctx), input = ctx.input || {}, offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
+  const filtered = rows.filter(row => matchesFilter(row, input));
+  const pref = (await db(ctx, "settings", text(input.settingsChatId ?? input.chatId, 200) || "default")).record;
+  return { items: filtered.slice(offset, offset + 48).map(r => ({ id: r.key, revision: r.revision, caption: r.value.caption, meaning: r.value.meaning, name: r.value.name, enabled: r.value.enabled,
+    profileIds: r.value.profileIds || [], chatMode: r.value.chatMode, chatIds: r.value.chatIds || [], source: r.value.source?.type,
+    analysisStatus: r.value.analysisStatus, indexStatus: r.value.indexStatus, error: r.value.error, assetRef: usableRef(r.value, "")?.ref })),
     total: filtered.length, offset, nextOffset: offset + 48 < filtered.length ? offset + 48 : null,
     counts: { total: rows.length, ready: rows.filter(r => r.value.indexStatus === "ready").length,
       searchable: rows.filter(r => r.value.analysisStatus === "ready").length, failed: rows.filter(r => r.value.error).length },
     retrievalStatus: await ctx.api.getState("retrievalStatus", "channel"),
-    preferences: { ...await settings(ctx, ctx.input?.chatId || ""), revision: pref?.revision || 0 },
+    inherited: !!(input.settingsChatId ?? input.chatId) && !pref,
+    preferences: { ...await settings(ctx, input.settingsChatId ?? input.chatId ?? ""), revision: pref?.revision || 0 },
     contexts: await ctx.api.listContexts(), models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,
     capabilities: await ctx.api.getCapabilities(), jobs: (await ctx.api.jobs({ action: "list" })).jobs || [] };
+};
+module.exports.selection = async ctx => {
+  const rows = (await all(ctx)).filter(row => matchesFilter(row, ctx.input));
+  if (rows.length > 500) throw Error("一次最多选择 500 张，请缩小筛选范围");
+  return { items: rows.map(row => ({ id: row.key, revision: row.revision })) };
+};
+module.exports.batch = async ctx => {
+  const input = ctx.input || {};
+  if (!["enable", "disable", "scope", "remove"].includes(input.operation) || !Array.isArray(input.items) || !input.items.length || input.items.length > 500
+    || input.items.some(item => typeof item.id !== "string" || !Number.isSafeInteger(item.revision))) throw Error("批量操作参数无效");
+  const succeeded = [], failed = [];
+  for (const item of input.items) {
+    try {
+      if (input.operation === "remove") await module.exports.remove({ ...ctx, input: item });
+      else await module.exports.save({ ...ctx, input: { ...item, ...(input.operation === "scope" ? { chatMode: input.chatMode, chatIds: input.chatIds, ...(input.profileIds ? { profileIds: input.profileIds } : {}) } : { enabled: input.operation === "enable" }) } });
+      succeeded.push(item.id);
+    } catch (error) { failed.push({ id: item.id, error: String(error.message || error) }); }
+  }
+  return { succeeded, failed };
 };
 module.exports.importBundle = async ctx => {
   const ids = [], refs = strings(ctx.input?.refs, 32); let historical = 0;

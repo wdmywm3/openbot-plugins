@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memewiki",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
   "extensions": {
     "com.openbot": {
@@ -35,12 +35,6 @@
           "permission": "member"
         },
         {
-          "name": "黑话",
-          "description": "管理当前聊天的黑话",
-          "scope": "all",
-          "permission": "member"
-        },
-        {
           "name": "网搜",
           "description": "设置当前聊天的查梗搜索模式",
           "scope": "all",
@@ -51,7 +45,7 @@
         {
           "name": "search_meme_wiki",
           "export": "search",
-          "description": "查询网络梗、缩写、流行语和当前聊天的黑话；返回含义、用法和来源，未收录时明确告知。",
+          "description": "查询网络梗、缩写和流行语；返回含义、用法和来源，未收录时明确告知。",
           "scope": "all",
           "permission": "member",
           "inputSchema": {
@@ -225,80 +219,6 @@
       },
       "actions": [
         {
-          "id": "list_terms",
-          "title": "读取黑话",
-          "kind": "native",
-          "export": "listTerms",
-          "readOnly": true,
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "cursor": {
-                "type": "string",
-                "maxLength": 2048
-              }
-            },
-            "required": [],
-            "additionalProperties": false
-          }
-        },
-        {
-          "id": "save_term",
-          "title": "保存黑话",
-          "kind": "native",
-          "export": "saveTerm",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 32
-              },
-              "meaning": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 600
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "name",
-              "meaning",
-              "revision"
-            ],
-            "additionalProperties": false
-          }
-        },
-        {
-          "id": "delete_term",
-          "title": "删除黑话",
-          "kind": "native",
-          "export": "deleteTerm",
-          "inputSchema": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 32
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "name",
-              "revision"
-            ],
-            "additionalProperties": false
-          }
-        },
-        {
           "id": "sync",
           "title": "更新词库",
           "kind": "native",
@@ -352,25 +272,6 @@
               }
             ]
           }
-        ],
-        "views": [
-          {
-            "id": "terms",
-            "title": "自定义黑话",
-            "entry": "ui/terms.html",
-            "actions": [
-              "list_terms",
-              "save_term",
-              "delete_term"
-            ],
-            "sidebar": {
-              "label": "自定义黑话",
-              "icon": "book-open",
-              "order": 30,
-              "location": "instance",
-              "group": "memory"
-            }
-          }
         ]
       },
       "metadata": {
@@ -382,12 +283,9 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "usage": "/梗 词语；/黑话 名称 含义；/黑话 列表；/黑话 删除 名称；/网搜 状态",
-        "changelog": "可选语义查梗，后台增量索引本地词库；返回相关候选并保留精确查询。"
-      },
-      "requiredFeatures": [
-        "instanceSettingsViews"
-      ]
+        "usage": "/梗 词语；/网搜 状态",
+        "changelog": "移除自定义黑话管理页面、管理命令和查询入口，旧数据保留；继续支持本地词库查询、语义查梗、图片卡片与增量更新。"
+      }
     }
   }
 }

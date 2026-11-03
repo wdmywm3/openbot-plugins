@@ -1,48 +1,6 @@
-<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>表情包</title><link rel="stylesheet" href="style.css"></head>
-<body>
-<div class="toolbar">
-  <input id="query" type="search" aria-label="搜索表情" placeholder="搜索表情">
-  <button id="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 15v5h14v-5"/></svg>导入</button>
-  <button id="sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg>同步收藏</button>
-  <button id="update"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 7-4-4-4 4m4-4v14M4 17l4 4 4-4m-4 4V7"/></svg>更新</button>
-  <button id="settings" aria-label="表情设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6m8 4v6"/></svg>设置</button>
-  <button id="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M5 15v6h14v-6"/></svg>导出</button>
-  <button id="search-history">检索记录</button>
-</div>
-<p id="error" role="alert" hidden></p>
-<div id="progress" role="status" hidden></div>
-<p id="summary"></p><div id="grid" class="grid"></div>
-<div id="paging"><button id="previous">上一页</button><span id="page"></span><button id="next">下一页</button></div>
-<dialog id="editor"><form id="edit-form">
-  <div class="dialog-top"><span>编辑表情</span><button type="button" data-close="editor" aria-label="关闭">×</button></div>
-  <img id="original" alt="表情原图">
-  <label>图面描述<textarea id="caption" rows="2" maxlength="1200"></textarea></label>
-  <label>表达含义<textarea id="meaning" rows="3" maxlength="1200"></textarea></label>
-  <label>图片文字<textarea id="ocrText" rows="2" maxlength="3000"></textarea></label>
-  <label>标签<input id="tags" placeholder="用逗号分隔"></label>
-  <details><summary>更多描述</summary><div id="descriptors"></div></details>
-  <button type="button" id="recognition-history">识图记录</button>
-  <label class="check"><input id="enabled" type="checkbox">用于聊天</label>
-  <label>角色<select id="profiles" multiple aria-label="可使用的角色"></select><small>不选则所有角色都可使用</small></label>
-  <div class="scope"><label>聊天范围<select id="chat-mode"><option value="all">所有聊天</option><option value="include">仅所选聊天</option><option value="exclude">排除所选聊天</option></select></label>
-  <select id="chats" multiple aria-label="选择聊天"></select></div>
-  <p id="edit-error" role="alert" hidden></p>
-  <div class="dialog-actions"><button type="button" id="remove" class="danger">删除</button><button type="button" data-close="editor">取消</button><button type="submit" class="primary">保存</button></div>
-</form></dialog>
-<dialog id="preferences"><form id="settings-form">
-  <div class="dialog-top"><span>表情设置</span><button type="button" data-close="preferences" aria-label="关闭">×</button></div>
-  <label>应用到<select id="setting-chat"><option value="">默认设置</option></select></label>
-  <label>使用频率 <output id="frequency-value"></output><input id="frequency" type="range" min="0" max="100" step="1"></label>
-  <label>最短间隔（秒）<input id="cooldown" type="number" min="0" max="3600" step="1"></label>
-  <label class="check"><input id="auto-collect" type="checkbox">自动收藏聊天中的表情</label>
-  <label id="vision-label">识图模型<select id="vision"><option value="">跟随实例模型</option></select></label>
-  <label>检索模型<select id="retrieval"><option value="">跟随默认检索模型</option></select></label>
-  <p id="model-status" hidden></p>
-  <p id="settings-error" role="alert" hidden></p>
-  <div class="dialog-actions"><button type="button" data-close="preferences">取消</button><button type="submit" class="primary">保存</button></div>
-</form></dialog>
-<dialog id="history"><div class="dialog-top"><span id="history-title">记录</span><button type="button" data-close="history" aria-label="关闭">×</button></div>
-  <p id="history-error" role="alert" hidden></p><div id="history-items"></div><button id="history-more" hidden>更多</button>
-</dialog>
-<script src="app.js"></script></body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>表情包</title><link rel="stylesheet" href="/__ui/controls.css"><link rel="stylesheet" href="style.css"></head><body>
+<div class="toolbar"><input id="query" type="search" placeholder="搜索含义、图片文字或标签" aria-label="搜索表情"><select id="status" aria-label="发送状态"><option value="">全部状态</option><option value="enabled">已启用</option><option value="disabled">已停用</option></select><select id="profile-filter" aria-label="适用角色"></select><select id="chat-filter" aria-label="适用聊天"></select><button id="filters">更多筛选</button></div>
+<div class="toolbar" id="extra-filters" hidden><select id="source" aria-label="来源"><option value="">全部来源</option><option value="import">手动导入</option><option value="qq">QQ 收藏</option><option value="chat">聊天收藏</option><option value="profile">角色素材</option></select><select id="analysis" aria-label="识别状态"><option value="">全部识别状态</option><option value="ready">已识别</option><option value="pending">待识别</option><option value="failed">处理失败</option></select><button id="reset">清除筛选</button></div>
+<div class="toolbar"><button id="import">导入</button><button id="select-mode">批量选择</button><button id="settings">设置</button><details class="more-menu"><summary>更多</summary><div class="actions"><button id="sync">同步 QQ 收藏</button><button id="update">重新识别</button><button id="export">导出全部</button><button id="search-history">使用记录</button></div></details></div>
+<div id="batch" class="toolbar" hidden><label class="check"><input type="checkbox" id="page-selection">选择本页</label><span id="selected-count"></span><button id="select-all">选择全部筛选结果</button><button data-batch="enable">启用</button><button data-batch="disable">停用</button><button data-batch="scope">设置范围</button><button data-batch="export">导出</button><button class="danger" data-batch="remove">删除</button></div>
+<p id="error" role="alert" hidden></p><div id="progress" role="status" hidden></div><p id="summary" class="muted"></p><div id="grid" class="grid"></div><div id="paging"><button id="previous">上一页</button><span id="page"></span><button id="next">下一页</button></div><script src="app.js"></script></body></html>

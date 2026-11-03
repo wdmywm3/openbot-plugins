@@ -59,20 +59,12 @@ async function main() {
     return replies.at(-1);
   }
   assert.match((await command("/梗 大水理论")).text,/长安二求/);
-  assert.match((await command("/黑话 蓝鲸暗号 测试私有含义")).text,/已保存/);
-  assert.match((await command("/梗 蓝鲸暗号")).text,/测试私有含义/);
-  assert.match((await command("/黑话 蓝鲸蓝鲸 重复词条原名")).text,/已保存/);
-  assert.match((await command("/梗 蓝鲸蓝鲸")).text,/重复词条原名/);
-  assert.doesNotMatch((await command("/梗 蓝鲸暗号","onebot:group:2")).text,/测试私有含义/);
-  assert.match((await command("/黑话 蓝鲸暗号 篡改",principal.chatId,"member")).text,/管理员/);
-  assert.match((await command("/黑话 删除 蓝鲸暗号",principal.chatId,"member")).text,/管理员/);
-  assert.match((await command("/网搜 off")).text,/off/);
-  const action = id => plugin.actions.find(a=>a.id===id);
-  await runtime.runPluginAction(channel,plugin,action("save_term"),{name:"实例词条",meaning:"实例共享含义",revision:0});
-  const listed = await runtime.runPluginAction(channel,plugin,action("list_terms"),{});
-  assert.equal(listed.records[0].key,"实例词条");
-  await assert.rejects(runtime.runPluginAction(channel,plugin,action("save_term"),{name:"实例词条",meaning:"过时修改",revision:0}),/改变|版本/);
-  assert.match((await command("/梗 实例词条","onebot:group:2")).text,/实例共享含义/);
+  assert.equal(plugin.commands.some(item => item.name === "黑话"), false);
+  assert.equal(plugin.actions.some(item => ["save_term", "list_terms", "delete_term"].includes(item.id)), false);
+  assert.equal(plugin.ui.views?.length || 0, 0);
+  assert.equal(runtime.handleBotPluginMessage(channel, { id: randomUUID(), chatId: principal.chatId, content: "/黑话 蓝鲸 含义", messageType: "group", sender: { id: "owner" } }, principal, {}), false);
+  assert.match((await command("/网搜 off")).text, /off/);
+  const action = id => plugin.actions.find(a => a.id === id);
   await runtime.runPluginBeforeMessage(channel,{id:"input-1",chatId:principal.chatId,content:"大水理论是什么梗",sender:{id:"owner"},messageType:"group"},principal);
   assert.equal(events.length,0,"passive traffic never performs automatic lookup");
   const wakeInput = { id: "input-1", chatId: principal.chatId, direction: "in", content: "大水理论是什么梗", sender: { id: "owner" }, messageType: "group" };
@@ -103,27 +95,6 @@ async function main() {
   assert.equal(model.messages[0].content,"Host identity");assert.match(model.messages[1].content,/不编造/);
   await runtime.runPluginAction(channel,plugin,action("sync"),{});
   assert.equal((await runtime.runPluginAction(channel,plugin,action("sync_status"),{})).active,true);
-  // Exercise the real page against the same host management actions.
-  const { chromium } = h("@playwright/test");
-  const browser = await chromium.launch({ headless:true });
-  try {
-    const page = await browser.newPage({viewport:{width:760,height:700},colorScheme:"light"});
-    await page.exposeFunction("manage",(id,input)=>runtime.runPluginAction(channel,plugin,action(id),input));
-    const html=fs.readFileSync(path.join(source,"ui/terms.html"),"utf8").replace("<head>","<head><script>window.openbotPlugin={callAction:(id,input)=>window.manage(id,input)}</script>");
-    await page.setContent(html);
-    await page.getByText("实例共享含义",{exact:true}).waitFor();
-    await page.locator("#name").fill("卡片测试"); await page.locator("#meaning").fill("用于核对管理页的增删改操作。");
-    await page.getByRole("button",{name:"保存",exact:true}).click();
-    await page.locator("#notice").filter({hasText:"已保存"}).waitFor();
-    await page.screenshot({path:path.resolve(__dirname,"../test-results/memewiki/terms.png")});
-    const row=page.locator("article").filter({hasText:"卡片测试"});
-    await row.getByRole("button",{name:"编辑"}).click();await page.locator("#meaning").fill("修改后的含义");
-    await page.getByRole("button",{name:"保存",exact:true}).click();await page.getByText("修改后的含义",{exact:true}).waitFor();
-    await page.setViewportSize({width:390,height:700});
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,"narrow page has no horizontal overflow");
-    await row.getByRole("button",{name:"删除"}).click();await page.locator("#notice").filter({hasText:"已删除"}).waitFor();
-    assert.equal(await page.locator("article").filter({hasText:"卡片测试"}).count(),0);
-  } finally { await browser.close(); }
   console.log("memewiki host: real MCP/worker, commands, PNG, chat isolation, wake-only lookup, retry deduplication, graceful failure and sync request passed");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await runtime?.stopAllPluginPolls();shutdownPluginWorkers();await client.close().catch(()=>{});

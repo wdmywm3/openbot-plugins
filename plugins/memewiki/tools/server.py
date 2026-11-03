@@ -11,7 +11,7 @@ def schema(properties=None, required=None):
 
 TOOLS = [
     {"name": "memewiki_entries", "description": "分页读取公共词库以建立本地检索索引。", "inputSchema": schema({"offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 32}})},
-    {"name": "memewiki_lookup", "description": "查询公共梗词库。当前聊天的自定义黑话请使用 memewiki 插件的 search_meme_wiki。",
+    {"name": "memewiki_lookup", "description": "查询公共梗词库，返回含义、用法和出处。",
      "inputSchema": schema({"query": {"type": "string", "minLength": 1, "maxLength": 80}, "online": {"type": "boolean"}}, ["query"])},
     {"name": "memewiki_card", "description": "将查到的词条绘制成图片卡片。",
      "inputSchema": schema({key: {"type": "string", "maxLength": 4000} for key in ("title", "usage", "origin", "other", "summary", "source")}, ["title"])},

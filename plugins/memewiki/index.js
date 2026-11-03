@@ -42,14 +42,6 @@ async function mode(ctx) {
   const saved = await ctx.api.getState("searchMode", "chat");
   return MODES.includes(saved) ? saved : MODES.includes(ctx.config.searchMode) ? ctx.config.searchMode : "auto";
 }
-async function custom(ctx, q) {
-  for (const scope of ["chat", "channel"]) {
-    if (scope === "chat" && !ctx.message?.chatId) continue;
-    const record = (await ctx.api.database({ action: "get", collection: "terms", key: q, scope })).record;
-    if (record) return { title: q, usage: record.value.meaning, source: scope === "chat" ? "当前聊天黑话" : "实例黑话" };
-  }
-  return null;
-}
 async function searchFallback(ctx, q) {
   const serverId = ctx.config.searchServerId, name = ctx.config.searchTool;
   if (!serverId || !name) return null;
@@ -66,8 +58,6 @@ async function searchFallback(ctx, q) {
 async function lookup(ctx, q, options = {}) {
   q = term(q);
   const normalized = normalize(q);
-  const own = await custom(ctx, q) || (normalized !== q ? await custom(ctx, normalized) : null);
-  if (own) return { found: true, entry: own, via: "custom" };
   q = normalized;
   const policy = await mode(ctx);
   const online = options.online !== false && ctx.config.online !== false && ["auto", "plugin"].includes(policy);
@@ -97,28 +87,6 @@ module.exports.search = async ctx => {
     return { ...value, text: value.found ? text(value.entry) : value.unavailable ? "在线词库暂不可用，本地没有查到。" : "词库未收录。", ...(value.modelSearch ? { suggestion: "如当前会话已授权网页搜索，可继续查证；否则说明未查到。" } : {}) };
   } catch (error) { failure(ctx); return { found: false, unavailable: true, text: String(error.message || error) }; }
 };
-async function saveTerm(ctx, input, scope) {
-  const name = term(input.name);
-  if (name.length > 32 || typeof input.meaning !== "string" || !input.meaning.trim() || input.meaning.length > 600) throw new Error("黑话名称最多 32 字，含义为 1–600 字");
-  const location = { collection: "terms", key: name, scope };
-  const current = (await ctx.api.database({ ...location, action: "get" })).record;
-  if (current && !admin(ctx)) throw new Error("修改已有黑话需要管理员权限");
-  const revision = input.revision ?? current?.revision ?? 0;
-  await ctx.api.database({ ...location, action: "put", expectedRevision: revision,
-    value: { meaning: input.meaning.trim(), author: ctx.principal?.senderId || "desktop", updatedAt: Date.now() } });
-  return { text: `已保存「${name}」。` };
-}
-async function deleteTerm(ctx, input, scope) {
-  if (!admin(ctx)) throw new Error("删除黑话需要管理员权限");
-  const location = { collection: "terms", key: term(input.name), scope };
-  const record = (await ctx.api.database({ ...location, action: "get" })).record;
-  if (!record) return { text: "没有这条黑话。" };
-  await ctx.api.database({ ...location, action: "delete", expectedRevision: input.revision ?? record.revision });
-  return { text: `已删除「${input.name}」。` };
-}
-module.exports.listTerms = ctx => ctx.api.database({ action: "query", collection: "terms", scope: "channel", limit: 30, ...(ctx.input?.cursor ? { cursor: ctx.input.cursor } : {}) });
-module.exports.saveTerm = ctx => saveTerm(ctx, ctx.input, "channel");
-module.exports.deleteTerm = ctx => deleteTerm(ctx, ctx.input, "channel");
 module.exports.handle = async ctx => {
   try {
     const args = String(ctx.args || "").trim();
@@ -128,23 +96,6 @@ module.exports.handle = async ctx => {
       if (!MODES.includes(args)) return { text: "用法：/网搜 auto | plugin | model | off" };
       await ctx.api.setState("searchMode", args, "chat");
       return { text: `查梗搜索模式已改为 ${args}。` };
-    }
-    if (ctx.command.name === "黑话") {
-      if (!args) return { text: "用法：/黑话 名称 含义；/黑话 列表；/黑话 删除 名称" };
-      if (/^列表(?:\s+\d+)?$/.test(args)) {
-        const page = Math.max(1, Math.min(100, Number(args.split(/\s+/)[1]) || 1));
-        let result, cursor;
-        for (let i = 0; i < page; i++) {
-          result = await ctx.api.database({ action: "query", collection: "terms", scope: "chat", limit: 20, ...(cursor ? { cursor } : {}) });
-          cursor = result.nextCursor;
-          if (!cursor) break;
-        }
-        return { text: result.records.map(r => `${r.key}：${r.value.meaning}`).join("\n") || "当前聊天还没有黑话。", ...(cursor ? { text: result.records.map(r => `${r.key}：${r.value.meaning}`).join("\n") + `\n下一页：/黑话 列表 ${page + 1}` } : {}) };
-      }
-      if (/^删除\s+/.test(args)) return await deleteTerm(ctx, { name: args.replace(/^删除\s+/, "") }, "chat");
-      const match = /^(\S+)\s+([\s\S]+)$/.exec(args);
-      if (!match) return { text: "用法：/黑话 名称 含义" };
-      return await saveTerm(ctx, { name: match[1], meaning: match[2] }, "chat");
     }
     if (!args) return { text: "用法：/梗 词语" };
     const result = await lookup(ctx, term(args));

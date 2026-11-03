@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -17,7 +17,9 @@
         "offlineBackground",
         "persistentActivities",
         "persistentAvatars",
-        "instanceSettingsViews"
+        "instanceSettingsViews",
+        "pluginNavigationV2",
+        "pluginOverlays"
       ],
       "permissions": [
         "process",
@@ -283,7 +285,7 @@
         }
       ],
       "ui": {
-        "version": 1,
+        "version": 2,
         "views": [
           {
             "id": "library",
@@ -294,22 +296,81 @@
               "manage",
               "process",
               "import"
+            ]
+          },
+          {
+            "id": "runs",
+            "title": "整理记录",
+            "entry": "ui/index.html",
+            "actions": [
+              "list",
+              "manage"
+            ]
+          },
+          {
+            "id": "details",
+            "title": "整理记录",
+            "entry": "ui/details.html",
+            "actions": [
+              "manage"
             ],
-            "sidebar": {
-              "label": "记忆整理",
-              "icon": "brain",
-              "order": 10,
-              "location": "instance",
-              "group": "memory"
-            }
+            "presentation": "dialog"
+          }
+        ],
+        "contributions": [
+          {
+            "id": "organizer",
+            "kind": "tab",
+            "mode": "add",
+            "target": "instance.memory.tabs",
+            "label": "整理",
+            "viewId": "library",
+            "choiceGroup": "placement",
+            "choice": "embedded",
+            "choiceLabel": "在记忆页面内显示整理（推荐）",
+            "default": true
+          },
+          {
+            "id": "plus",
+            "kind": "group",
+            "mode": "add",
+            "target": "instance.sidebar",
+            "label": "记忆 Plus",
+            "choiceGroup": "placement",
+            "choice": "category",
+            "choiceLabel": "新建记忆 Plus 分类"
+          },
+          {
+            "id": "organizer-page",
+            "kind": "page",
+            "mode": "add",
+            "target": "instance.sidebar",
+            "parent": "plus",
+            "label": "整理",
+            "viewId": "library",
+            "choiceGroup": "placement",
+            "choice": "category",
+            "choiceLabel": "新建记忆 Plus 分类"
+          },
+          {
+            "id": "runs-page",
+            "kind": "page",
+            "mode": "add",
+            "target": "instance.sidebar",
+            "parent": "plus",
+            "label": "运行记录",
+            "viewId": "runs",
+            "choiceGroup": "placement",
+            "choice": "category",
+            "choiceLabel": "新建记忆 Plus 分类"
           }
         ]
       },
       "metadata": {
         "requirements": [
-          "需要 OpenBot 0.1.84 或更新版本及清单声明的统一记忆、持久上下文和持续事项能力；Node.js 24 由宿主管理。"
+          "需要支持插件导航 v2、宿主弹窗及清单声明的统一记忆、持久上下文和持续事项能力的新版本 OpenBot；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "融合关键词与语义召回；Gemma 支持记忆来源图片索引及纯图片、图文共同查询，保留增量上下文与图片补建断点。"
+        "changelog": "整理设置并入记忆页面，支持改为独立分类；设置自动保存，区分实例默认值与聊天覆盖；运行详情使用宿主弹窗，暂停自动整理与停止当前任务分别操作。"
       }
     }
   }

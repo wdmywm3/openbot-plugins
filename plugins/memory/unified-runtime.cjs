@@ -208,6 +208,7 @@ async function manage(ctx) {
     if (!scope.chatId) throw Error("请选择聊天"); save(storage, scope, { failures: 0, retryAt: 0, paused: false });
     return ctx.api.jobs({ action: "start", actionId: "process", chatId: scope.chatId, requestKey: `manual:${hash(scope.chatId)}:${Date.now()}`, input: { chatId: scope.chatId, dream: true, trigger: "manual" } });
   }
+  if (input.action === "pause") { if (!scope.chatId) throw Error("请选择聊天"); save(storage, scope, { paused: true }); followups.pausePolicy(storage, scope, true); return { paused: true }; }
   if (input.action === "resume") { if (!scope.chatId) throw Error("请选择聊天"); save(storage, scope, { paused: false, failures: 0, retryAt: 0 }); followups.pausePolicy(storage, scope, false); return { paused: false }; }
   if (input.action === "readRun") return storage.dreamRepository.runs.events(scope, input.runId, input.before, input.after);
   if (input.action === "stop") {
