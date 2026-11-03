@@ -1,6 +1,6 @@
 {
   "name": "openbot-memory-plugin",
-  "version": "2.2.1",
+  "version": "2.3.2",
   "private": true,
   "dependencies": {
     "js-yaml": "4.3.2"

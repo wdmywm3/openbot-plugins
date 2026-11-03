@@ -29,6 +29,7 @@ async function beforeModel(ctx) {
   const { storage, scope } = current(ctx); if (!scope.chatId) return { systemPromptAppend: INSTRUCTIONS };
   require("./unified-peer.cjs").observe(ctx, storage, scope);
   scheduling.activity(storage, scope, ctx.hook.requestId || ctx.message.id, true);
+  try {
   const result = await require("./utterance-recall.cjs").recall(ctx, storage, scope, get(storage, `plus:topics:${scope.chatId}`, []));
   const style = isPrivateDreamScope(scope) ? styleText(state(storage, scope).style) : "";
   const requestId = ctx.hook.requestId || ctx.message.id;
@@ -40,6 +41,7 @@ async function beforeModel(ctx) {
     ...result.contextItems,
     ...(style ? [{ key: "style", content: style }] : [{ key: "style", remove: true }]),
   ] };
+  } catch (error) { scheduling.activity(storage, scope, ctx.hook.requestId || ctx.message.id, false); throw error; }
 }
 async function replyDelivered(ctx) {
   const { storage, scope } = current(ctx), event = ctx.hook;

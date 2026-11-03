@@ -19,6 +19,7 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
   const sweepKey = `plus:source-sweep:${scope.chatId}`, sweepAfter = get(storage, sweepKey, "");
   const sweep = storage.db.prepare("SELECT id FROM source_embedding_receipts WHERE chat_id=? AND id>? ORDER BY id LIMIT 4").all(scope.chatId, sweepAfter);
   const ids = [...new Set([...page.items.map(item => item.id), ...retry.map(item => item.id), ...sweep.map(item => item.id)])];
+  const synchronized = [], completed = [];
   for (const id of ids) {
     ctx.signal.throwIfAborted();
     const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, id, limit: 32000 })).item;
@@ -39,10 +40,13 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
     }
     const live = new Set(records.map(record => record.id));
     for (const stale of JSON.parse(old?.ids_json || "[]")) if (!live.has(stale)) records.push({ id: stale, revision, text: "", metadata: { unavailable: true } });
-    if (records.length) await ctx.api.vectorIndex({ action: "sync", collection: COLLECTION, chatId: scope.chatId, modelId: model.id, records, complete: false });
-    storage.db.prepare("INSERT OR REPLACE INTO source_embedding_receipts VALUES(?,?,?,?,?,?)")
-      .run(scope.chatId, id, item?.version || "", model.version, JSON.stringify([...live]), retryAt);
+    synchronized.push(...records);
+    completed.push([scope.chatId, id, item?.version || "", model.version, JSON.stringify([...live]), retryAt]);
   }
+  // Submit one bounded page together so the host can batch short messages too.
+  // Commit receipts/cursors only after every corresponding index write succeeds.
+  if (synchronized.length) await ctx.api.vectorIndex({ action: "sync", collection: COLLECTION, chatId: scope.chatId, modelId: model.id, records: synchronized, complete: false });
+  for (const values of completed) storage.db.prepare("INSERT OR REPLACE INTO source_embedding_receipts VALUES(?,?,?,?,?,?)").run(...values);
   put(storage, cursorKey(scope), { after: page.items.at(-1)?.seq || Math.max(after, page.upper || 0), model: model.version });
   put(storage, sweepKey, sweep.length === 4 ? sweep.at(-1).id : "");
   return { pending: page.nextCursor != null, indexed: ids.length };

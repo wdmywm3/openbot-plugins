@@ -36,7 +36,7 @@ async function recall(ctx, storage, scope, topics) {
   }
   // Leave time for source revalidation and returning the bounded result. Slow
   // embeddings must not turn an optional recall into a failed chat request.
-  const deadline = Math.min(ctx.deadlineAt || Infinity, Date.now() + 10000) - 1400;
+  const deadline = Math.min(ctx.deadlineAt || Infinity, Date.now() + 60000) - 2000;
   if (Date.now() >= deadline || !batches.some(batch => batch.length)) return { contextItems: [], memories: [] };
   const catalog = await require("./unified-state.cjs").catalog(ctx, scope);
   const tasks = [];
