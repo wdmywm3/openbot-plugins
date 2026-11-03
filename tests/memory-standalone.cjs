@@ -47,7 +47,8 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
       assert.equal((await runtime.list(ctx)).paused, false);
     });
     await check("index-only processing never invokes the model", async () => {
-      assert.deepEqual(await runtime.process({ ...ctx, input: { chatId, mode: "index" } }), { index: { mode: "text" } });
+      const result = await runtime.process({ ...ctx, input: { chatId, mode: "index" } });
+      assert.equal(result.index.mode, "text"); assert.equal(result.index.pending, false); assert.equal(result.index.sources.pending, false);
       assert.equal(generated, 0); assert.equal(writes.length, 0);
     });
     await check("idle follows latest source and foreground completion", async () => {

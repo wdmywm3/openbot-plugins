@@ -61,7 +61,7 @@ async function index(ctx, storage, scope) {
 }
 async function search(ctx, storage, scope, query, limit = 8, options = {}) {
   if (!String(query || "").trim()) return { records: [], mode: "text" };
-  const byId = new Map((await catalog(ctx, scope)).filter(item => applicable(item, options)).map(item => [item.id, item]));
+  const byId = new Map((await (options.catalog || catalog(ctx, scope))).filter(item => applicable(item, options)).map(item => [item.id, item]));
   // The catalog preview is not the full body. Ask the host for bounded full-text hits too.
   const terms = [...new Set([String(query).trim(), ...searchTokens(query)])].filter(term => term && term.length <= 500).slice(0, 8);
   for (const term of [...byId.values()].some(item => item.preview?.length >= 600) ? terms : []) {
@@ -91,7 +91,7 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
     for (let offset = 0; offset < candidates.length; offset += 20000) {
       const result = await ctx.api.vectorIndex({ action: "search", chatId: scope.chatId, collection: COLLECTION, modelId: model.id,
         candidates: candidates.slice(offset, offset + 20000), query: { text: options.imageOnly ? "" : query,
-          ...(options.queryImage && model.modalities?.includes("image") ? { messageImage: options.queryImage } : {}) }, limit: 100, timeoutMs: 15000 });
+          ...(options.queryImage && model.modalities?.includes("image") ? { messageImage: options.queryImage } : {}) }, limit: 100, timeoutMs: options.timeoutMs ?? 15000 });
       for (const hit of result.matches) if (hit.score >= (ctx.config.semanticThreshold ?? 0.45)) semantic.set(owners.get(hit.id), Math.max(semantic.get(owners.get(hit.id)) || 0, hit.score));
     }
     [...semantic].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).forEach(([id], index) => scores.set(id, (scores.get(id) || 0) + 0.65 / (61 + index)));

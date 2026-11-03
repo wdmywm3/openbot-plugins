@@ -54,7 +54,7 @@ async function search(ctx, scope, query, options = {}) {
     if (options.imageOnly && !model.modalities?.includes("image")) return { records: [] };
     const hits = await ctx.api.vectorIndex({ action: "rank", chatId: scope.chatId, collection: COLLECTION, modelId: model.id,
       query: { text: options.imageOnly ? "" : query, ...(options.queryImage && model.modalities?.includes("image") ? { messageImage: options.queryImage } : {}) },
-      ...(options.before ? { filter: { at: { lte: options.before - 1 } } } : {}), limit: 24, threshold: Math.max(0.65, ctx.config.semanticThreshold ?? 0.7), timeoutMs: 15000 });
+      ...(options.before ? { filter: { at: { lte: options.before - 1 } } } : {}), limit: 24, threshold: Math.max(0.65, ctx.config.semanticThreshold ?? 0.7), timeoutMs: options.timeoutMs ?? 15000 });
     const records = [], seen = new Set();
     for (const hit of hits.matches) {
       const ref = hit.metadata;

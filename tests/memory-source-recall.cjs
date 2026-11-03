@@ -70,6 +70,11 @@ const { open, close } = require("../plugins/memory/storage.cjs"), sources = requ
     const wire = payload.messages.find(item => item.contextRecordId === "turn").content;
     assert(wire.indexOf("去年红色海报的制作讨论") < wire.indexOf('"id":"q2"'));
     assert(wire.indexOf("会议地点在三楼") > wire.indexOf('"id":"q2"'));
+    const started = Date.now(); let timed = 0;
+    await plus.beforeModel({ ...ctx, deadlineAt: started + 1600, api: { ...ctx.api,
+      vectorIndex: input => { timed++; assert(input.timeoutMs <= 200); return new Promise((_resolve, reject) => setTimeout(() => reject(Error("query timeout")), input.timeoutMs)); },
+    } });
+    assert(timed > 0 && Date.now() - started < 900, "slow vector queries return before the foreground hook deadline");
     excluded.add("red");
     assert.equal((await sources.search(ctx, scope, "", { imageOnly: true, queryImage: { messageId: "q1", index: 0 } })).records.length, 0, "forgotten source is excluded immediately");
     record("blue", "", [], 100); await sources.index(ctx, storage, scope);
