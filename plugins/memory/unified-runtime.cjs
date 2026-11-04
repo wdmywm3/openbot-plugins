@@ -1,6 +1,6 @@
 "use strict";
 const { close } = require("./storage.cjs");
-const { current, get, put, state, save, defaults, readMemory, catalog, hash } = require("./unified-state.cjs");
+const { current, get, put, state, save, defaults, saveDefaults, readMemory, catalog, hash } = require("./unified-state.cjs");
 const { migrate } = require("./unified-migration.cjs");
 const retrieval = require("./unified-retrieval.cjs"), dream = require("./unified-dream.cjs"), followups = require("./unified-followup.cjs");
 const assessment = require("./unified-assessment.cjs");
@@ -16,7 +16,7 @@ async function initialize(ctx) {
   const { storage, scope } = current(ctx);
   const capabilities = await ctx.api.getCapabilities(), restored = capabilities.dataRestoreId || "";
   if (restored && get(storage, "plus:restore") !== restored) {
-    put(storage, `plus:defaults:${scope.channelId}`, { ...defaults(storage, scope), enabled: false });
+    saveDefaults(storage, { ...defaults(storage, scope), enabled: false });
     for (const row of storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:state:%'").all()) {
       const value = JSON.parse(row.value_json); put(storage, row.key, { ...value, settingsOverride: { ...value.settingsOverride, enabled: false }, job: null });
     }
@@ -183,7 +183,7 @@ async function manage(ctx) {
   if (input.action === "settings") {
     if (input.inherit !== true && (!input.settings || typeof input.settings !== "object" || Array.isArray(input.settings))) throw Error("请提供整理设置");
     if (!scope.chatId) {
-      const settings = normalizeDreamSettings(input.settings); put(storage, `plus:defaults:${scope.channelId}`, settings);
+      const settings = saveDefaults(storage, input.settings);
       for (const row of storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:state:%'").all()) {
         const prior = JSON.parse(row.value_json); if (prior.settingsOverride) continue;
         put(storage, row.key, { ...prior, nextRun: nextRun(settings, Date.now()), ...(settings.enabled ? { paused: false } : {}) });

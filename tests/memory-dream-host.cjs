@@ -18,7 +18,7 @@ function context(input = {}) {
       getCapabilities: async () => ({ features: { unifiedMemory: true, persistentContextItems: true, visibleContextItems: true, sourceHead: true } }),
       memory: async input => memory.memory({ ...actor, chatId: input.chatId || chat }, input),
       sources: async input => input.action === "scopes" ? { scopes: [{ chatId: chat }] } : reads({ channelId: "bot", chatId: input.chatId || chat }, input),
-      generate: async input => { prompts.push({ system: input.systemPrompt, body: JSON.parse(input.prompt) }); return { modelId: "controlled-fixture", text: JSON.stringify(modelReply) }; },
+      generate: async input => { assert.equal(input.usageCategory, "memory"); prompts.push({ system: input.systemPrompt, body: JSON.parse(input.prompt) }); return { modelId: "controlled-fixture", text: JSON.stringify(modelReply) }; },
       jobs: async input => {
         if (input.action === "list") return { jobs: jobs.filter(job => (!input.statuses || input.statuses.includes(job.status))) };
         if (input.action === "start") { const job = { ...input, id: `job-${jobs.length}`, action: input.actionId, status: "queued" }; jobs.push(job); return job; }

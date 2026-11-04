@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("node:assert/strict"), path = require("node:path");
-module.exports = async ({ fromHost, runtime, channel, plugin, action, scope, root }) => {
+module.exports = async ({ fromHost, runtime, channel, plugin, action, scope, root, legacyRunId }) => {
   const { chromium, expect } = fromHost("playwright/test"), browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1060, height: 760 } }), errors = [];
@@ -12,7 +12,10 @@ module.exports = async ({ fromHost, runtime, channel, plugin, action, scope, roo
     await expect(view.locator("#chat option")).not.toHaveCount(1);
     await view.locator("#chat").selectOption(scope.chatId);
     await expect(view.locator("#items .item")).not.toHaveCount(0);
-    await view.locator("#items .item").first().locator("button").first().click();
+    const runs = (await runtime.runPluginAction(channel, plugin, action("list"), { chatId: scope.chatId })).runs.items;
+    const index = legacyRunId ? runs.findIndex(run => run.id === legacyRunId) : 0;
+    assert(index >= 0, "the imported journal remains in the public run list alongside new idle runs");
+    await view.locator("#items .item").nth(index).locator("button").first().click();
     const details = page.frameLocator('iframe[title="整理记录"]');
     await expect(details.locator("#events")).toContainText("迁移后仍能读到的运行日志");
     await page.getByRole("dialog", { name: "整理记录", exact: true }).getByRole("button", { name: "关闭弹窗" }).click();

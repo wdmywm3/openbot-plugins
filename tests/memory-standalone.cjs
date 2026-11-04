@@ -12,7 +12,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-standalone-")
 const chatId = "onebot:private:owner", source = { id: "message", version: "v1", chatId, content: "我喜欢茶", direction: "in", event: { type: "message" } };
 const jobs = [], writes = []; let generated = 0, head = { upper: 1, observedAt: 0 }, now = Date.UTC(2026, 10, 1, 12), passed = 0;
 const realNow = Date.now;
-const ctx = { dataRoot: root, plugin: { namespace: "bot" }, principal: { channelId: "bot", senderId: "owner" },
+const ctx = { dataRoot: root, plugin: { namespace: "opaque-plugin-namespace" }, principal: { channelId: "bot", senderId: "owner" },
   message: { id: "message", chatId }, input: { chatId }, config: {}, signal: new AbortController().signal,
   api: {
     getCapabilities: async () => ({ features: { unifiedMemory: true, persistentContextItems: true, visibleContextItems: true, sourceHead: true } }),
@@ -34,6 +34,33 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
       assert.equal(writes.length, 0);
     });
     await runtime.initialize(ctx);
+    await check("instance defaults reach background polls and preserve legacy settings, overrides and isolation", async () => {
+      const queued = [], dataRoot = path.join(root, "legacy-defaults");
+      const background = { ...ctx, dataRoot, principal: {}, message: {}, input: {}, api: { ...ctx.api,
+        sources: async input => input.action === "head" ? { upper: 10, observedAt: now - 6 * 60000 }
+          : input.action === "changes" ? { items: [source], upper: 10, nextCursor: null } : { scopes: [{ chatId }] },
+        jobs: async input => { queued.push(input); return { id: `legacy-${queued.length}` }; },
+      } };
+      const desktop = { ...background, principal: ctx.principal };
+      const { storage } = current(background);
+      put(storage, "plus:defaults:bot", { enabled: true, schedule: "daily", dailyTime: "03:00", idleMinutes: 5 });
+      assert.equal((await runtime.list(background)).settings.enabled, true, "an opaque namespace must not hide the saved instance default");
+      assert.equal((await runtime.list(background)).settings.idleMinutes, 5);
+      await runtime.recover(background);
+      assert.equal(queued.filter(job => job.input?.mode === "dream").length, 1, "an idle poll with no principal queues real organization, independently of indexing");
+      close();
+      assert.equal((await runtime.list(background)).settings.idleMinutes, 5, "the migrated setting survives a storage restart");
+      const configure = input => runtime.manage({ ...desktop, input: { action: "settings", ...input } });
+      await configure({ settings: { enabled: false, idleMinutes: 5 } });
+      assert.equal((await runtime.list(background)).settings.enabled, false, "an explicit disable wins over the old enabled row");
+      await configure({ settings: { enabled: true, idleMinutes: 5 } });
+      await configure({ chatId, settings: { enabled: false } });
+      const before = queued.length; await runtime.recover(background);
+      assert.equal(queued.slice(before).filter(job => job.input?.mode === "dream").length, 0, "chat overrides remain authoritative");
+      assert.equal((await runtime.list({ ...background, dataRoot: path.join(root, "separate-instance") })).settings.enabled, false,
+        "another instance's isolated directory never inherits these settings");
+      assert.equal(generated, 0, "polling only admits a job; it does not run the model itself");
+    });
     await check("settings schedule from save time without model work", async () => {
       await manage({ action: "settings", settings: { enabled: true, schedule: "hourly", idleMinutes: 30 } });
       assert(state(current(ctx).storage, current(ctx).scope).nextRun > now); assert.equal(generated, 0);

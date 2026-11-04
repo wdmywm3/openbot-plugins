@@ -42,7 +42,7 @@ async function analyze(ctx, storage, scope, messages, existing, upper, trace) {
   for (let round = 0; round < 12; round++) {
     ctx.signal.throwIfAborted();
     trace("dream_input", { text: prompt, contextText: system });
-    const response = await ctx.api.generate({ prompt, systemPrompt: system, messages: history, maxTokens: 6000 });
+    const response = await ctx.api.generate({ prompt, systemPrompt: system, messages: history, maxTokens: 6000, usageCategory: "memory" });
     trace("dream_output", { text: response.text, modelId: response.modelId });
     const parsed = parseResult(response.text);
     if (!parsed.readMaterial) return { parsed, materials };

@@ -57,7 +57,7 @@ async function main() {
       create: () => createLocalEmbeddingIndex(dataRoot, { embed: async () => Array.from({ length: 768 }, (_, i) => i === 0 ? 1 : 0) }) } } });
     retrieval = { models, vectors: createVectorCollections({ root: dataRoot, models }) };
     environment.resolveLaunch = request => ({ command: process.execPath, args: request.args, runtimeEnv: {}, runtimePath: process.env.PATH });
-    let installed = false;
+    let installed = false, idleGenerations = 0;
     const media = createPluginAssets({ root: dataRoot });
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, sourceRepository: storage.sourceRepository, pluginAssets: media,
       unifiedMemoryRepository: storage.unifiedMemoryRepository, activityRepository: storage.activityRepository,
@@ -67,6 +67,11 @@ async function main() {
       getPluginState: (_c, _p, kind, id, key) => state.get(JSON.stringify([kind, id, key])),
       setPluginState: (_c, _p, kind, id, key, value) => state.set(JSON.stringify([kind, id, key]), value),
       pluginStateScopeId: (_c, kind, msg) => kind === "chat" ? msg.chatId : "shared",
+      generatePluginModel: async ({ request }) => {
+        assert.equal(request.usageCategory, "memory", "organization is accounted as memory work");
+        idleGenerations++;
+        return { modelId: "fixture", text: JSON.stringify({ facts: [], records: [], revisions: [], invalidations: [], outcomes: [], topics: [] }) };
+      },
     });
     const principal = { source: "channel", ...scope, senderId: "u", messageType: "private", primaryMessageId: "m1" };
     const messages = [{ role: "system", content: "宿主协议" }, { role: "user", content: "咖啡" }], payload = { messages, inputMessages: [source], requestId: "turn" };
@@ -96,6 +101,25 @@ async function main() {
     // Indexing and prompt preparation run through the actual host scope guards.
     await call("process", { chatId: scope.chatId });
     for (let i = 0; i < 100; i++) { page = await call("list", { chatId: scope.chatId }); if (page.jobs.every(item => !["queued", "running"].includes(item.status))) break; await wait(20); }
+    // Exercise the real desktop -> native process -> empty-principal background
+    // poll -> durable job path; unit contexts with namespace === channelId miss it.
+    await call("manage", { action: "settings", settings: { enabled: true, schedule: "daily", dailyTime: "03:00", idleMinutes: 5 } });
+    await call("manage", { action: "settings", chatId: scope.chatId, inherit: true });
+    const sourceHead = storage.sourceRepository.head;
+    storage.sourceRepository.head = (...args) => ({ ...sourceHead(...args), observedAt: Date.now() - 6 * 60000 });
+    try {
+      await runtime.runPluginPoll(channel, plugin);
+      let idlePage;
+      for (let i = 0; i < 150; i++) {
+        idlePage = await call("list", { chatId: scope.chatId });
+        if (idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed")
+          && idlePage.jobs.every(job => !["running", "queued"].includes(job.status))) break;
+        await wait(20);
+      }
+      assert(idleGenerations > 0, "the actual host poll must reach organization's model call");
+      assert(idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed"), JSON.stringify(idlePage.jobs));
+    } finally { storage.sourceRepository.head = sourceHead; }
+    await call("manage", { action: "settings", settings: { enabled: false } });
     const prompt = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", payload, principal);
     const largeImage = { type: "image_url", image_url: { url: "data:image/png;base64," + "A".repeat(3 * 1024 * 1024) } };
     const imageTurn = { role: "user", content: [{ type: "text", text: "咖啡" }, ...Array(12).fill(largeImage)] };
@@ -114,7 +138,7 @@ async function main() {
     await call("manage", { chatId: scope.chatId, action: "settings", settings: { enabled: true, schedule: "daily", dailyTime: "03:00", idleMinutes: 0 } });
     fs.writeFileSync(path.join(dataRoot, "context/full-data-restore.json"), JSON.stringify({ restoredAt: Date.now() }));
     assert.equal((await call("list", { chatId: scope.chatId })).settings.enabled, false, "restore marker pauses private scheduler state");
-    if (process.env.OPENBOT_TEST_MEMORY_UI === "1") await require("./memory-ui.cjs")({ fromHost, runtime, channel, plugin, action, scope, root });
+    if (process.env.OPENBOT_TEST_MEMORY_UI === "1") await require("./memory-ui.cjs")({ fromHost, runtime, channel, plugin, action, scope, root, legacyRunId: runId });
     console.log("Memory lifecycle: real host SDK/actions/jobs, optional absence, enable/disable, scoped legacy export/import, notes/revisions/journals, repeated import, public prompt injection and restore pause passed");
   } finally {
     await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers(); environment.resolveLaunch = originalLaunch;
