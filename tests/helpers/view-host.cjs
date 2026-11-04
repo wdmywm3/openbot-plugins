@@ -8,8 +8,8 @@ module.exports = async function mountView({ page, hostRequire, runtime, channel,
   const authorization = { required: false, status: "approved", fingerprint: "ui-test", permissions: [], components: [] };
   const binding = { ...plugin, sourcePluginId: plugin.id, sourcePluginVersion: plugin.version || "test", authorization };
   await page.addInitScript({ path: path.join(host, "tests/e2e/electron-mock.js") });
-  await page.exposeFunction("fixtureOpen", args => {
-    const view = runtime.openPluginView(channel.id, plugin.id, args.viewId, args);
+  await page.exposeFunction("fixtureOpen", async args => {
+    const view = await runtime.openPluginView(channel.id, plugin.id, args.viewId, args);
     return { ...view, url: `/__fixture_view/${view.token}/${new URL(view.url).pathname.slice(1)}` };
   });
   await page.exposeFunction("fixtureCall", args => runtime.callPluginViewAction(args.token, args.actionId, args.input));

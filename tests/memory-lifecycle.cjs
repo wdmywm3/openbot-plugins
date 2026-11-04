@@ -20,7 +20,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-lifecycle-")), dataRoot = path.join(root, "data"), legacyRoot = path.join(root, "legacy");
   const scope = { channelId: "bot", chatId: "onebot:private:u" }, other = { ...scope, channelId: "foreign" };
-  let old, storage, runtime, retrieval;
+  let old, storage, runtime, retrieval, postgres, dataStore;
   try {
     old = legacyStorage({ fs, paths: createContextPaths({ root: legacyRoot }) });
     const source = { id: "m1", chatId: scope.chatId, direction: "in", createdAt: Date.now(), content: "我平时习惯喝拿铁咖啡。", sender: { id: "u", name: "小林" } };
@@ -46,7 +46,12 @@ async function main() {
     assert.throws(() => exportLegacyMemory(legacyRoot, scope.channelId, bundleFile), /EEXIST/);
     old.close(); old = null;
 
-    storage = createChannelStorageRepository({ fs, paths: createContextPaths({ root: dataRoot }) });
+    if (process.env.OPENBOT_TEST_POSTGRES === "1") {
+      postgres = fromHost("./electron/lib/storage/managed-postgres.cjs").createManagedPostgres({ getRoot: () => dataRoot,
+        binaryRoot: path.join(host, "resources/runtime/postgres"), protect: value => ({ test: value }), unprotect: value => value.test });
+      await postgres.start();
+    }
+    storage = createChannelStorageRepository({ fs, paths: createContextPaths({ root: dataRoot }), ...(postgres ? { postgres: () => postgres.connection } : {}) });
     storage.appendEvent({ id: scope.channelId }, source); await storage.flush();
     const loaded = readPluginPackage(path.resolve(__dirname, "../plugins/memory"));
     const plugin = { ...loaded.manifest, id: "memory", basePath: path.resolve(__dirname, "../plugins/memory"), type: "js-plugin", enabled: true, runtimeEnabled: true, config: {} };
@@ -59,11 +64,12 @@ async function main() {
     environment.resolveLaunch = request => ({ command: process.execPath, args: request.args, runtimeEnv: {}, runtimePath: process.env.PATH });
     let installed = false, idleGenerations = 0;
     const media = createPluginAssets({ root: dataRoot });
+    dataStore = createPluginDataStore({ rootFor: () => path.join(dataRoot, "files"), ...(postgres ? { postgres: () => postgres.connection } : {}) });
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, sourceRepository: storage.sourceRepository, pluginAssets: media,
       unifiedMemoryRepository: storage.unifiedMemoryRepository, activityRepository: storage.activityRepository,
       ensureStoreArray: key => store.data[key] || [], resolveChannel: () => channel, botPluginsFor: () => installed ? [plugin] : [],
       makeId: () => crypto.randomUUID(), safeError: error => error.message || String(error), isNapCatOneBotChannel: () => true,
-      pluginData: createPluginDataStore({ rootFor: () => path.join(dataRoot, "files") }),
+      pluginData: dataStore.background || dataStore,
       getPluginState: (_c, _p, kind, id, key) => state.get(JSON.stringify([kind, id, key])),
       setPluginState: (_c, _p, kind, id, key, value) => state.set(JSON.stringify([kind, id, key]), value),
       pluginStateScopeId: (_c, kind, msg) => kind === "chat" ? msg.chatId : "shared",
@@ -81,23 +87,23 @@ async function main() {
     const groupPrincipal = { ...principal, chatId: "onebot:group:g", messageType: "group", senderId: "member" };
     assert(!runtime.pluginToolSchemas({ channelPrincipal: groupPrincipal }).some(tool => tool.function.name === "plugin__memory__memory"), "compatibility entry does not duplicate the native memory tool");
     const nativeActor = { ...scope, id: "desktop:owner", permissions: ["memory:read", "memory:write", "memory:manage"], canReadChat: () => true, canAccessOwner: () => true };
-    const records = (chatId = scope.chatId) => storage.unifiedMemoryRepository.memory({ ...nativeActor, chatId }, { action: "search", mode: "history", limit: 100 }).items;
+    const records = async (chatId = scope.chatId) => (await storage.unifiedMemoryRepository.memory({ ...nativeActor, chatId }, { action: "search", mode: "history", limit: 100 })).items;
     const actor = { channelId: channel.id, pluginId: plugin.id, desktop: true };
     const asset = media.put(actor, fs.readFileSync(bundleFile), { mimeType: "application/json", name: "memory.json" });
     await call("import", { refs: [asset.ref] });
     let page;
     for (let i = 0; i < 150; i++) { page = await call("list", { chatId: scope.chatId }); if (page.jobs.length && page.jobs.every(job => !["running", "queued"].includes(job.status))) break; await wait(20); }
     assert(page.jobs.every(job => job.status === "completed"), JSON.stringify(page.jobs));
-    const imported = records().filter(item => item.preview.includes("拿铁"));
+    const imported = (await records()).filter(item => item.preview.includes("拿铁"));
     assert(imported.length); assert(imported[0].revision >= original.revision);
-    const count = records().length;
+    const count = (await records()).length;
     assert.equal(page.settings.enabled, false, "import does not replay the old scheduler");
-    assert(records("onebot:private:legacy").some(entry => entry.preview.includes("更早版本的记忆")));
+    assert((await records("onebot:private:legacy")).some(entry => entry.preview.includes("更早版本的记忆")));
     const details = await call("manage", { chatId: scope.chatId, action: "readRun", runId });
     assert(details.events.some(event => event.text.includes("迁移后仍能读到的运行日志")));
     const job = await call("import", { refs: [asset.ref] });
     for (let i = 0; i < 100; i++) { page = await call("list", { chatId: scope.chatId }); if (page.jobs.find(item => item.id === job.id)?.status === "completed") break; await wait(20); }
-    assert.equal(records().length, count, "reimport is idempotent");
+    assert.equal((await records()).length, count, "reimport is idempotent");
     // Indexing and prompt preparation run through the actual host scope guards.
     await call("process", { chatId: scope.chatId });
     for (let i = 0; i < 100; i++) { page = await call("list", { chatId: scope.chatId }); if (page.jobs.every(item => !["queued", "running"].includes(item.status))) break; await wait(20); }
@@ -105,8 +111,11 @@ async function main() {
     // poll -> durable job path; unit contexts with namespace === channelId miss it.
     await call("manage", { action: "settings", settings: { enabled: true, schedule: "daily", dailyTime: "03:00", idleMinutes: 5 } });
     await call("manage", { action: "settings", chatId: scope.chatId, inherit: true });
-    const sourceHead = storage.sourceRepository.head;
-    storage.sourceRepository.head = (...args) => ({ ...sourceHead(...args), observedAt: Date.now() - 6 * 60000 });
+    await storage.flush();
+    // Set actual source timestamps: the host may perform reads on another thread.
+    const clockDb = new (require("node:sqlite").DatabaseSync)(createContextPaths({ root: dataRoot }).contextDbFile);
+    const observed = clockDb.prepare("SELECT seq,observed_at FROM conversation_source_changes WHERE channel_id=?").all(scope.channelId);
+    clockDb.prepare("UPDATE conversation_source_changes SET observed_at=? WHERE channel_id=?").run(Date.now() - 6 * 60000, scope.channelId);
     try {
       await runtime.runPluginPoll(channel, plugin);
       let idlePage;
@@ -118,7 +127,11 @@ async function main() {
       }
       assert(idleGenerations > 0, "the actual host poll must reach organization's model call");
       assert(idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed"), JSON.stringify(idlePage.jobs));
-    } finally { storage.sourceRepository.head = sourceHead; }
+    } finally {
+      const restore = clockDb.prepare("UPDATE conversation_source_changes SET observed_at=? WHERE seq=?");
+      for (const row of observed) restore.run(row.observed_at, row.seq);
+      clockDb.close();
+    }
     await call("manage", { action: "settings", settings: { enabled: false } });
     const prompt = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", payload, principal);
     const largeImage = { type: "image_url", image_url: { url: "data:image/png;base64," + "A".repeat(3 * 1024 * 1024) } };
@@ -134,7 +147,7 @@ async function main() {
     plugin.enabled = false;
     assert.deepEqual((await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", payload, principal)).messages, messages);
     plugin.enabled = true;
-    assert(records().length, "disable preserves host memory independently of the strategy plugin");
+    assert((await records()).length, "disable preserves host memory independently of the strategy plugin");
     await call("manage", { chatId: scope.chatId, action: "settings", settings: { enabled: true, schedule: "daily", dailyTime: "03:00", idleMinutes: 0 } });
     fs.writeFileSync(path.join(dataRoot, "context/full-data-restore.json"), JSON.stringify({ restoredAt: Date.now() }));
     assert.equal((await call("list", { chatId: scope.chatId })).settings.enabled, false, "restore marker pauses private scheduler state");
@@ -142,7 +155,7 @@ async function main() {
     console.log("Memory lifecycle: real host SDK/actions/jobs, optional absence, enable/disable, scoped legacy export/import, notes/revisions/journals, repeated import, public prompt injection and restore pause passed");
   } finally {
     await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers(); environment.resolveLaunch = originalLaunch;
-    await retrieval?.vectors.pause(); await retrieval?.models.pause(); storage?.close(); old?.close();
+    await retrieval?.vectors.pause(); await retrieval?.models.pause(); await dataStore?.pauseBackground?.(); await storage?.pauseForDataSnapshot?.(); storage?.close(); old?.close(); await postgres?.close();
     if (path.dirname(root) === os.tmpdir() && path.basename(root).startsWith("openbot-memory-lifecycle-")) fs.rmSync(root, { recursive: true, force: true });
   }
 }
