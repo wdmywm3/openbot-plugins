@@ -20,7 +20,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-lifecycle-")), dataRoot = path.join(root, "data"), legacyRoot = path.join(root, "legacy");
   const scope = { channelId: "bot", chatId: "onebot:private:u" }, other = { ...scope, channelId: "foreign" };
-  let old, storage, runtime, retrieval, postgres, dataStore;
+  let old, storage, runtime, retrieval, postgres, databaseRuntime, dataStore;
   try {
     old = legacyStorage({ fs, paths: createContextPaths({ root: legacyRoot }) });
     const source = { id: "m1", chatId: scope.chatId, direction: "in", createdAt: Date.now(), content: "我平时习惯喝拿铁咖啡。", sender: { id: "u", name: "小林" } };
@@ -47,8 +47,9 @@ async function main() {
     old.close(); old = null;
 
     if (process.env.OPENBOT_TEST_POSTGRES === "1") {
+      databaseRuntime = await fromHost("./scripts/helpers/database-runtime.cjs").prepareDatabaseRuntime(dataRoot);
       postgres = fromHost("./electron/lib/storage/managed-postgres.cjs").createManagedPostgres({ getRoot: () => dataRoot,
-        binaryRoot: path.join(host, "resources/runtime/postgres"), protect: value => ({ test: value }), unprotect: value => value.test });
+        getRuntime: databaseRuntime.getRuntime, protect: value => ({ test: value }), unprotect: value => value.test });
       await postgres.start();
     }
     storage = createChannelStorageRepository({ fs, paths: createContextPaths({ root: dataRoot }), ...(postgres ? { postgres: () => postgres.connection } : {}) });
@@ -155,7 +156,7 @@ async function main() {
     console.log("Memory lifecycle: real host SDK/actions/jobs, optional absence, enable/disable, scoped legacy export/import, notes/revisions/journals, repeated import, public prompt injection and restore pause passed");
   } finally {
     await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers(); environment.resolveLaunch = originalLaunch;
-    await retrieval?.vectors.pause(); await retrieval?.models.pause(); await dataStore?.pauseBackground?.(); await storage?.pauseForDataSnapshot?.(); storage?.close(); old?.close(); await postgres?.close();
+    await retrieval?.vectors.pause(); await retrieval?.models.pause(); await dataStore?.pauseBackground?.(); await storage?.pauseForDataSnapshot?.(); storage?.close(); old?.close(); await postgres?.close(); await databaseRuntime?.components.close();
     if (path.dirname(root) === os.tmpdir() && path.basename(root).startsWith("openbot-memory-lifecycle-")) fs.rmSync(root, { recursive: true, force: true });
   }
 }
