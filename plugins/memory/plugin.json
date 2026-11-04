@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -115,10 +115,15 @@
           "scope": "all",
           "permission": "member",
           "mutating": false,
-          "description": "按含义查找当前聊天有权访问的记忆，结合关键词与共享向量索引；支持文字、图片以及图文联合查询。返回当前版本、来源和可用的原图预览。按编号读全文、修改或遗忘仍使用宿主 memory。",
+          "description": "默认按含义查找当前聊天有权访问的正式记忆，支持文字、图片和图文联合查询。需要查原始聊天或图片历史时设置 searchIn=chat_history，返回匹配的消息片段及编号；历史聊天资料不等于已确认记忆。按编号读记忆全文、修改或遗忘使用宿主 memory。",
           "inputSchema": {
             "type": "object",
             "properties": {
+              "searchIn": {
+                "type": "string",
+                "enum": ["memories", "chat_history"],
+                "description": "memories 查正式记忆（默认）；chat_history 按需查原始聊天和图片历史。"
+              },
               "query": {
                 "type": "string",
                 "minLength": 0,
@@ -379,7 +384,7 @@
         "requirements": [
           "需要 OpenBot 0.1.92 或提供清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
         ],
-        "changelog": "修复实例已开启整理但后台误读为关闭、一直只有索引任务的问题，自动沿用已有闲置时间及聊天覆盖设置；整理与使用评估的 Token 归入记忆整理。"
+        "changelog": "自动召回仅针对本轮回复目标查正式记忆，最多注入四条，采用约两秒的检索预算；原始聊天和图片历史改由 recall 工具按需检索。保留历史索引与现有整理设置。"
       }
     }
   }

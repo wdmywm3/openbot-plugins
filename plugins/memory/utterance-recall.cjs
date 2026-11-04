@@ -1,5 +1,5 @@
 "use strict";
-const retrieval = require("./unified-retrieval.cjs"), sources = require("./source-retrieval.cjs");
+const retrieval = require("./unified-retrieval.cjs");
 const { channelRecallInput, contextualRecallInput } = require("./lib/features/channels/channel-recall-input.cjs");
 function anchorIds(ctx) {
   const message = (ctx.hook.messages || []).find(item => item.contextRecordId === ctx.hook.requestId);
@@ -14,17 +14,27 @@ function anchorIds(ctx) {
 }
 async function recall(ctx, storage, scope, topics) {
   const inputs = ctx.hook.inputMessages?.length ? ctx.hook.inputMessages : [ctx.message];
+  const primaryId = ctx.principal.primaryMessageId || ctx.message?.id;
+  const targetIds = new Set([primaryId, ...(ctx.principal.replyTargetMessageIds || [])].filter(Boolean));
+  const focused = inputs.filter(message => targetIds.has(message.id));
+  if (!focused.length && inputs.length) focused.push(inputs.at(-1));
+  focused.sort((a, b) => Number(b.id === primaryId) - Number(a.id === primaryId));
+  const deadline = Math.min(ctx.deadlineAt || Infinity, Date.now() + 2000) - 100;
+  const catalog = await require("./unified-state.cjs").catalog(ctx, scope);
+  if (!catalog.length || Date.now() >= deadline) return { contextItems: [], memories: [] };
   const anchors = anchorIds(ctx), selected = new Map(), priorities = [];
   const currentIndex = (ctx.hook.messages || []).findIndex(item => item.contextRecordId === ctx.hook.requestId);
   const earlier = currentIndex >= 0 ? ctx.hook.messages.slice(0, currentIndex) : ctx.hook.messages || [];
-  const preceding = [], batches = [];
-  // Use the same per-utterance path for text, image-only and mixed messages.
-  for (const message of inputs) {
+  const batches = [];
+  // Bystander messages remain context for follow-ups, not independent queries.
+  // Original chat/image searches are available through explicit tool calls.
+  for (const message of focused) {
     const priority = []; priorities.push(priority);
     ctx.signal.throwIfAborted();
     const input = channelRecallInput([message], message?.content || "");
     const images = (message?.media || []).filter(item => ["image", "mface"].includes(item.type));
     const plain = String(input.query || "").replace(/\[(?:图片|表情|image)\]/giu, "").trim();
+    const preceding = inputs.slice(0, inputs.indexOf(message));
     const history = [...earlier, ...(preceding.length ? [{ role: "user", content:
       `<qq_conversation_delta trust="untrusted">\n${preceding.map(item => JSON.stringify({ id: item.id, role: "user", content: item.content, senderId: item.sender?.id, createdAt: item.createdAt })).join("\n")}\n</qq_conversation_delta>` }] : [])];
     const context = contextualRecallInput(plain, history, { recallContext: { ...input.recallContext, senderId: message?.sender?.id || ctx.principal.senderId } }, topics);
@@ -32,13 +42,8 @@ async function recall(ctx, storage, scope, topics) {
     const queries = [...(!input.skipAutomaticRecall && !context.skipAutomaticRecall && query ? [{ query, options: context.retrievalContext }] : []),
       ...images.map((_, index) => ({ query: "相关图片", index, options: { ...context.retrievalContext, queryImage: { messageId: message.id, index }, imageOnly: true } }))];
     batches.push(queries.map(task => ({ ...task, message, priority })));
-    preceding.push(message);
   }
-  // Leave time for source revalidation and returning the bounded result. Slow
-  // embeddings must not turn an optional recall into a failed chat request.
-  const deadline = Math.min(ctx.deadlineAt || Infinity, Date.now() + 60000) - 2000;
   if (Date.now() >= deadline || !batches.some(batch => batch.length)) return { contextItems: [], memories: [] };
-  const catalog = await require("./unified-state.cjs").catalog(ctx, scope);
   const tasks = [];
   for (let at = 0; at < Math.max(0, ...batches.map(batch => batch.length)); at++) for (const batch of batches) if (batch[at]) tasks.push(batch[at]);
   let next = 0;
@@ -47,12 +52,10 @@ async function recall(ctx, storage, scope, topics) {
       const task = tasks[next++], timeoutMs = Math.floor(deadline - Date.now());
       if (!task || timeoutMs < 50) return;
       ctx.signal.throwIfAborted();
-      const [result, raw] = await Promise.all([
-        retrieval.search(ctx, storage, scope, task.query, 6, { ...task.options, catalog, timeoutMs }),
-        sources.search(ctx, scope, task.query, { ...task.options, timeoutMs, before: task.message.createdAt, excludeIds: inputs.map(item => item.id) }),
-      ]);
-      task.entries = [...result.records.map(item => ({ key: `memory:${item.id}:${item.read.offset || 0}`, memory: { id: item.id, revision: item.revision,
-        offset: item.read.offset || 0, limit: item.read.limit || 768 } })), ...raw.records];
+      const result = await retrieval.search(ctx, storage, scope, task.query, 4, { ...task.options, catalog, timeoutMs });
+      ctx.signal.throwIfAborted();
+      task.entries = result.records.map(item => ({ key: `memory:${item.id}:${item.read.offset || 0}`, memory: { id: item.id, revision: item.revision,
+        offset: item.read.offset || 0, limit: item.read.limit || 768 } }));
     }
   }));
   // Fold results in source order, independent of query completion order.
@@ -69,8 +72,8 @@ async function recall(ctx, storage, scope, topics) {
   // Allocate the shared budget across utterances, rather than letting the first
   // speaker's matches consume it. Every query still contributes associations.
   const keep = new Set();
-  for (let rank = 0; rank < Math.max(0, ...priorities.map(items => items.length)) && keep.size < 8; rank++) {
-    for (const items of priorities) { if (items[rank]) keep.add(items[rank]); if (keep.size >= 8) break; }
+  for (let rank = 0; rank < Math.max(0, ...priorities.map(items => items.length)) && keep.size < 4; rank++) {
+    for (const items of priorities) { if (items[rank]) keep.add(items[rank]); if (keep.size >= 4) break; }
   }
   let budget = 10000;
   const contextItems = [...keep].map(key => selected.get(key)).map(({ related, afterMessageId, sourceImageIndex, ...item }) => ({ ...item,

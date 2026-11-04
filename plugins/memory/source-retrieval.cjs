@@ -74,4 +74,4 @@ async function search(ctx, scope, query, options = {}) {
     return { records, mode: hits.mode };
   } catch (error) { ctx.signal.throwIfAborted(); return { records: [], fallbackReason: String(error.message || error) }; }
 }
-module.exports = { COLLECTION, cursorKey, index, search };
+module.exports = { COLLECTION, cursorKey, index, search, readable };

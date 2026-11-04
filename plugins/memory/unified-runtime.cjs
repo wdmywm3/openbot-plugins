@@ -246,6 +246,22 @@ async function memory(ctx) {
   if (id && !id.startsWith("mem-")) id = get(storage, `unified-map:${scope.chatId}:fact:${id}`)?.id || get(storage, `unified-map:${scope.chatId}:record:${id}`)?.id || get(storage, `unified-map:${scope.chatId}:document:${id}`)?.id || id;
   const requestKey = input.requestKey || `compat:${hash(JSON.stringify([ctx.message?.id, input]))}`;
   if (["recall", "search"].includes(input.action)) {
+    if (input.searchIn !== undefined && !["memories", "chat_history"].includes(input.searchIn)) throw Error("请选择记忆库或聊天记录");
+    if (input.searchIn === "chat_history") {
+      if (!String(input.query || "").trim() && !input.imageMessageId) throw Error("请提供检索词或聊天图片编号");
+      const result = await sourceRetrieval.search(ctx, scope, input.query || "相关图片", { limit: Math.max(1, Math.min(20, Number(input.limit) || 8)),
+        ...(input.imageMessageId ? { queryImage: { messageId: input.imageMessageId, index: input.imageIndex || 0 }, imageOnly: !String(input.query || "").trim() } : {}) });
+      const chatHistory = [];
+      for (const entry of result.records) {
+        const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, ...entry.source })).item;
+        if (!sourceRetrieval.readable(item) || item.version !== entry.source.version) continue;
+        chatHistory.push({ id: item.id, version: item.version, content: item.content, createdAt: item.createdAt,
+          senderId: item.sender?.id || "", ...(entry.sourceImageIndex !== undefined ? { imageIndex: entry.sourceImageIndex } : {}),
+          offset: entry.source.offset, ...(item.nextOffset != null ? { nextOffset: item.nextOffset } : {}) });
+      }
+      return { searchIn: "chat_history", chatHistory, count: chatHistory.length, retrieval: result.mode,
+        ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}) };
+    }
     if (!String(input.query || "").trim() && !input.imageMessageId) return ctx.api.memory({ action: "search", chatId: scope.chatId, query: "", limit: input.limit || 20 });
     const result = await retrieval.search(ctx, storage, scope, input.query || "相关图片", Math.max(1, Math.min(20, Number(input.limit) || 8)),
       input.imageMessageId ? { queryImage: { messageId: input.imageMessageId, index: input.imageIndex || 0 }, imageOnly: !String(input.query || "").trim() } : {});
