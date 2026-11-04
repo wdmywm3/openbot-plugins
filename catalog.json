@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -359,7 +359,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "重整表情管理：新增多条件筛选与批量选择，明确发送开关及角色、聊天范围；编辑、导入和设置使用宿主弹窗，固定标题与保存区，保护未保存的修改。",
+        "changelog": "聊天筛选、单张及批量范围设置、聊天设置统一显示群名和群号，支持按群名或群号搜索；配合 OpenBot 0.1.94，断线时保留已缓存的群名。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +370,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cbfe176f951ebe80b84b965f1dd2601f7273f689",
+      "ref": "915f7768efc20620ce95ca1f86663a55cd6d84fd",
       "files": [
         {
           "path": "README.md",
-          "size": 4615,
-          "sha256": "59f4eec35677e534e01b9f8cb1d36ebf6f4ed71655d9f4864db016a1c3c8c6f0"
+          "size": 4977,
+          "sha256": "8715155fa970e79aed175b9a82ed2bef6ba95f51f1f39529ed5e036a9a049d60"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +394,8 @@
         },
         {
           "path": "index.js",
-          "size": 50182,
-          "sha256": "4a70c825ba5a9e8bdbc2aa13be6b5528b1c21d6ecab6131bd1fb3561f1d9a3c8"
+          "size": 50671,
+          "sha256": "3095774515a2455fe3a188784055dcf85313399b82c50c55873a9c7a463d0f3e"
         },
         {
           "path": "mcp.json",
@@ -414,8 +414,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 20106,
-          "sha256": "5052167db9fab22e7c6d70ab8483f0de9e5c4cd94fae389fdcc47e4edf6a516a"
+          "size": 20082,
+          "sha256": "c48eddc186f6aec5cfb24b6848d8cd55b9673e8333c836412d53e7bf2c753636"
         },
         {
           "path": "skills/stickers/SKILL.md",
