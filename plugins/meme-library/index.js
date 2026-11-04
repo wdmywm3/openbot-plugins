@@ -429,10 +429,17 @@ function matchesFilter(row, input = {}) {
   if (input.analysis === "failed" && !value.error || input.analysis === "pending" && (value.error || value.analysisStatus === "ready") || input.analysis === "ready" && (value.error || value.analysisStatus !== "ready")) return false;
   return true;
 }
+function contextChatLabel(chat) {
+  const match = /^onebot:(group|private):(\d+)$/.exec(chat.id), name = text(chat.name, 500) || chat.id;
+  if (!match) return name;
+  const [, kind, number] = match, fallback = `${kind === "group" ? "群" : "私聊"} ${number}`;
+  return name === chat.id || name === number || name === fallback ? fallback : `${name}（${number}）`;
+}
 module.exports.list = async ctx => {
   const rows = await all(ctx), input = ctx.input || {}, offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
   const filtered = rows.filter(row => matchesFilter(row, input));
   const pref = (await db(ctx, "settings", text(input.settingsChatId ?? input.chatId, 200) || "default")).record;
+  const contexts = await ctx.api.listContexts();
   return { items: filtered.slice(offset, offset + 48).map(r => ({ id: r.key, revision: r.revision, caption: r.value.caption, meaning: r.value.meaning, name: r.value.name, enabled: r.value.enabled,
     profileIds: r.value.profileIds || [], chatMode: r.value.chatMode, chatIds: r.value.chatIds || [], source: r.value.source?.type,
     analysisStatus: r.value.analysisStatus, indexStatus: r.value.indexStatus, error: r.value.error, assetRef: usableRef(r.value, "")?.ref })),
@@ -442,7 +449,8 @@ module.exports.list = async ctx => {
     retrievalStatus: await ctx.api.getState("retrievalStatus", "channel"),
     inherited: !!(input.settingsChatId ?? input.chatId) && !pref,
     preferences: { ...await settings(ctx, input.settingsChatId ?? input.chatId ?? ""), revision: pref?.revision || 0 },
-    contexts: await ctx.api.listContexts(), models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,
+    contexts: { ...contexts, chats: contexts.chats.map(chat => ({ ...chat, name: contextChatLabel(chat) })) },
+    models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,
     capabilities: await ctx.api.getCapabilities(), jobs: (await ctx.api.jobs({ action: "list" })).jobs || [] };
 };
 module.exports.selection = async ctx => {

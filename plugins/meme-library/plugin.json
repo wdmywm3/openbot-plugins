@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -735,7 +735,7 @@
         ]
       },
       "metadata": {
-        "changelog": "重整表情管理：新增多条件筛选与批量选择，明确发送开关及角色、聊天范围；编辑、导入和设置使用宿主弹窗，固定标题与保存区，保护未保存的修改。",
+        "changelog": "聊天筛选、单张及批量范围设置、聊天设置统一显示群名和群号，支持按群名或群号搜索；配合 OpenBot 0.1.94，断线时保留已缓存的群名。",
         "requirements": [
           "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

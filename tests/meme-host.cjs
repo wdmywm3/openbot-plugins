@@ -4,6 +4,7 @@ const host = path.resolve(process.env.OPENBOT_SOURCE || path.join(__dirname, "..
 const hostRequire = require("node:module").createRequire(path.join(host, "package.json"));
 const { readPluginPackage } = hostRequire("./electron/lib/plugins/plugin-package.cjs");
 const { createChannelPluginRuntimeService } = hostRequire("./electron/lib/features/channels/channel-plugin-runtime-service.cjs");
+const { createChannelGroupNames } = hostRequire("./electron/lib/features/channels/channel-group-names.cjs");
 const { createPluginDataStore } = hostRequire("./electron/lib/plugins/plugin-data-store.cjs");
 const { createPluginAssets } = hostRequire("./electron/lib/plugins/plugin-assets.cjs");
 const { shutdownPluginWorkers } = hostRequire("./electron/lib/features/channels/plugin-worker-pool.cjs");
@@ -17,8 +18,15 @@ async function main() {
     const loaded = readPluginPackage(path.join(__dirname, "../plugins/meme-library"));
     const plugin = { ...loaded.manifest, id: "meme-library", enabled: true, runtimeEnabled: true, type: "js-plugin", basePath: loaded.basePath || path.join(__dirname, "../plugins/meme-library"),
       scriptPath: path.join(__dirname, "../plugins/meme-library/index.js"), config: {}, permissions: loaded.manifest.permissions };
-    const channel = { id: "test", enabled: true, config: { agentId: "test-profile" }, chatSessions: { "onebot:group:test": "session" } };
-    const store = { root, data: { channels: [channel], models: [{ id: "vision", name: "Vision", imageEnabled: true }] }, save() {} };
+    const channel = { id: "test", enabled: true, config: { agentId: "test-profile", provider: "napcat-onebot", selfId: "10000" },
+      chatSessions: { "onebot:group:123456": "session", "onebot:group:876543": "other-session" } };
+    const store = { root, data: { channels: [channel], models: [{ id: "vision", name: "Vision", imageEnabled: true }],
+      sessions: [{ id: "session", title: "群 123456" }, { id: "other-session", title: "群 876543" }] }, save() {} };
+    let groupListCalls = 0;
+    const groupNames = createChannelGroupNames({ store, runtimeChannel: value => value, oneBot: {
+      isRunning: () => true, async call() { groupListCalls++; return { data: [
+        { group_id: 123456, group_name: "表情交流群" }, { group_id: 876543, group_name: "表情交流群" }] }; },
+    } });
     const media = createPluginAssets({ root }), actor = { channelId: channel.id, pluginId: plugin.id, desktop: true };
     const bytes = await hostRequire("sharp")({ create: { width: 32, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const asset = media.put(actor, bytes, { mimeType: "image/png", name: "fixture.png" });
@@ -30,7 +38,7 @@ async function main() {
       create: () => createLocalEmbeddingIndex(root, { embed: async () => { if (!engineAvailable) throw Error("model unavailable"); return vectors; } }),
     } } });
     retrieval = { models, vectors: createVectorCollections({ root, models }) };
-    runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, ensureStoreArray: key => store.data[key] || [],
+    runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, groupNames, ensureStoreArray: key => store.data[key] || [],
       resolveChannel: () => channel, botPluginsFor: () => [plugin], makeId: () => Math.random().toString(), safeError: String,
       getPluginState: (_channel, _plugin, scope, scopeId, key) => state.get(JSON.stringify([scope, scopeId, key])),
       setPluginState: (_channel, _plugin, scope, scopeId, key, value) => state.set(JSON.stringify([scope, scopeId, key]), value),
@@ -55,7 +63,10 @@ async function main() {
     page = await runtime.runPluginAction(channel, plugin, action("list"), {});
     assert.equal(page.items[0]?.indexStatus, "ready", JSON.stringify(page.jobs)); assert.equal(generated, 1);
     assert.equal(page.models[0].id, "vision"); assert(page.contexts.profiles.length);
-    const context = { channelPrincipal: { source: "channel", channelId: channel.id, chatId: "onebot:group:test", messageType: "group", senderId: "user" } };
+    assert.deepEqual(page.contexts.chats, [{ id: "onebot:group:123456", name: "表情交流群（123456）" },
+      { id: "onebot:group:876543", name: "表情交流群（876543）" }], "management labels include both group names and numbers, even for duplicate names");
+    assert.equal(groupListCalls, 1, "plugin list refreshes reuse cached group names");
+    const context = { channelPrincipal: { source: "channel", channelId: channel.id, chatId: "onebot:group:123456", messageType: "group", senderId: "user" } };
     const originalMessages = [{ role: "system", content: "host protocol" }, { role: "user", content: "hello" }];
     const prompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages, requestId: "turn" }, context.channelPrincipal);
     assert.equal(prompt.messages[1].role, "system"); assert.match(prompt.messages[1].content, /stickers/);
