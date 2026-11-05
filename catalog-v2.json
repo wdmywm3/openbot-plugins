@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.1",
+      "version": "2.3.2",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -370,7 +370,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "915f7768efc20620ce95ca1f86663a55cd6d84fd",
+      "ref": "75fcfbd7984d1e53afe63ab68e8a218cdc333715",
       "files": [
         {
           "path": "README.md",
@@ -414,8 +414,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 20082,
-          "sha256": "c48eddc186f6aec5cfb24b6848d8cd55b9673e8333c836412d53e7bf2c753636"
+          "size": 20143,
+          "sha256": "9d3ad9288232bd51fe0968a445ec5c19353d48ed961a538013d7bb739a347074"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -452,7 +452,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -485,7 +485,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "cbfe176f951ebe80b84b965f1dd2601f7273f689",
+      "ref": "75fcfbd7984d1e53afe63ab68e8a218cdc333715",
       "files": [
         {
           "path": "LICENSE",
@@ -519,8 +519,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 7841,
-          "sha256": "24229f3da9c53605af0304f11290e60fd98cee7ecd8b40b4d286f1b8436bd938"
+          "size": 7938,
+          "sha256": "b9d13e892a2f5ab3be031eac55dddbbae549f44196f2d55efd62b0773ccdd724"
         },
         {
           "path": "requirements.lock",
