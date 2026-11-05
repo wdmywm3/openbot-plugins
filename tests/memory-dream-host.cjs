@@ -65,6 +65,15 @@ async function edit(record, patch, quote) {
     assert.equal(prompts.at(-1).body.context.relationship, "member"); assert.doesNotMatch(prompts.at(-1).system, /宿主最近一次确认此私聊对话方为主人/);
     message("group", "两位群员在讨论不同的事情。", "onebot:group:g", "member"); await runtime.process(context({ chatId: "onebot:group:g", dream: true }));
     assert.equal(prompts.at(-1).body.context.chatType, "group"); assert.match(prompts.at(-1).system, /不能把 A 的话记到 B 身上/);
+    source.record({ channelId: "bot", chatId: "onebot:group:g" }, { id: "large-image-source", content: "这一条带有图片资料。",
+      direction: "in", source: "chat", sender: { id: "member" }, createdAt: Date.now(),
+      media: [{ type: "image", name: "原图", mimeType: "image/gif", url: "data:image/gif;base64," + "A".repeat(2 * 1024 * 1024) }] });
+    await runtime.process(context({ chatId: "onebot:group:g", dream: true }));
+    const input = prompts.at(-1).body, attachment = input.messages.find(item => item.id === "large-image-source").attachments[0];
+    assert.deepEqual(attachment, { index: 0, type: "image", mimeType: "image/gif", name: "原图" });
+    assert(JSON.stringify(input).length < 64000, "dream receives paged source text and attachment metadata rather than inline image bodies");
+    const payload = storage.open(path.join(root, "plus")).db.prepare("SELECT MAX(bytes) AS size FROM channel_dream_run_payloads").get();
+    assert(payload.size < 128000, "dream traces must not persist the source image body");
     console.log("Dream host: real source feed/memory revisions/plugin SQLite, three scene prompts, periodic/change rules, reschedule, stale queued job, explicit stop/cancel/reopen, and single-record history passed (controlled generation).");
   } finally { await runtime.stopping(); storage.close(); db.close(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-dream-host-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

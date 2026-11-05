@@ -75,14 +75,24 @@ async function main() {
     const repeated = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: prompt.messages, requestId: "next-turn" }, context.channelPrincipal);
     assert.equal(repeated.contextRecords?.length || 0, 0, "the same availability is not appended twice");
     assert.equal(originalMessages.length, 2, "preparation never mutates source history");
+    // Long-running group chats retain images in model context. The availability
+    // hook needs metadata only; this media volume used to exhaust its worker.
+    const inline = { type: "image_url", image_url: { url: "data:image/gif;base64," + "A".repeat(3 * 1024 * 1024) } };
+    const mediaMessage = { role: "user", content: [{ type: "text", text: "聊天里累计的图片" }, ...Array(24).fill(inline)] };
+    const mediaPrompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel",
+      { messages: [...originalMessages, mediaMessage], requestId: "large-media-turn" }, context.channelPrincipal);
+    assert.match(mediaPrompt.messages[1].content, /stickers/);
+    assert.match(mediaPrompt.messages.at(-1).content, /主动使用倾向/);
+    const retained = mediaPrompt.messages.find(message => Array.isArray(message.content));
+    assert.deepEqual(retained, mediaMessage, "the model retains all 72 MiB of image input while the plugin prepares availability");
     let found = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
     for (let n = 0; n < 100 && found.status === "running"; n++) { await wait(20); found = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: found.id }, context); }
     assert.equal(found.status, "completed", found.error); assert.equal(found.result.candidates.length, 1);
     assert(found.userContextBlocks.some(block => block.type === "image_url"), "native tool image references become model-visible previews");
     const url = found.result.candidates[0].url, segments = [{ type: "image", data: { file: url } }];
-    const resolved = runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments);
+    const resolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments);
     assert.equal(resolved[0].data.file, "base64://" + bytes.toString("base64")); assert.equal(resolved[0].data.sub_type, 1);
-    assert.throws(() => runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
+    await assert.rejects(runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
     if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root });
     engineAvailable = false;
     const secondBytes = await hostRequire("sharp")({ create: { width: 33, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
@@ -106,9 +116,9 @@ async function main() {
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");
-    assert.throws(() => runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments), /不可用/);
+    await assert.rejects(runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments), /不可用/);
     assert.deepEqual(media.readPublished(url).data, bytes);
-    console.log("Meme plugin host integration: actual VM, persistent SQLite/jobs, image preparation, model result previews and scoped/revoked outbound references passed");
+    console.log("Meme plugin host integration: actual VM, 72 MiB model media without worker exhaustion, persistent SQLite/jobs, image preparation, model result previews and scoped/revoked outbound references passed");
   } finally {
     await runtime?.pauseForDataSnapshot(); shutdownPluginWorkers();
     await retrieval?.models.pause(); await retrieval?.vectors.pause();

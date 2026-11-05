@@ -1,13 +1,16 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memewiki",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
   "extensions": {
     "com.openbot": {
       "displayName": "梗百科",
       "category": "utility",
       "apiVersion": 1,
+      "requiredFeatures": [
+        "modelHookTextInput"
+      ],
       "main": "index.js",
       "commandPrefixes": [
         "/"
@@ -67,7 +70,8 @@
       "hooks": [
         {
           "type": "beforeModel",
-          "export": "beforeModel"
+          "export": "beforeModel",
+          "inputMode": "text"
         }
       ],
       "background": {

@@ -68,7 +68,11 @@ async function main() {
   await runtime.runPluginBeforeMessage(channel,{id:"input-1",chatId:principal.chatId,content:"大水理论是什么梗",sender:{id:"owner"},messageType:"group"},principal);
   assert.equal(events.length,0,"passive traffic never performs automatic lookup");
   const wakeInput = { id: "input-1", chatId: principal.chatId, direction: "in", content: "大水理论是什么梗", sender: { id: "owner" }, messageType: "group" };
-  await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-1",inputMessages:[wakeInput],messages:[]},principal);
+  const inline = { type: "image_url", image_url: { url: "data:image/gif;base64," + "A".repeat(3 * 1024 * 1024) } };
+  const mediaMessage = { role: "user", content: [{ type: "text", text: "聊天里累计的图片" }, ...Array(24).fill(inline)] };
+  const prepared = await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-1",inputMessages:[wakeInput],messages:[mediaMessage]},principal);
+  assert.deepEqual(prepared.messages.find(message => Array.isArray(message.content)),mediaMessage,
+    "all 72 MiB of original media remain available to the model while the text-only lookup succeeds");
   assert.equal(events.length,1); assert.match(JSON.stringify(events[0]),/长安二求/);
   await runtime.runPluginModelHook(channel,principal.chatId,"beforeModel",{requestId:"wake-1",inputMessages:[wakeInput],messages:[]},principal);
   assert.equal(events.length,1,"model fallback does not repeat the same wake's lookup");
@@ -95,7 +99,7 @@ async function main() {
   assert.equal(model.messages[0].content,"Host identity");assert.match(model.messages[1].content,/不编造/);
   await runtime.runPluginAction(channel,plugin,action("sync"),{});
   assert.equal((await runtime.runPluginAction(channel,plugin,action("sync_status"),{})).active,true);
-  console.log("memewiki host: real MCP/worker, commands, PNG, chat isolation, wake-only lookup, retry deduplication, graceful failure and sync request passed");
+  console.log("memewiki host: real MCP/worker, 72 MiB model media without worker exhaustion, commands, PNG, chat isolation, wake-only lookup, retry deduplication, graceful failure and sync request passed");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await runtime?.stopAllPluginPolls();shutdownPluginWorkers();await client.close().catch(()=>{});
   assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
