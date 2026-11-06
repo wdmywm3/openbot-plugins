@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.2",
+      "version": "2.3.3",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -354,12 +354,12 @@
         "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
         "requirements": [
-          "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
+          "需要支持分页角色媒体和可继续后台任务的新版本 OpenBot，请先更新宿主再更新插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "聊天筛选、单张及批量范围设置、聊天设置统一显示群名和群号，支持按群名或群号搜索；配合 OpenBot 0.1.94，断线时保留已缓存的群名。",
+        "changelog": "角色图片自动同步为专属角色表情；选图时标识并优先考虑符合语境的专属角色表情。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +370,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "75fcfbd7984d1e53afe63ab68e8a218cdc333715",
+      "ref": "4e3463e015f6cd0d9357053cc118bbac82acb75f",
       "files": [
         {
           "path": "README.md",
-          "size": 4977,
-          "sha256": "8715155fa970e79aed175b9a82ed2bef6ba95f51f1f39529ed5e036a9a049d60"
+          "size": 5327,
+          "sha256": "7daaa925cc818de7b7ff97c9addfc74fce2c2216d6fec86f453f8720f0404baa"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +394,8 @@
         },
         {
           "path": "index.js",
-          "size": 50671,
-          "sha256": "3095774515a2455fe3a188784055dcf85313399b82c50c55873a9c7a463d0f3e"
+          "size": 55816,
+          "sha256": "46ec90953a91d59fb9ef8c8bdf6e69ab16b6a78e35314b64ff66d5692e8b7a22"
         },
         {
           "path": "mcp.json",
@@ -414,13 +414,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 20143,
-          "sha256": "9d3ad9288232bd51fe0968a445ec5c19353d48ed961a538013d7bb739a347074"
+          "size": 20160,
+          "sha256": "2c913a5800d5ac622cfb47868c44c0174a5a60b6c77cee87a7a7661112fee9cc"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 1852,
-          "sha256": "040dc9f3690c9614313439c04328b7ee33f1fb9279809b07887024c1ff0d7872"
+          "size": 1927,
+          "sha256": "82f47078de89629174d980c99b408f4d155295c6be493972287df5e7b1c1304d"
         },
         {
           "path": "ui/app.js",
@@ -429,8 +429,8 @@
         },
         {
           "path": "ui/index.html",
-          "size": 2496,
-          "sha256": "a334874df3250b5108a9c45195d0aead7badab9ad54320d34901f90c038c74f7"
+          "size": 2502,
+          "sha256": "8c777d40fa5308c56b67f02c304b04edd150876a8cea48b866d14db883452779"
         },
         {
           "path": "ui/panel.html",
