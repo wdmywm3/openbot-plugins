@@ -45,6 +45,8 @@ async function startNow(ctx, storage, scope, occupied = () => false) {
         save(storage, target, { cursor: start.cursor, checkpointAt: at, scanStart: { ...start, at }, job: null,
           error: "", failures: 0, retryAt: 0, nextRun: nextRun(live.settings, at) });
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:plan:${start.chatId}`);
+        storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-batch:${start.chatId}`);
+        storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-session:${start.chatId}`);
         put(storage, `plus:topics:${start.chatId}`, []);
       }
       put(storage, receiptKey, result);

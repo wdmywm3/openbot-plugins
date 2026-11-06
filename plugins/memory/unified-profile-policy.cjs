@@ -1,0 +1,23 @@
+"use strict";
+const SECTIONS = ["identity", "habits", "interests", "communication", "boundaries", "self_description"];
+const STANDARD = `只整理有原始依据的事实、偏好和事项，暂不生成第一人称回忆或 experience。
+用户画像由已确认的事实和偏好组成，不另写一份人物总评。可用 profileSection 标记 identity（本人明确身份、职业或技能）、habits（长期习惯）、interests（持续兴趣）、communication（交流与称呼偏好）、boundaries（明确禁忌与边界）、self_description（本人明确的自我描述）。
+稳定的个人事实和偏好必须归入对应画像分类；事件经过、一次性行为、项目进展仍是独立事实或事项，不因涉及某人就写入画像。同一账号在不同聊天中的画像各自维护，不能自动拼接另一群或私聊的资料。
+画像必须给出 subjectId、独立且完整的陈述和本人原话 evidence；群聊按账号区分，昵称只用于展示。记录已有名字，不将“群成员+号码”当作日常称呼。不可由措辞、单次行为、bot 的推测、第三方评论推断人格、心理状态、MBTI 或身份。
+保留对象、条件和时效；单次要求、玩笑、反问、引用他人的话不升级为长期画像。本人自述的性格也应写成“本人自述…”，不写成心理测评结论。bot 发言只用于理解用户的回答和引用，不能单独支撑用户事实、画像或完成状态。
+新增前按对象和主题查已有记忆：相同内容补充证据，明确纠正或变化修订原记录；新旧值不同时保留生效时间与旧版本。证据不明确就不提取，不用置信分数替代来源。不把聊天话题、工具执行过程、向量召回和系统消息写成用户记忆。
+事项必须有用户明确目标、问题或约定，保留进度与条件。记下事项不等于已经执行；临时关注与每日整理各自开关，不因保存画像或事项自动开启关注。没有新信息可提交空结果。`;
+
+function profileAttributes(item, sources, materials) {
+  if (!item.profileSection) return {};
+  if (!SECTIONS.includes(item.profileSection) || !["fact", "preference"].includes(item.kind)
+    || typeof item.subjectId !== "string" || !item.subjectId) throw Error("画像需要明确对象和有效分类");
+  if (!sources.length || sources.some(ref => {
+    const source = materials.find(value => value.id === ref.id && value.version === ref.version);
+    return !source || source.direction !== "in" || source.sender?.isBot
+      || String(source.sender?.id || source.senderId || "") !== item.subjectId;
+  })) throw Error("用户画像需要该成员本人的原话依据");
+  return { profile: { section: item.profileSection, basis: "self_report" } };
+}
+
+module.exports = { STANDARD, SECTIONS, profileAttributes };

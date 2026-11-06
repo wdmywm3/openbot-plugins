@@ -17,11 +17,18 @@ function candidates(existing, operations, before, reserved = new Set()) {
   return record => {
     const key = identity(record), pending = proposed.get(key), old = known.get(key);
     if (old && reserved.has(old.id)) return;
-    if (pending) { pending.sources = mergeSources(pending.sources, record.sources); return; }
+    if (pending) {
+      pending.sources = mergeSources(pending.sources, record.sources);
+      if (record.category) pending.category = record.category;
+      if (record.attributes?.profile) pending.attributes = { ...old?.attributes, ...pending.attributes, profile: record.attributes.profile };
+      return;
+    }
     if (old) {
       const sources = mergeSources(old.sources, record.sources);
-      if (JSON.stringify(stable(sources)) === JSON.stringify(stable(old.sources || []))) return;
-      const patch = { sources }; proposed.set(key, patch);
+      const profileChanged = record.attributes?.profile && JSON.stringify(record.attributes.profile) !== JSON.stringify(old.attributes?.profile);
+      const categoryChanged = record.category && record.category !== old.category;
+      if (!categoryChanged && !profileChanged && JSON.stringify(stable(sources)) === JSON.stringify(stable(old.sources || []))) return;
+      const patch = { sources, ...(categoryChanged ? { category: record.category } : {}), ...(profileChanged ? { attributes: { ...old.attributes, profile: record.attributes.profile } } : {}) }; proposed.set(key, patch);
       operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: "edit", patch }); before.push({ id: old.id, revision: old.revision });
     } else { proposed.set(key, record); operations.push({ action: "create", record }); before.push(null); }
   };

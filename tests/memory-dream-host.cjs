@@ -12,7 +12,7 @@ const actor = { ...scope, id: "plugin:memory", permissions: ["memory:read", "mem
 let modelReply, peer = "owner", role = "owner", messageId = "request", agentCalls = 0;
 function context(input = {}) {
   const chat = input.chatId || `onebot:private:${peer}`;
-  return { dataRoot: path.join(root, "plus"), plugin: { id: "memory", namespace: "bot" }, config: {}, signal: new AbortController().signal,
+  return require("./helpers/organizer-model.cjs").organizerModel({ dataRoot: path.join(root, "plus"), plugin: { id: "memory", namespace: "bot" }, config: {}, signal: new AbortController().signal,
     principal: { source: "channel", channelId: "bot", chatId: chat, senderId: peer, role }, message: { id: messageId, chatId: chat, content: "测试消息" },
     input: { chatId: chat, ...input }, hook: { requestId: messageId, messages: [], inputMessages: [] }, api: {
       getCapabilities: async () => ({ features: { unifiedMemory: true, persistentContextItems: true, visibleContextItems: true, sourceHead: true } }),
@@ -26,7 +26,7 @@ function context(input = {}) {
         return jobs.find(job => job.id === input.id);
       },
       runAgent: async () => { agentCalls++; throw Error("No stale job may call the model"); },
-    } };
+    } });
 }
 function message(id, content, chat = chatId, senderId = "owner") { messageId = id; source.record({ channelId: "bot", chatId: chat }, { id, content, direction: "in", source: "chat", sender: { id: senderId }, createdAt: Date.now() }); return [{ id, quote: content }]; }
 const all = () => memory.memory(actor, { action: "search" }).items;

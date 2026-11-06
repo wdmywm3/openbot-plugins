@@ -1,7 +1,6 @@
 "use strict";
-const { randomUUID } = require("node:crypto");
-const { get, put, state, save, catalog, readMemory, hash } = require("./unified-state.cjs");
-const { parseResult, validateExtraction, nextRun } = require("./lib/features/channels/channel-dream-analysis.cjs");
+const { get, put, state, save, readMemory, hash } = require("./unified-state.cjs");
+const { validateExtraction, nextRun } = require("./lib/features/channels/channel-dream-analysis.cjs");
 const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-settings.cjs");
 const running = new Map();
 const materialPolicy = require("./unified-material-policy.cjs");
@@ -34,36 +33,21 @@ function recordFields(item, materials, privateChat, { scope, previous } = {}) {
     progress: item.progress || "active", ...(scope?.chatId ? { subjectRefs: [scope.chatId.split(":private:")[1]] } : {}) } : {}),
     status: "active", tier: "working", sources, attributes };
 }
-async function analyze(ctx, storage, scope, messages, existing, upper, trace) {
-  const materials = messages.map(item => ({ ...item, chatId: scope.chatId, senderId: item.sender?.id || "" }));
-  const { system, context } = require("./unified-dream-prompts.cjs").build(ctx, storage, scope);
-  let prompt = JSON.stringify({ context, messages: materials, existing: existing.slice(0, 60) });
-  const history = [];
-  for (let round = 0; round < 12; round++) {
-    ctx.signal.throwIfAborted();
-    trace("dream_input", { text: prompt, contextText: system });
-    const response = await ctx.api.generate({ prompt, systemPrompt: system, messages: history, maxTokens: 6000, usageCategory: "memory" });
-    trace("dream_output", { text: response.text, modelId: response.modelId });
-    const parsed = parseResult(response.text);
-    if (!parsed.readMaterial) return { parsed, materials };
-    const request = parsed.readMaterial;
-    if (!messages.some(item => item.id === request.id) || !Number.isSafeInteger(request.offset) || request.offset < 0) throw Error("补读请求不属于本批资料");
-    const result = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: request.id, upper, offset: request.offset,
-      limit: Math.min(6000, Math.max(1, Number(request.limit) || 6000)) });
-    if (!result.item || !materialPolicy.admit(result.item)) throw Error("补读资料已不可用于整理");
-    materials.push({ ...result.item, chatId: scope.chatId, senderId: result.item.sender?.id || "" });
-    history.push({ role: "user", content: prompt }, { role: "assistant", content: response.text });
-    prompt = JSON.stringify({ material: result.item });
-  }
-  throw Error("补读次数已达上限，保留检查点后继续");
-}
 async function plan(ctx, scope, parsed, materials, existing) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const operations = [], before = [], known = new Map(existing.map(item => [item.id, item]));
+  const ownSpace = ctx.api.memorySpace && existing.length
+    ? (await ctx.api.memorySpace({ action: "list", chatId: scope.chatId })).spaces?.find(item => item.kind === "chat" && item.ownerId === scope.chatId) : null;
   const full = [];
   for (const item of existing) {
-    const record = await readMemory(ctx, scope, item.id); if (record) full.push(record);
+    const record = await readMemory(ctx, scope, item.id);
+    if (record && ctx.api.memorySpace && record.spaceId !== ownSpace?.id) throw Error("整理只能更新当前聊天自己的记忆，不能合并其他聊天的画像");
+    if (record) { full.push(record); known.set(record.id, record); }
   }
+  const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
+    const source = materials.find(item => item.id === ref.id && item.version === ref.version);
+    return source?.direction === "in" && !source.sender?.isBot && String(source.sender?.id || source.senderId || "") === subjectId;
+  });
   const reserved = new Set([...result.revisions.map(item => item.supersedes.id), ...result.invalidations.map(item => item.id), ...(parsed.updates || []).map(item => item.id)]);
   const add = require("./unified-candidates.cjs").candidates(full, operations, before, reserved);
   const validateWatch = async record => {
@@ -72,48 +56,58 @@ async function plan(ctx, scope, parsed, materials, existing) {
     await ctx.api.activities({ action: "read", chatId: scope.chatId, id });
   };
   for (const item of result.facts) {
-    if (!privateChat && item.kind === "preference") continue;
     const sources = proof(item.evidence, materials);
     if (!materialPolicy.factsAllowed(sources, materials)) continue;
-    if (item.kind === "preference" && !reviewPolicy.peerEvidence(sources, materials, scope)) continue;
-    const subjectId = item.subjectId || (item.kind === "preference" ? scope.chatId.split(":private:")[1] : "");
-    if (item.kind === "preference" && subjectId !== scope.chatId.split(":private:")[1]) continue;
+    const subjectId = item.subjectId || item.fact?.subjectId || (item.kind === "preference" ? scope.chatId.split(":private:")[1] : "");
+    if (item.fact && subjectId && item.fact.subjectId !== subjectId) throw Error("事实对象与画像对象不一致");
+    if (item.kind === "preference" && (!subjectId || sources.some(ref => String(materials.find(source => source.id === ref.id)?.sender?.id || "") !== subjectId))) continue;
+    if (item.kind === "preference" && privateChat && subjectId !== scope.chatId.split(":private:")[1]) continue;
     if (item.kind === "preference" && item.fact && item.fact.subjectId !== subjectId) continue;
+    const profile = require("./unified-profile-policy.cjs").profileAttributes({ ...item, subjectId }, sources, materials);
     add({ content: item.content, kind: item.kind, tier: "working", status: "active",
+      category: profile.profile || item.kind === "preference" ? "profile" : "",
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
-      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: item.fact ? { fact: item.fact } : {} });
+      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...(item.fact ? { fact: item.fact } : {}), ...profile } });
   }
   for (const item of result.revisions) {
     const old = known.get(item.supersedes.id);
     if (!old || old.revision !== item.supersedes.revision) throw Error("修订目标版本不在本次读取范围");
     const sources = item.reviewStatus === "pending" && !item.evidence?.length ? [] : proof(item.evidence, materials);
     if (["fact", "preference"].includes(old.kind) && sources.length && !materialPolicy.factsAllowed(sources, materials)) continue;
-    if (old.kind === "preference" && (!privateChat || !reviewPolicy.peerEvidence(sources, materials, scope)
-      || item.fact && item.fact.subjectId !== scope.chatId.split(":private:")[1])) continue;
+    const subjectId = old.subjectRefs?.[0] || old.attributes?.fact?.subjectId || (privateChat ? scope.chatId.split(":private:")[1] : "");
+    if (old.kind === "preference" && (!selfEvidence(sources, subjectId) || item.fact && item.fact.subjectId !== subjectId)) continue;
+    const profileSection = item.profileSection || old.attributes?.profile?.section;
+    if (profileSection && item.reviewStatus === "pending") continue;
+    const profile = require("./unified-profile-policy.cjs").profileAttributes({ ...item, kind: old.kind, subjectId, profileSection }, sources, materials);
+    if (profileSection && item.fact && item.fact.subjectId !== subjectId) throw Error("画像修订不能改变所属成员");
     if (item.reviewStatus === "pending") {
       operations.push({ action: "create", record: { content: item.content, kind: old.kind, status: "pending", tier: old.tier,
         sources, attributes: { suggestedRevisionOf: { id: old.id, revision: old.revision }, changeType: item.changeType } } }); before.push(null); continue;
     }
+    const attributes = { ...old.attributes, ...profile };
+    if (item.fact) attributes.fact = item.fact; else delete attributes.fact;
     operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: item.changeType,
       patch: { content: item.content, sources, validFrom: item.validFrom || null, validTo: item.validTo || null,
-        ...(item.fact ? { conditions: item.fact.conditions || [], attributes: { fact: item.fact } } : {}) } }); before.push({ id: old.id, revision: old.revision });
+        attributes, ...(profileSection || old.kind === "preference" ? { category: "profile" } : {}),
+        ...(item.fact ? { conditions: item.fact.conditions || [] } : {}) } }); before.push({ id: old.id, revision: old.revision });
   }
   for (const item of result.invalidations) {
     const old = known.get(item.id); if (!old || old.revision !== item.revision) throw Error("失效目标版本已变化");
     const sources = proof(item.evidence, materials);
     if (["fact", "preference"].includes(old.kind) && !materialPolicy.factsAllowed(sources, materials)) continue;
-    if (old.kind === "preference" && (!privateChat || !reviewPolicy.peerEvidence(sources, materials, scope))) continue;
+    if ((old.kind === "preference" || old.attributes?.profile) && !selfEvidence(sources, old.subjectRefs?.[0] || old.attributes?.fact?.subjectId)) continue;
     operations.push({ action: "transition", id: old.id, expectedRevision: old.revision, reason: "原始资料明确纠正", patch: { status: "invalidated" } }); before.push({ id: old.id, revision: old.revision });
   }
-  if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 20)) throw Error("经历或事项条目过多");
+  if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 64)) throw Error("事项条目过多");
   for (const item of parsed.records || []) {
+    if (item.kind === "experience") continue;
     if (!privateChat && item.kind === "matter") continue;
     const record = recordFields(item, materials, privateChat, { scope });
     if (item.relatedIds != null && (!Array.isArray(item.relatedIds) || item.relatedIds.length > 20 || item.relatedIds.some(id => typeof id !== "string" || !known.has(id)))) throw Error("关联记忆不在本次读取范围");
     await validateWatch(record);
     add(record);
   }
-  if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 10)) throw Error("事项更新过多");
+  if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 32)) throw Error("事项更新过多");
   for (const item of parsed.updates || []) {
     const old = known.get(item.id); if (!old || old.revision !== item.revision) throw Error("事项更新版本已变化");
     const actual = await readMemory(ctx, scope, old.id);
@@ -129,9 +123,9 @@ async function plan(ctx, scope, parsed, materials, existing) {
       patch: { content: record.content, subtype: record.subtype, progress: record.progress, sources: record.sources, attributes: record.attributes } }); before.push({ id: old.id, revision: old.revision });
   }
   return { operations, before, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
-    links: (parsed.records || []).filter(item => privateChat || item.kind !== "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
+    links: (parsed.records || []).filter(item => privateChat && item.kind === "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
 }
-async function commit(ctx, storage, scope, job) {
+async function commit(ctx, storage, scope, job, { onReceipt } = {}) {
   ctx.signal.throwIfAborted();
   const settings = state(storage, scope);
   if (settings.paused || job.trigger !== "manual" && !settings.settings.enabled) throw Error("整理已暂停，保留检查点等待明确恢复");
@@ -198,63 +192,13 @@ async function commit(ctx, storage, scope, job) {
   if (!pending) storage.dreamRepository.runs.finish(scope, job.runId, "completed");
   // Never keep a second mutable copy of committed memory bodies in a strategy checkpoint.
   storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:plan:${scope.chatId}`);
+  const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length, runId: job.runId };
+  onReceipt?.(receipt);
   storage.db.exec("RELEASE plus_commit");
-  return { completed: !pending, pending, saved: savedCount, skipped: skipped.length, runId: job.runId };
+  return receipt;
   } catch (error) { storage.db.exec("ROLLBACK TO plus_commit; RELEASE plus_commit"); throw error; }
 }
-async function batch(ctx, storage, scope, trigger) {
-    let live = state(storage, scope), job = live.job;
-    try {
-    if (job?.prepared) return await commit(ctx, storage, scope, job);
-    const page = await ctx.api.sources({ action: "changes", chatId: scope.chatId, after: live.cursor || 0,
-      ...(job?.upper != null ? { upper: job.upper } : {}), limit: job?.limit || 12 });
-    if (!page.items.length) {
-      if (job?.runId) storage.dreamRepository.runs.finish(scope, job.runId, "completed");
-      save(storage, scope, { cursor: Math.max(live.cursor || 0, Number.isSafeInteger(page.upper) ? page.upper : 0),
-        checkpointAt: Date.now(), lastRun: Date.now(), job: null, nextRun: nextRun(live.settings, Date.now()) });
-      return { completed: true, saved: 0, idle: true };
-    }
-    const after = page.items.at(-1).seq;
-    const messages = page.items.filter(materialPolicy.admit);
-    job ||= { runId: randomUUID(), trigger, cutoff: Date.now(), upper: page.upper, limit: 12 };
-    job.runId = storage.dreamRepository.runs.start(scope, job); save(storage, scope, { job });
-      const all = await catalog(ctx, scope);
-      const query = messages.map(item => item.content || "").filter(Boolean).join("\n").slice(-4000);
-      const related = query ? await require("./unified-retrieval.cjs").search(ctx, storage, scope, query, 40, { raw: true }) : { records: [] };
-      const candidates = new Map(related.records.map(item => [item.id, item]));
-      for (const item of all) if (!candidates.has(item.id)) candidates.set(item.id, item);
-      const existing = [...candidates.values()].slice(0, 60);
-      const prepared = messages.length ? await (async () => {
-        const response = await analyze(ctx, storage, scope, messages, existing, job.upper,
-          (kind, payload) => storage.dreamRepository.runs.trace(scope, job.runId, kind, payload));
-        return plan(ctx, scope, response.parsed, response.materials, existing);
-      })() : { operations: [], before: [], topics: [], style: null };
-      put(storage, `plus:plan:${scope.chatId}`, { ...prepared, runId: job.runId, after });
-      save(storage, scope, { job: { ...job, prepared: true } });
-      return await commit(ctx, storage, scope, job);
-    } catch (error) {
-      live = state(storage, scope);
-      const failures = (live.failures || 0) + 1;
-      save(storage, scope, { error: String(error.message || error), failures, retryAt: Date.now() + Math.min(3600000, 60000 * 2 ** Math.min(failures, 6)),
-        job: live.job?.prepared ? live.job : job ? { ...job, limit: Math.max(1, Math.floor((job.limit || 12) / 2)) } : null });
-      if (job?.runId) storage.dreamRepository.runs.finish(scope, job.runId, "failed", String(error.message || error)); throw error;
-    }
-}
 async function run(ctx, storage, scope, trigger = "manual") {
-  const key = `${storage.root}:${scope.chatId}`;
-  if (running.has(key)) throw Error("当前聊天正在整理");
-  const task = (async () => {
-    let result, saved = 0, skipped = 0;
-    // One bounded job drains up to four pages, retaining its fixed upper watermark.
-    for (let page = 0; page < 4; page++) {
-      ctx.signal.throwIfAborted();
-      result = await batch(ctx, storage, scope, trigger); saved += result.saved || 0; skipped += result.skipped || 0;
-      if (!result.pending) break;
-      if (state(storage, scope).paused) break;
-    }
-    return { ...result, saved, skipped };
-  })();
-  running.set(key, task);
-  try { return await task; } finally { running.delete(key); }
+  return require("./unified-organizer.cjs").run(ctx, storage, scope, trigger);
 }
-module.exports = { run, running, plan, recordFields, containsSecret };
+module.exports = { run, running, plan, commit, recordFields, containsSecret };

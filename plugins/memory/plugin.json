@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.3.4",
+  "version": "2.4.0",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -25,7 +25,9 @@
         "hybridRetrieval",
         "sourceAttachments",
         "modelHookTimeouts",
-        "pluginProcessCancellation"
+        "pluginProcessCancellation",
+        "agentContinuations",
+        "memoryCategories"
       ],
       "permissions": [
         "process",
@@ -121,7 +123,10 @@
             "properties": {
               "searchIn": {
                 "type": "string",
-                "enum": ["memories", "chat_history"],
+                "enum": [
+                  "memories",
+                  "chat_history"
+                ],
                 "description": "memories 查正式记忆（默认）；chat_history 按需查原始聊天和图片历史。"
               },
               "query": {
@@ -237,6 +242,53 @@
               "action"
             ],
             "additionalProperties": true
+          }
+        },
+        {
+          "name": "organize",
+          "export": "organize",
+          "scope": "all",
+          "permission": "member",
+          "mutating": true,
+          "description": "处理已开始的记忆整理批次：按需查询旧记忆、补读本批原文并提交有依据的提案。需要当前批次 ticket；普通聊天请用 recall 和 memory。",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "ticket": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "operation": {
+                "type": "string",
+                "enum": [
+                  "search",
+                  "read",
+                  "material",
+                  "commit"
+                ]
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "id": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "result": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "ticket",
+              "operation"
+            ],
+            "additionalProperties": false
           }
         }
       ],
@@ -382,9 +434,9 @@
       },
       "metadata": {
         "requirements": [
-          "需要 OpenBot 0.1.92 或提供清单声明能力的更新版本；Node.js 24 由宿主管理。请先更新宿主再更新插件。"
+          "需要支持持续整理会话和人物画像的新版本 OpenBot；请先安装本次配套的 OpenBot 0.1.98 或更新版本，再更新插件。Node.js 24 由宿主管理。"
         ],
-        "changelog": "自动召回仅针对本轮回复目标查正式记忆，最多注入四条，采用约两秒的检索预算；原始聊天和图片历史改由 recall 工具按需检索。保留历史索引与现有整理设置。"
+        "changelog": "同一聊天持续整理会话，按内容容量从旧到新批量追加；通过工具查询、核对和提交记忆，重试复用回执。只输入实际聊天，暂停自动记录第一人称经历。用户画像来自本人确认的事实和偏好，保留原话和修订关系。定时整理与宿主临时关注独立设置。"
       }
     }
   }

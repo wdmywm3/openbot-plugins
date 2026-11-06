@@ -74,6 +74,19 @@ async function main() {
       getPluginState: (_c, _p, kind, id, key) => state.get(JSON.stringify([kind, id, key])),
       setPluginState: (_c, _p, kind, id, key, value) => state.set(JSON.stringify([kind, id, key]), value),
       pluginStateScopeId: (_c, kind, msg) => kind === "chat" ? msg.chatId : "shared",
+      runPluginAgent: async ({ request, executionPrincipal }) => {
+        assert.equal(request.usageCategory, "memory"); idleGenerations++;
+        assert.equal(executionPrincipal.source, "channel", "scheduled and management jobs receive a scoped, non-owner tool identity");
+        assert.equal(executionPrincipal.role, "member");
+        const batch = JSON.parse(request.continuation.content), context = { channelPrincipal: executionPrincipal, purpose: "plugin_background" };
+        let result = await runtime.runPluginTool({ action: "start", pluginId: "memory", tool: "organize", requestKey: batch.ticket,
+          input: { ticket: batch.ticket, operation: "commit", result: { facts: [], topics: [] } } }, context);
+        for (let attempt = 0; result.status === "running" && attempt < 100; attempt++) {
+          await wait(20); result = await runtime.runPluginTool({ action: "status", pluginId: "memory", tool: "organize", jobId: result.id }, context);
+        }
+        assert.equal(result.status, "completed", result.error); assert(result.result.ok);
+        return { taskId: request.taskId, status: "completed", summary: "已提交本批" };
+      },
       generatePluginModel: async ({ request }) => {
         assert.equal(request.usageCategory, "memory", "organization is accounted as memory work");
         idleGenerations++;

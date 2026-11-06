@@ -43,6 +43,16 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
         memory: input => memories.memory(memoryActor, input), memorySpace: input => memories.memorySpace(memoryActor, input),
         sources: input => reads({ channelId: "one", chatId: input.chatId || chatId }, input),
         embeddings: input => retrieval.embeddings(principal, input), vectorIndex: input => retrieval.vectorIndex(principal, input),
+        runAgent: async request => {
+          generated++; generationStarted(); await gate;
+          const batch = JSON.parse(request.continuation.content);
+          const invoke = input => run("organize", context({ ticket: batch.ticket, ...input }));
+          await invoke({ operation: "search", query: "拿铁咖啡" });
+          const source = batch.messages.find(item => item.text.includes("喜欢喝拿铁咖啡"));
+          await invoke({ operation: "commit", result: { facts: source ? [{ content: "用户平时喜欢喝咖啡", kind: "fact",
+            evidence: [{ id: source.id, quote: "喜欢喝拿铁咖啡" }] }] : [], topics: [] } });
+          return { taskId: request.taskId, status: "completed", summary: "已提交" };
+        },
         jobs: async () => ({ jobs: [] }), generate: async input => {
           generated++; generationStarted(); await gate;
           const payload = JSON.parse(input.prompt);

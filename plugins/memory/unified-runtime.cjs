@@ -16,6 +16,7 @@ async function initialize(ctx) {
   const { storage, scope } = current(ctx);
   const capabilities = await ctx.api.getCapabilities(), restored = capabilities.dataRestoreId || "";
   if (restored && get(storage, "plus:restore") !== restored) {
+    storage.db.prepare("DELETE FROM plugin_meta WHERE key LIKE 'plus:organizer-%'").run();
     saveDefaults(storage, { ...defaults(storage, scope), enabled: false });
     for (const row of storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:state:%'").all()) {
       const value = JSON.parse(row.value_json); put(storage, row.key, { ...value, settingsOverride: { ...value.settingsOverride, enabled: false }, job: null });
@@ -56,7 +57,8 @@ async function replyDelivered(ctx) {
 async function processOnce(ctx) {
   const { storage, scope } = current(ctx); if (!scope.chatId) throw Error("请选择聊天");
   const mode = ctx.input?.mode || (ctx.input?.dream ? "manual" : "auto");
-  if (!["index", "assess", "dream", "manual", "auto"].includes(mode)) throw Error("整理作业目的无效");
+  if (!["profiles", "index", "assess", "dream", "manual", "auto"].includes(mode)) throw Error("整理作业目的无效");
+  if (mode === "profiles") return require("./unified-profile-migration.cjs").classify(ctx, storage, scope);
   if (mode === "index") {
     try {
       const memories = await retrieval.index(ctx, storage, scope), sources = await sourceRetrieval.index(ctx, storage, scope);
@@ -96,9 +98,11 @@ async function recover(ctx) {
     const tick = Math.floor(Date.now() / 60000);
     const queue = mode => ctx.api.jobs({ action: "start", actionId: "process", chatId,
       requestKey: `plus:${mode}:${hash(chatId)}:${live.cursor || 0}:${tick}`, input: { chatId, mode } });
-    if (due && (changes.items.length || live.job) && (live.failures || 0) < 5 && !(live.retryAt > Date.now())) await queue("dream");
+    if (due && (changes.items.length || live.job || get(storage, `plus:organizer-batch:${chatId}`)) && (live.failures || 0) < 5 && !(live.retryAt > Date.now())) await queue("dream");
     if (live.settings.enabled && !live.paused && assessment.pending(storage, target).length) await queue("assess");
     const indexRetry = get(storage, `plus:indexRetry:${chatId}`, 0);
+    const profileDue = !get(storage, `plus:profile-category:${chatId}`)?.complete;
+    if (profileDue) await queue("profiles");
     if ((indexChanges.items.length || sourceChanges.items.length || sweepDue || indexRetry) && indexRetry <= Date.now()) await queue("index");
     await followups.sweep(ctx, storage, target);
     if (isPrivateDreamScope(target) && live.settings.enabled && !live.paused) for (const item of (await catalog(ctx, target)).filter(item => item.kind === "matter")) {
@@ -167,7 +171,7 @@ async function rollback(ctx, storage, scope, input) {
     if (!change.beforeRevision) operations.push({ action: "transition", id: change.id, expectedRevision: record.revision, reason: "用户撤销本轮整理", patch: { status: "invalidated" } });
     else {
       const old = await readMemory(ctx, scope, change.id, { revision: change.beforeRevision, historical: true });
-      const keys = ["content", "kind", "subtype", "tier", "status", "subjectRefs", "conditions", "sources", "validFrom", "validTo", "expiresAt", "progress", "activityId", "attributes"];
+      const keys = ["content", "kind", "category", "subtype", "tier", "status", "subjectRefs", "conditions", "sources", "validFrom", "validTo", "expiresAt", "progress", "activityId", "attributes"];
       operations.push({ action: "revise", id: change.id, expectedRevision: record.revision, changeType: "edit",
         patch: { subtype: null, progress: null, activityId: null, ...Object.fromEntries(keys.filter(key => old[key] !== undefined).map(key => [key, old[key]])) } });
     }
@@ -300,6 +304,7 @@ async function memory(ctx) {
   throw Error("记忆操作无效");
 }
 module.exports = { initialize, beforeModel, afterModel: async ctx => { const { storage, scope } = current(ctx); scheduling.activity(storage, scope, ctx.hook?.requestId || ctx.message.id, false); }, replyDelivered,
+  organize: async ctx => { const { storage, scope } = current(ctx); return require("./unified-organizer.cjs").tool(ctx, storage, scope); },
   process: processScope, recover, recall: ctx => memory({ ...ctx, input: { ...ctx.input, action: "recall" } }), followup: async ctx => { const { storage, scope } = current(ctx); return followups.execute(ctx, storage, scope); }, list, manage, memory,
   importBundle: async ctx => { const legacy = require("./runtime.cjs"); await legacy.importBundle(ctx); const { storage, scope } = current(ctx);
     for (const row of storage.db.prepare("SELECT DISTINCT chat_id FROM channel_memories UNION SELECT chat_id FROM channel_documents").all()) await migrate(ctx, storage, { ...scope, chatId: row.chat_id });

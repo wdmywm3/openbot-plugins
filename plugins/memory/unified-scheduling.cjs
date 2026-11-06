@@ -1,5 +1,5 @@
 "use strict";
-const { state, save } = require("./unified-state.cjs");
+const { state, save, get } = require("./unified-state.cjs");
 const { nextRun } = require("./lib/features/channels/channel-dream-analysis.cjs");
 const foreground = new Map();
 const scopeKey = (storage, scope) => `${storage.root}:${scope.chatId}`;
@@ -20,8 +20,9 @@ function active(storage, scope) {
 async function due(ctx, storage, scope) {
   let live = state(storage, scope);
   if (!live.nextRun) { save(storage, scope, { nextRun: nextRun(live.settings, Date.now()) }); live = state(storage, scope); }
-  if (live.paused || !live.settings.enabled && live.job?.trigger !== "manual" || active(storage, scope)) return "";
-  if (live.job) return "continuation";
+  const batch = get(storage, `plus:organizer-batch:${scope.chatId}`);
+  if (live.paused || !live.settings.enabled && (live.job?.trigger || batch?.trigger) !== "manual" || active(storage, scope)) return "";
+  if (live.job || batch) return "continuation";
   if (live.nextRun <= Date.now()) return "scheduled";
   if (live.settings.idleMinutes) {
     const head = await ctx.api.sources({ action: "head", chatId: scope.chatId });

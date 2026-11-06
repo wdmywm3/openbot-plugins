@@ -29,6 +29,7 @@ const ctx = { dataRoot: path.join(root, "plugin"), plugin: { namespace: "bot" },
     runAgent: async () => { agentRuns++; return { taskId: "followup-task", status: "completed", summary: "复查有新进展", data: { meaningfulChange: true, reply: "有一项新进展" } }; },
     publishConversationEvent: async () => { published++; if (failPublish) throw Error("offline"); return { id: "event-1", state: "pending" }; },
   } };
+require("./helpers/organizer-model.cjs").organizerModel(ctx);
 (async () => {
   try {
     await runtime.initialize(ctx);
@@ -36,12 +37,12 @@ const ctx = { dataRoot: path.join(root, "plugin"), plugin: { namespace: "bot" },
     output = { facts: [{ kind: "preference", content: "主人喜欢拿铁咖啡", subjectId: "owner", evidence: [{ id: "m1", quote: "我喜欢拿铁咖啡。" }] }], topics: [], style: null,
       records: [{ kind: "experience", content: "浏览任务已经完成比较", evidence: [{ id: "m1", quote: "浏览任务已经完成比较。" }] }] };
     ctx.input = { chatId, dream: true };
-    const done = await runtime.process(ctx); assert.equal(done.saved, 2); assert.equal(generated, 1);
+    const done = await runtime.process(ctx); assert.equal(done.saved, 1); assert.equal(generated, 1);
     assert.equal(storage.db.prepare("SELECT count(*) AS n FROM channel_memories").get().n, 0, "no fact body is written back to legacy plugin storage");
     assert.equal(storage.db.prepare("SELECT count(*) AS n FROM channel_dream_records").get().n, 0);
     assert.equal(get(storage, `plus:plan:${chatId}`), null, "committed proposal body is removed from strategy checkpoint");
     const all = repo.memory(actor, { action: "search" }).items;
-    assert.equal(all.length, 2); assert(all.some(item => item.kind === "experience"));
+    assert.equal(all.length, 1); assert(all.every(item => item.kind !== "experience"));
     const recalled = await runtime.beforeModel(ctx); assert(recalled.contextItems.some(item => all.some(record => record.id === item.memory?.id)));
     ctx.hook = { requestId: "turn-1", answerMessageId: "answer", text: "你喜欢拿铁。" }; await runtime.replyDelivered(ctx);
     const turn = get(storage, `plus:turn:${chatId}:turn-1`); assert.equal(turn.delivered, true); assert.equal(turn.used, undefined);
@@ -51,7 +52,7 @@ const ctx = { dataRoot: path.join(root, "plugin"), plugin: { namespace: "bot" },
     ctx.input = { chatId, action: "rollbackPreview", runId: done.runId }; const preview = await runtime.manage(ctx);
     ctx.input = { ...ctx.input, action: "rollback", token: preview.token }; await runtime.manage(ctx);
     assert.equal(repo.memory(actor, { action: "search" }).items.length, 0);
-    assert.equal(repo.memory(actor, { action: "search", mode: "history" }).items.length, 2);
+    assert.equal(repo.memory(actor, { action: "search", mode: "history" }).items.length, 1);
 
     const item = repo.memory(actor, { action: "create", requestKey: "followup", record: { content: "复查最新进展", kind: "matter", subtype: "followup", progress: "active", status: "active",
       attributes: { nextReviewAt: Date.now() - 1000 } } });
