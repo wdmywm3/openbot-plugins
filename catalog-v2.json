@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.3",
+      "version": "2.3.4",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -359,7 +359,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "角色图片自动同步为专属角色表情；选图时标识并优先考虑符合语境的专属角色表情。",
+        "changelog": "修复导入表情时后台刷新可能显示错误；角色图片自动同步为专属角色表情。",
         "components": [
           "commands",
           "hooks",
@@ -370,7 +370,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "4e3463e015f6cd0d9357053cc118bbac82acb75f",
+      "ref": "9b5bac6df5e6da7af24e2b19b617b12bb5a9f909",
       "files": [
         {
           "path": "README.md",
@@ -414,8 +414,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 20160,
-          "sha256": "2c913a5800d5ac622cfb47868c44c0174a5a60b6c77cee87a7a7661112fee9cc"
+          "size": 20148,
+          "sha256": "53b9d3db5dc77f5f7398678ece471e05c278f5bafe3b3a265283cef453dacda2"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -424,8 +424,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 8342,
-          "sha256": "c8c4acd14951d313015e7b6c698ae94bdede6163ae339080a75d5fd5eff5d017"
+          "size": 8541,
+          "sha256": "e086d16f05a2dda0b0a55bb1244a595e04fd9b95c69226c46a86e3bd5789c294"
         },
         {
           "path": "ui/index.html",
@@ -1184,7 +1184,12 @@
         "sha256": "137fd6439b35172f9a9028259d354099705ee6583dfc2ef91082cdeac11e4d12",
         "count": 33
       },
-      "ref": "aef6808191e3aa23545feeec111da76fcc227d24"
+      "ref": "9b5bac6df5e6da7af24e2b19b617b12bb5a9f909",
+      "preview": {
+        "file": "personas/xixi.preview.openbot-persona.json",
+        "size": 1688856,
+        "sha256": "f06d40cb6f76444ac2867185d5e76d8a6852043a239c9c799e289c5a6b280bf1"
+      }
     }
   ]
 }
