@@ -1173,7 +1173,7 @@
       "id": "xixi",
       "version": "1.1.14",
       "name": "嘻嘻",
-      "description": "蓝发蓝眼、白色斗篷装的猫娘。配套表情需新版 OpenBot，并需安装启用表情包插件。",
+      "description": "蓝发蓝眼、白色斗篷装的猫娘。需要新版 OpenBot；使用表情需安装启用表情包插件。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
       "size": 23567,
