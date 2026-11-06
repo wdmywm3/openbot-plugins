@@ -80,6 +80,8 @@
 
 记忆 Plus 2.3.0 和表情包 2.3.0 需要支持插件导航 v2 与宿主弹窗的新版本 OpenBot（`pluginNavigationV2`、`pluginOverlays`）。安装时会检查所需功能，请先更新宿主，再更新插件。
 
+表情包 2.3.3 将角色自带图片同步为“专属角色表情”，提示模型在贴合语境时优先选择。需要支持分页角色媒体和分批后台任务的新版本 OpenBot，请先更新宿主再更新插件。
+
 ## 开发验证与候选包
 
 测试使用 Node.js 24。独立检出插件仓库后，先运行 `npm ci --prefix plugins/memory --ignore-scripts` 和 `npm ci --prefix plugins/meme-library --ignore-scripts` 安装锁定依赖，再运行 `npm test`。这个入口不读取 OpenBot 源码，包含记忆策略的独立测试和表情图片引擎测试；GitHub Actions 使用同样的环境执行。

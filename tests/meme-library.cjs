@@ -8,7 +8,7 @@ const VERSION = "embeddinggemma-2-daa72c512439-q8-768-joint-v1";
 const vector = Array(768).fill(0); vector[0] = 1;
 function fixture() {
   const records = new Map(), assets = new Map(), jobs = [], state = new Map(), calls = [], events = new Map(), indices = new Map();
-  let serial = 0, checkpoint = null, beforeGenerate, beforeEmbed, modelReady = true;
+  let serial = 0, checkpoint = null, jobId = "fixture", beforeGenerate, beforeEmbed, modelReady = true;
   const ctx = { plugin: { id: "meme-library" }, profile: { id: "p" }, config: {}, message: { id: "message", chatId: "group", sender: { id: "u" } },
     signal: new AbortController().signal, api: {
       async embeddings(input) {
@@ -40,7 +40,8 @@ function fixture() {
       },
       async database(input) {
         const key = input.collection + ":" + input.key, previous = records.get(key);
-        if (input.action === "query") return { records: [...records.entries()].filter(([key]) => key.startsWith(input.collection + ":")).map(([, value]) => copy(value)), nextCursor: null };
+        if (input.action === "query") return { records: [...records.entries()].filter(([key, row]) => key.startsWith(input.collection + ":")
+          && (!input.where?.["source.type"] || row.value.source?.type === input.where["source.type"])).map(([, value]) => copy(value)), nextCursor: null };
         if (input.action === "get") return { record: copy(previous) || null };
         if (input.action === "put") {
           if ((previous?.revision || 0) !== input.expectedRevision) throw Error("revision conflict");
@@ -60,8 +61,8 @@ function fixture() {
       },
       async jobs(input) {
         if (input.action === "start") { jobs.push(copy(input)); return { id: String(jobs.length), status: "queued" }; }
-        if (input.action === "current") return { checkpoint };
-        if (input.action === "checkpoint") { checkpoint = input.checkpoint; return {}; }
+        if (input.action === "current") return { id: jobId, checkpoint };
+        if (input.action === "checkpoint" || input.action === "yield") { checkpoint = input.checkpoint; return {}; }
         if (input.action === "list") return { jobs: [], nextCursor: null };
         return {};
       },
@@ -87,6 +88,9 @@ function fixture() {
   const asset = (ref, id, shared = true) => assets.set(ref, { ref, sha256: id.repeat(64), mimeType: "image/png", bytes: 2, revision: "1", shared, chatId: shared ? "" : "group", chats: [] });
   asset("import", "a"); asset("chat", "b", false); asset("qq", "c");
   return { ctx, records, assets, calls, jobs, state, get: id => copy(records.get("items:" + id.repeat(64))),
+    async syncProfiles() { checkpoint = null; jobId = "fixture-" + ++serial; let result;
+      do { result = await plugin.syncProfiles(ctx); } while (result.continuing);
+      return result; },
     onGenerate(fn) { beforeGenerate = fn; }, onEmbed(fn) { beforeEmbed = fn; }, modelReady(value) { modelReady = value; } };
 }
 async function main() {
@@ -164,17 +168,58 @@ async function main() {
   await assert.rejects(plugin.save({ ...f.ctx, input: { id: "a".repeat(64), revision: 0, tags: [] } }), /刷新/);
   const profileMedia = [{ profileId: "p", id: "proud", name: "得意", description: "得意的蓝猫", tags: ["得意"], contentHash: "a".repeat(64), enabled: true }];
   f.ctx.api.profileMedia = async input => input.action === "list" ? copy(profileMedia) : copy(f.assets.get("import"));
-  await plugin.syncProfiles(f.ctx);
+  await f.syncProfiles();
   const profileKey = "a".repeat(64) + ":profile:p:proud";
   let profile = copy(f.records.get("items:" + profileKey));
   assert.equal(profile.value.indexStatus, "ready"); assert.deepEqual(profile.value.profileIds, ["p"]);
   assert.equal(plugin._test.visible({ ...f.ctx, profile: { id: "other" } }, profile.value), false);
   await plugin.save({ ...f.ctx, input: { id: profileKey, revision: profile.revision, caption: "我的修改" } });
-  profileMedia[0].description = "新版描述"; await plugin.syncProfiles(f.ctx);
+  profileMedia[0].description = "新版描述"; await f.syncProfiles();
   assert.equal(f.records.get("items:" + profileKey).value.caption, "我的修改", "profile updates preserve manual changes");
   profile = copy(f.records.get("items:" + profileKey));
   await plugin.remove({ ...f.ctx, input: { id: profileKey, revision: profile.revision } });
-  await plugin.syncProfiles(f.ctx); assert.equal(f.records.get("items:" + profileKey).value.deleted, true, "profile updates do not resurrect deleted items");
+  await f.syncProfiles(); assert.equal(f.records.get("items:" + profileKey).value.deleted, true, "profile updates do not resurrect deleted items");
+  const preference = fixture();
+  await plugin.importFiles({ ...preference.ctx, input: { refs: ["import"] } });
+  await plugin.process({ ...preference.ctx, input: { ids: ["a".repeat(64)] } });
+  preference.ctx.api.profileMedia = async input => input.action === "list"
+    ? [{ profileId: "p", id: "own", name: "嘻嘻", description: "嘻嘻没钱", tags: ["嘻嘻"], contentHash: "c".repeat(64), enabled: true }]
+    : copy(preference.assets.get("qq"));
+  await preference.syncProfiles();
+  const ownKey = "c".repeat(64) + ":profile:p:own", genericKey = "a".repeat(64);
+  const generic = preference.get("a");
+  await plugin.save({ ...preference.ctx, input: { id: genericKey, revision: generic.revision, profileIds: ["p"] } });
+  const vectorIndex = preference.ctx.api.vectorIndex;
+  let ownScore = 0.74;
+  preference.ctx.api.vectorIndex = async input => input.action !== "search" ? vectorIndex(input) : {
+    version: VERSION, missing: 0, matches: input.candidates.map(row => ({ ...row, score: row.id === ownKey ? ownScore : 0.78 })),
+  };
+  const preferred = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "求抱抱", limit: 4 } });
+  assert.equal(preferred.candidates[0].id, ownKey, "relevant role stickers receive a modest ranking preference");
+  assert.equal(preferred.candidates[0].roleSticker, true);
+  assert.equal(preferred.candidates.find(item => item.id === genericKey).roleSticker, false, "role scope alone does not identify the character");
+  assert.match(preferred.attachments[0].caption, /专属角色表情/);
+  assert.match(preferred.instruction, /符合当前语境的专属角色表情时优先/);
+  assert.match((await plugin.beforeModel(preference.ctx)).systemPromptAppend, /专属角色表情时优先/);
+  ownScore = 0.1;
+  const unrelated = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "求抱抱", limit: 4 } });
+  assert(!unrelated.candidates.some(item => item.id === ownKey), "priority does not admit irrelevant role images");
+  const literal = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "没钱", mode: "text", limit: 4 } });
+  assert.equal(literal.candidates[0].id, genericKey, "text search preserves exact picture-text ranking");
+  assert.equal(plugin._test.isRoleSticker({ profile: { id: "other" } }, { source: { type: "profile", profileId: "p" }, profileIds: ["other"] }), false);
+  assert.equal(plugin._test.isRoleSticker(preference.ctx, { source: { type: "profile", legacyId: "profile:p:old" }, profileIds: ["p"] }), true);
+  const paged = fixture(), profileRows = Array.from({ length: 205 }, (_, i) => ({ profileId: "p", id: `page-${i}`,
+    name: `表情 ${i}`, description: "角色表情", tags: ["角色"], contentHash: "c".repeat(64), enabled: true }));
+  let pageCalls = 0;
+  paged.ctx.api.profileMedia = async input => {
+    if (input.action !== "list") return copy(paged.assets.get("qq"));
+    pageCalls++; assert.equal(input.limit, 5);
+    const offset = Number(input.cursor || 0), next = offset + input.limit;
+    return { items: copy(profileRows.slice(offset, next)), nextCursor: next < profileRows.length ? String(next) : null };
+  };
+  await paged.syncProfiles();
+  assert.equal(pageCalls, 41); assert.equal([...paged.records.values()].filter(row => row.value.source?.type === "profile").length, 205,
+    "all pages of role media are synchronized");
   const offline = fixture(); offline.modelReady(false);
   await plugin.importFiles({ ...offline.ctx, input: { refs: ["import"] } });
   const fallback = await plugin.process({ ...offline.ctx, input: { ids: ["a".repeat(64)] } });

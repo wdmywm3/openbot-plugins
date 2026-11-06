@@ -1,5 +1,5 @@
 "use strict";
-const fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), crypto = require("node:crypto");
+const fs = require("node:fs"), path = require("node:path"), os = require("node:os"), assert = require("node:assert/strict"), crypto = require("node:crypto");
 const { execFileSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 for (const name of ["catalog.json", "catalog-v2.json"]) {
@@ -22,4 +22,25 @@ if (fs.existsSync(filename)) {
   }
   console.log(`${name}: ${catalog.plugins.length} immutable packages verified`);
 } else console.log("catalog not generated yet");
+}
+
+// Regenerating plugin entries must not silently discard the character market.
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-catalog-sections-"));
+try {
+  const git = (...args) => execFileSync("git", args, { cwd: temp, stdio: "pipe" });
+  fs.mkdirSync(path.join(temp, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(temp, "plugins", "sample"), { recursive: true });
+  fs.copyFileSync(path.join(root, "scripts", "build-catalog.cjs"), path.join(temp, "scripts", "build-catalog.cjs"));
+  fs.writeFileSync(path.join(temp, "plugins", "sample", "plugin.json"), JSON.stringify({ id: "sample", name: "Sample", version: "1.0.0" }));
+  const personas = [{ id: "xixi", version: "1.1.14", file: "personas/xixi.openbot-persona.json" }];
+  fs.writeFileSync(path.join(temp, "catalog.json"), JSON.stringify({ schemaVersion: 1, plugins: [], personas }));
+  fs.writeFileSync(path.join(temp, "catalog-v2.json"), JSON.stringify({ schemaVersion: 1, plugins: [], personas }));
+  git("init", "-q"); git("add", "plugins");
+  git("-c", "user.name=OpenBot test", "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture");
+  execFileSync(process.execPath, [path.join(temp, "scripts", "build-catalog.cjs")], { cwd: temp });
+  for (const name of ["catalog.json", "catalog-v2.json"]) assert.deepEqual(JSON.parse(fs.readFileSync(path.join(temp, name), "utf8")).personas, personas);
+  console.log("Catalog generation preserves character-market entries");
+} finally {
+  assert.equal(path.dirname(path.resolve(temp)), path.resolve(os.tmpdir()));
+  fs.rmSync(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }

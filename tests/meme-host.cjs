@@ -100,10 +100,11 @@ async function main() {
     await runtime.runPluginAction(channel, plugin, action("import"), { refs: [second.ref] });
     for (let n = 0; n < 200; n++) {
       page = await runtime.runPluginAction(channel, plugin, action("list"), {});
-      if (page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
+      if (page.items.find(item => item.id === second.sha256)?.indexStatus === "fallback"
+        && page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
       await wait(20);
     }
-    assert.equal(page.items.find(item => item.id === second.sha256).indexStatus, "fallback", JSON.stringify(page.jobs));
+    assert.equal(page.items.find(item => item.id === second.sha256).indexStatus, "fallback", JSON.stringify({ items: page.items, jobs: page.jobs }));
     assert.equal(page.retrievalStatus.mode, "bm25"); assert.equal(page.counts.searchable, 2);
     engineAvailable = true;
     await runtime.runPluginAction(channel, plugin, action("update"), {});
@@ -113,6 +114,39 @@ async function main() {
       await wait(20);
     }
     assert.equal(page.counts.ready, 2); assert.equal(page.retrievalStatus.mode, "semantic");
+    store.data.channelAgents = [{ id: "own", name: "角色", enabled: true,
+      stickers: Array.from({ length: 105 }, (_, i) => ({ id: `role-${i}`, name: `角色 ${i}`, description: "角色冷静", tags: ["冷静"],
+        enabled: true, contentHash: asset.sha256, mimeType: "image/png" })) }];
+    channel.config.agentId = "channel-agent:own";
+    let lastTick = Date.now(), maxGap = 0;
+    const heartbeat = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - lastTick); lastTick = now; }, 10);
+    try {
+      await runtime.notifyPluginProfilesChanged("channel-agent:own");
+      for (let n = 0; n < 1200; n++) {
+        page = await runtime.runPluginAction(channel, plugin, action("list"), { source: "profile" });
+        if (page.total === 105 && page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
+        await wait(20);
+      }
+      assert.equal(page.total, 105, JSON.stringify(page.jobs));
+      assert(page.items.every(item => item.profileIds.includes("channel-agent:own")), "role media is synchronized with its role scope");
+      assert(maxGap < 500, `role synchronization blocked the host for ${maxGap} ms`);
+      let own = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
+      for (let n = 0; n < 100 && own.status === "running"; n++) { await wait(20); own = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: own.id }, context); }
+      assert.equal(own.status, "completed", own.error);
+      assert(own.result.candidates.some(item => item.roleSticker), "retrieved role stickers are identified to the model");
+      const rebuild = await runtime.runPluginAction(channel, plugin, action("update"), {});
+      let rebuildState;
+      for (let n = 0; n < 1800; n++) {
+        page = await runtime.runPluginAction(channel, plugin, action("list"), { source: "profile" });
+        rebuildState = page.jobs.find(item => item.id === rebuild.id);
+        if (rebuildState && !["running", "queued"].includes(rebuildState.status)) break;
+        await wait(20);
+      }
+      assert.equal(rebuildState?.status, "completed", JSON.stringify(rebuildState));
+      assert.equal(rebuildState.progress?.completed, 107, "reindexing visits every role and ordinary sticker");
+      assert.equal(page.total, 105, "reindexing a large library retains all role stickers");
+      assert(maxGap < 500, `role indexing blocked the host for ${maxGap} ms`);
+    } finally { clearInterval(heartbeat); }
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");

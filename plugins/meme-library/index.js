@@ -52,6 +52,9 @@ async function engine(ctx, input) {
 }
 async function transfer(ctx, ref) {
   const info = await ctx.api.assets({ action: "info", ref });
+  // Large role media is sent through the host's attachment interface directly;
+  // chunking it through the optional preparation engine can exhaust one slice.
+  if ((ctx.input?.profileBatch || ctx.input?.boundedProcess) && info.bytes > 262144) throw Error("使用原始图片附件");
   if (!(await engine(ctx, { action: "has", hash: info.sha256 })).present) {
     for (let offset = 0; offset < info.bytes; offset += 32768) {
       const chunk = await ctx.api.assets({ action: "read", ref, offset, length: 32768 });
@@ -66,6 +69,14 @@ function visible(ctx, v) {
   return !v.deleted && v.enabled !== false && !!usableRef(v, chat)
     && (!v.profileIds?.length || v.profileIds.includes(ctx.profile?.id))
     && (v.chatMode !== "include" || v.chatIds?.includes(chat)) && (v.chatMode !== "exclude" || !v.chatIds?.includes(chat));
+}
+function isRoleSticker(ctx, value) {
+  const profileId = ctx.profile?.id;
+  if (!profileId || value.source?.type !== "profile") return false;
+  // Older exported libraries retained role scope but did not store the owner
+  // separately. Do not treat ordinary images merely scoped to a role as self.
+  return value.source.profileId ? value.source.profileId === profileId
+    : value.profileIds?.length === 1 && value.profileIds[0] === profileId;
 }
 function descriptions(input) {
   return Object.fromEntries(FIELDS.filter(k => Object.hasOwn(input, k)).map(k => [k, SCALARS.has(k) ? text(input[k], k === "ocrText" ? 3000 : 1200) : strings(input[k])]));
@@ -225,9 +236,19 @@ async function ensureRetrieval(ctx, config = {}, wait = true) {
 module.exports.process = async ctx => {
   const config = await settings(ctx), job = await ctx.api.jobs({ action: "current" });
   if (typeof ctx.input?.retrievalModelId === "string") config.retrievalModelId = ctx.input.retrievalModelId;
-  const ids = strings(ctx.input?.ids, 20000), selected = ids.length ? ids : (await all(ctx)).map(r => r.key);
-  const done = new Set(job?.checkpoint?.done || []), failures = [];
-  if (!selected.length) return { completed: 0, failed: 0 };
+  const ids = strings(ctx.input?.ids, 20000), sliced = job?.action === "process" && !ctx.input?.profileBatch;
+  const state = sliced ? job?.checkpoint?.processSlice || { offset: 0, cursor: null, completed: 0, failed: 0, failures: [] } : null;
+  let selected, nextCursor = null, nextOffset = 0, more = false;
+  if (sliced && !ids.length) {
+    const page = await ctx.api.database({ name: "library", scope: "channel", collection: "items", action: "query", limit: 2,
+      ...(state.cursor ? { cursor: state.cursor } : {}) });
+    selected = page.records.map(row => row.key); nextCursor = page.nextCursor; more = !!nextCursor;
+  } else if (sliced) {
+    selected = ids.slice(state.offset, state.offset + 2); nextOffset = state.offset + selected.length; more = nextOffset < ids.length;
+  } else selected = ids.length ? ids : (await all(ctx)).map(r => r.key);
+  const done = new Set(sliced ? [] : job?.checkpoint?.done || []), failures = [];
+  if (!selected.length) return { completed: state?.completed || 0, failed: state?.failed || 0, failures: state?.failures || [] };
+  const workCtx = sliced ? { ...ctx, input: { ...ctx.input, boundedProcess: true } } : ctx;
   let vectorEnabled = false, warning = "";
   try { vectorEnabled = await ensureRetrieval(ctx, config, false); }
   catch (error) { ctx.signal.throwIfAborted(); warning = text(error.message, 600); }
@@ -235,8 +256,9 @@ module.exports.process = async ctx => {
     mode: vectorEnabled ? "semantic" : "bm25", warning, updatedAt: Date.now() }, "channel");
   for (const id of selected) {
     let error;
-    for (let n = 0; n < 3; n++) {
-      try { await processItem(ctx, id, { ...config, vectorEnabled }); error = null; break; }
+    const attempts = ctx.input?.profileBatch ? 1 : 3;
+    for (let n = 0; n < attempts; n++) {
+      try { await processItem(workCtx, id, { ...config, vectorEnabled }); error = null; break; }
       catch (cause) {
         ctx.signal.throwIfAborted();
         const latest = await get(ctx, id);
@@ -244,7 +266,7 @@ module.exports.process = async ctx => {
           warning = text(cause.message, 600); vectorEnabled = false;
           await updateItem(ctx, id, { indexStatus: "fallback", error: "" }, latest.value.descriptionVersion); error = null; break;
         }
-        error = cause; if (n < 2) await ctx.api.sleep(1000 * (n + 1));
+        error = cause; if (n + 1 < attempts) await ctx.api.sleep(1000 * (n + 1));
       }
     }
     if (error) {
@@ -255,9 +277,10 @@ module.exports.process = async ctx => {
     done.add(id);
     // Checkpoint remains bounded even for large libraries. Already indexed rows
     // are cheap to revisit after restart; only the recent batch is recorded.
-    await ctx.api.jobs({ action: "checkpoint", checkpoint: { done: [...done].slice(-500) }, progress: { phase: "processing", completed: done.size, total: selected.length, failed: failures.length } });
+    await ctx.api.jobs({ action: "checkpoint", checkpoint: sliced ? { processSlice: state } : { done: [...done].slice(-500) },
+      progress: { phase: "processing", completed: (state?.completed || 0) + done.size, ...(ids.length ? { total: ids.length } : {}), failed: (state?.failed || 0) + failures.length } });
   }
-  if (!vectorEnabled && !warning) {
+  if (!vectorEnabled && !warning && !ctx.input?.profileBatch && !sliced) {
     try { vectorEnabled = await ensureRetrieval(ctx, config); }
     catch (error) { ctx.signal.throwIfAborted(); warning = text(error.message, 600); }
     if (vectorEnabled) for (const id of selected) {
@@ -271,7 +294,15 @@ module.exports.process = async ctx => {
   await ctx.api.setState("retrievalStatus", { mode, warning, attempts,
     nextRetryAt: attempts ? Date.now() + Math.min(6 * 3600000, 15 * 60000 * 2 ** (attempts - 1)) : 0, updatedAt: Date.now() }, "channel");
   if (mode === "semantic") await ctx.api.setState("queryBackoff", null, "channel");
-  return { completed: done.size, failed: failures.length, failures: failures.slice(0, 50), mode, ...(warning ? { warning } : {}) };
+  const result = { completed: (state?.completed || 0) + done.size, failed: (state?.failed || 0) + failures.length,
+    failures: [...(state?.failures || []), ...failures].slice(0, 50), mode, ...(warning ? { warning } : {}) };
+  if (more) {
+    await ctx.api.jobs({ action: "yield", checkpoint: { processSlice: { offset: nextOffset, cursor: nextCursor,
+      completed: result.completed, failed: result.failed, failures: result.failures } },
+      progress: { phase: "processing", completed: result.completed, ...(ids.length ? { total: ids.length } : {}), failed: result.failed } });
+    return { continuing: true };
+  }
+  return result;
 };
 module.exports.loaded = async ctx => {
   const paused = await ctx.api.getState("recoveryPaused", "channel");
@@ -292,26 +323,62 @@ module.exports.recover = async ctx => {
   if ((await all(ctx)).some(row => row.value.indexBackend !== INDEX_BACKEND || ["fallback", "pending"].includes(row.value.indexStatus))) await enqueue(ctx, [], `recover:${Math.floor(Date.now() / 900000)}`);
 };
 module.exports.syncProfiles = async ctx => {
-  const media = await ctx.api.profileMedia({ action: "list" }), ids = [], expected = new Set();
-  for (const item of media) {
-    const legacyId = `profile:${item.profileId}:${item.id}`, id = `${item.contentHash}:${legacyId}`;
-    expected.add(id);
-    const old = await get(ctx, id);
-    if (old?.value.deleted || old?.value.userEdited) continue;
-    const asset = await ctx.api.profileMedia({ action: "copy", profileId: item.profileId, id: item.id });
-    const annotation = { caption: item.description || item.name, literalDescription: item.description || item.name, tags: item.tags,
-      analysisStatus: item.description ? "ready" : "pending", manual: !!item.description,
-      scope: { enabled: item.enabled !== false, profileIds: [item.profileId], chatMode: "all", chatIds: [] } };
-    const record = await ingest(ctx, asset.ref, { type: "profile", legacyId, profileId: item.profileId }, annotation, false);
-    if (old && (old.value.caption !== annotation.caption || JSON.stringify(old.value.tags) !== JSON.stringify(annotation.tags))) {
-      await updateItem(ctx, id, { ...descriptions(annotation), manual: annotation.manual, analysisStatus: annotation.analysisStatus,
-        descriptionVersion: record.value.descriptionVersion + 1, indexStatus: "pending" }, record.value.descriptionVersion);
+  const job = await ctx.api.jobs({ action: "current" });
+  const state = job?.checkpoint?.profileSync || { phase: "scan", generation: job?.id || "profile-sync", completed: 0 };
+  ctx.signal.throwIfAborted();
+  if (state.phase === "scan") {
+    const result = await ctx.api.profileMedia({ action: "list", limit: 5, ...(state.cursor ? { cursor: state.cursor } : {}) });
+    const media = Array.isArray(result) ? result : result.items, ids = [];
+    if (!Array.isArray(media)) throw Error("角色表情列表无效");
+    if (state.revision !== undefined && result.revision !== state.revision) throw Error("角色表情已变化，请重新同步");
+    for (const item of media) {
+      ctx.signal.throwIfAborted();
+      const legacyId = `profile:${item.profileId}:${item.id}`, id = `${item.contentHash}:${legacyId}`;
+      const old = await get(ctx, id);
+      if (old?.value.deleted || old?.value.userEdited) continue;
+      const asset = await ctx.api.profileMedia({ action: "copy", profileId: item.profileId, id: item.id });
+      const annotation = { caption: item.description || item.name, literalDescription: item.description || item.name, tags: item.tags,
+        analysisStatus: item.description ? "ready" : "pending", manual: !!item.description,
+        scope: { enabled: item.enabled !== false, profileIds: [item.profileId], chatMode: "all", chatIds: [] } };
+      const record = await ingest(ctx, asset.ref, { type: "profile", legacyId, profileId: item.profileId }, annotation, false);
+      const changes = { profileSyncGeneration: state.generation, enabled: item.enabled !== false };
+      if (old && (old.value.caption !== annotation.caption || JSON.stringify(old.value.tags) !== JSON.stringify(annotation.tags))) {
+        Object.assign(changes, descriptions(annotation), { manual: annotation.manual, analysisStatus: annotation.analysisStatus,
+          descriptionVersion: record.value.descriptionVersion + 1, indexStatus: "pending" });
+      }
+      await updateItem(ctx, id, changes, record.value.descriptionVersion);
+      ids.push(record.key);
     }
-    if (old && old.value.enabled !== (item.enabled !== false)) await updateItem(ctx, id, { enabled: item.enabled !== false });
-    ids.push(record.key);
+    if (ids.length) {
+      // The outer sync owns its checkpoint; the nested bounded batch must not
+      // replace it with the independent indexing job's checkpoint.
+      const jobs = ctx.api.jobs;
+      await module.exports.process({ ...ctx, input: { ids, profileBatch: true }, api: { ...ctx.api,
+        jobs: input => input.action === "current" ? Promise.resolve({ checkpoint: null })
+          : input.action === "checkpoint" ? Promise.resolve({}) : jobs(input) } });
+    }
+    const next = Array.isArray(result) ? null : result.nextCursor;
+    const checkpoint = { ...state, revision: result.revision, completed: state.completed + media.length,
+      phase: next ? "scan" : "cleanup", cursor: next || null };
+    await ctx.api.jobs({ action: "yield", checkpoint: { profileSync: checkpoint }, progress: { phase: "sync", completed: checkpoint.completed } });
+    return { continuing: true };
   }
-  for (const row of await all(ctx)) if (row.value.source?.type === "profile" && !expected.has(row.key) && !row.value.userEdited) await updateItem(ctx, row.key, { enabled: false });
-  return ids.length ? module.exports.process({ ...ctx, input: { ids } }) : { completed: 0 };
+  // Do not disable missing rows against an obsolete snapshot. A new role change
+  // queues another sync, and the old job stops without changing other roles.
+  if (state.revision !== undefined) await ctx.api.profileMedia({ action: "list", limit: 1, cursor: `${state.revision}:0` });
+  const page = await ctx.api.database({ name: "library", scope: "channel", collection: "items", action: "query",
+    where: { "source.type": "profile" }, limit: 25, ...(state.cursor ? { cursor: state.cursor } : {}) });
+  for (const row of page.records) {
+    ctx.signal.throwIfAborted();
+    if (!row.value.deleted && !row.value.userEdited && row.value.enabled !== false && row.value.profileSyncGeneration !== state.generation)
+      await updateItem(ctx, row.key, { enabled: false });
+  }
+  if (page.nextCursor) {
+    const checkpoint = { ...state, cursor: page.nextCursor };
+    await ctx.api.jobs({ action: "yield", checkpoint: { profileSync: checkpoint }, progress: { phase: "cleanup", completed: state.completed } });
+    return { continuing: true };
+  }
+  return { completed: state.completed };
 };
 module.exports.importFiles = async ctx => {
   const refs = strings(ctx.input?.refs, 32);
@@ -594,24 +661,27 @@ async function search(ctx, input) {
   const scored = rows.map((row, index) => {
     const v = row.value, words = Math.max(lexical(query, v), scores[index]);
     const hasVector = semantic.has(row.key);
-    return { v, minimum: hasVector && input.mode !== "text" ? minimum : 0.16,
+    return { v, roleSticker: isRoleSticker(ctx, v), minimum: hasVector && input.mode !== "text" ? minimum : 0.16,
       score: !query ? Math.random() : input.mode === "text" ? words : Math.max(words, semantic.get(row.key) || 0) };
-  }).filter(r => !query || r.score >= r.minimum).sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(6, input.limit || 4)));
+  }).filter(r => !query || r.score >= r.minimum)
+    .sort((a, b) => (b.score + (query && input.mode !== "text" && b.roleSticker ? 0.08 : 0))
+      - (a.score + (query && input.mode !== "text" && a.roleSticker ? 0.08 : 0)))
+    .slice(0, Math.max(1, Math.min(6, input.limit || 4)));
   const candidates = [], attachments = [];
-  for (const { v, score } of scored) {
+  for (const { v, score, roleSticker } of scored) {
     const ref = usableRef(v, ctx.message.chatId)?.ref;
     try {
       const published = await ctx.api.assets({ action: "publish", ref, compact: true });
       candidates.push({ id: v.id, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags, avoidContexts: v.avoidContexts,
-        score: Math.round(score * 1000) / 1000, url: published.url });
-      attachments.push({ assetRef: ref, caption: `${v.id}：${v.caption || "表情"}` });
+        roleSticker, score: Math.round(score * 1000) / 1000, url: published.url });
+      attachments.push({ assetRef: ref, caption: `${v.id}：${roleSticker ? "专属角色表情，" : ""}${v.caption || "表情"}` });
     } catch { /* Scope may change while candidates are being prepared. */ }
   }
   const event = await recordEvent(ctx, "search", ctx.message.chatId, candidates.length ? "pending" : "no_match", query || "随机选图",
     { candidates: candidates.map(({ id, score }) => ({ id, score })), retrieval, warning });
   await ctx.api.setState("lastSearch", { key: event.key, candidates: candidates.map(({ id, url }) => ({ id, url })) }, "chat");
   return { searchId: event.key, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
-    instruction: "查看候选图，选择符合眼前语境的，将对应 url 原样放入 qqReply 的 <image src=\"...\"/>。没有合适的就不发。" };
+    instruction: "专属角色表情画的是你自己，包括 Q 版。查看候选图和含义；有符合当前语境的专属角色表情时优先选择它，将对应 url 原样放入 qqReply 的 <image src=\"...\"/>。没有合适的就不发。" };
 }
 module.exports.stickers = async ctx => {
   const action = ctx.input?.action || "search";
@@ -638,7 +708,7 @@ module.exports.handle = async ctx => {
 module.exports.beforeModel = async ctx => {
   if (!ctx.api.getCapabilities || !(await ctx.api.getCapabilities()).features?.persistentContextItems) throw Error("表情插件需要支持持久资料的新版本 OpenBot");
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
-  const systemPromptAppend = '表情插件提供 stickers 工具。需要用表情表达时，先检索并查看候选图片和含义，选择贴合对象与语境的一张，将工具返回的完整 url 用 <image src="..."/> 放进 qqReply。图能表达清楚就少补文字，没有合适的图就自然聊天。按本轮可用状态使用，不套用过去的状态或图片地址。详细选图和收藏流程见本插件 stickers Skill。';
+  const systemPromptAppend = '表情插件提供 stickers 工具。专属角色表情画的是你自己，包括 Q 版。需要用表情表达时，先检索并查看候选图片和含义；有贴合对象与语境的专属角色表情时优先选它，将工具返回的完整 url 用 <image src="..."/> 放进 qqReply。图能表达清楚就少补文字，没有合适的图就自然聊天。按本轮可用状态使用，不套用过去的状态或图片地址。详细选图和收藏流程见本插件 stickers Skill。';
   let status;
   if (!cfg.frequency) status = "当前聊天已关闭表情发送。";
   else if (Date.now() - last < cfg.cooldownSeconds * 1000) status = "表情发送仍在冷却中，本轮不用表情。";
@@ -703,4 +773,4 @@ module.exports.messageReceived = async ctx => {
     try { await module.exports.collect({ ...ctx, input: { messageId: ctx.message.id, imageIndex: i } }); } catch { /* Continue with other attachments. */ }
   }
 };
-module.exports._test = { descriptions, indexText, textIndex, textScores, visible, usableRef, parseAnalysis, ingest, processItem, search };
+module.exports._test = { descriptions, indexText, textIndex, textScores, visible, isRoleSticker, usableRef, parseAnalysis, ingest, processItem, search };

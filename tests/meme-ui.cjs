@@ -10,6 +10,7 @@ module.exports = async function checkUi({ hostRequire, runtime, channel, plugin,
     await require("./helpers/view-host.cjs")({ page, hostRequire, runtime, channel, plugin });
     await page.locator(".channel-edit-tabs").getByRole("button", { name: "表情包", exact: true }).click();
     const view = page.frameLocator('iframe[title="表情包"]');
+    await expect(view.locator('#source option[value="profile"]')).toHaveText("专属角色表情");
     await expect(page.locator(".channel-overview-facts")).toHaveCount(0);
     await expect(view.locator(".tile")).toHaveCount(1);
     await expect(view.locator('#chat-filter option')).toHaveText(['全部聊天', '表情交流群（123456）', '表情交流群（876543）']);
