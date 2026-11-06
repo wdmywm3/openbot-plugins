@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -739,7 +739,7 @@
         ]
       },
       "metadata": {
-        "changelog": "角色图片自动同步为专属角色表情；选图时标识并优先考虑符合语境的专属角色表情。",
+        "changelog": "修复导入表情时后台刷新可能显示错误；角色图片自动同步为专属角色表情。",
         "requirements": [
           "需要支持分页角色媒体和可继续后台任务的新版本 OpenBot，请先更新宿主再更新插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

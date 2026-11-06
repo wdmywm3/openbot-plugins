@@ -36,6 +36,12 @@ if (fs.existsSync(filename)) {
       const media = read(entry.media);
       assert.equal(media.id, entry.id); assert.equal(media.version, entry.version); assert.equal(media.schemaVersion, 2);
       assert.equal(media.stickers.length, entry.media.count);
+      if (entry.preview) {
+        assert.ok(entry.preview.size <= 4 * 1024 * 1024);
+        const preview = read(entry.preview);
+        assert.equal(preview.id, entry.id); assert.equal(preview.version, entry.version);
+        assert.deepEqual(preview.stickers.map(sticker => sticker.id), media.stickers.map(sticker => sticker.id));
+      }
     }
   }
   console.log(`${name}: ${catalog.plugins.length} immutable packages verified`);

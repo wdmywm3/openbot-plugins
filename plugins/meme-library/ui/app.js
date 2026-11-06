@@ -35,11 +35,12 @@ function jobs(){
  label.textContent=active.status==="failed"?active.error||"处理失败":`${active.status==="queued"?"等待处理":active.status==="running"?"正在处理":"处理已中断"}${p.total?` ${p.completed||0}/${p.total}`:""}${p.failed?`，${p.failed} 张失败`:""}`;
  $("progress").append(label,button(["running","queued"].includes(active.status)?"停止":"继续",async()=>{await (["running","queued"].includes(active.status)?call("stop"):call("job",{action:"resume",id:active.id}));await refresh();}));
 }
-async function refresh(){const current=++serial;const result=await call("list",{...filters(),offset});if(current!==serial)return;snapshot=result;
+async function refresh(){const current=++serial;try{const result=await call("list",{...filters(),offset});if(current!==serial)return;snapshot=result;
  options($("profile-filter"),snapshot.contexts.profiles,"全部角色");options($("chat-filter"),snapshot.contexts.chats,"全部聊天");
  $("sync").hidden=snapshot.capabilities.platform!=="napcat";$("summary").textContent=`${snapshot.total} 张表情`;
  $("previous").disabled=offset===0;$("next").disabled=snapshot.nextOffset==null;$("paging").hidden=snapshot.total<=48;$("page").textContent=`${Math.floor(offset/48)+1} / ${Math.max(1,Math.ceil(snapshot.total/48))}`;grid();jobs();
  if(exportJob){const job=await call("job",{action:"status",id:exportJob});if(current!==serial)return;if(job.status==="completed"){$("progress").hidden=false;$("progress").append(button("保存导出文件",async()=>{const result=await api.saveFiles(job.result.files.map(file=>file.ref));if(!result.canceled)exportJob="";await refresh();}));}}
+ }catch(cause){if(current===serial)throw cause;}
 }
 function changed(){offset=0;selection.clear();task(refresh);}
 $("query").oninput=()=>{clearTimeout(debounce);serial++;debounce=setTimeout(changed,200);};
@@ -56,9 +57,11 @@ for(const element of document.querySelectorAll("[data-batch]"))element.onclick=(
  if(operation==="remove"&&!await api.ui.confirm({title:`删除 ${items.length} 张表情`,message:"这些图片会从表情库移除。",confirmLabel:"删除",danger:true}))return;
  busy=true;selectionBar();try{const result=await call("batch",{operation,items});result.succeeded.forEach(id=>selection.delete(id));await refresh();if(result.failed.length)error(`已完成 ${result.succeeded.length} 张，${result.failed.length} 张失败：\n${result.failed.map(item=>item.error).join("\n")}`);}finally{busy=false;selectionBar();}
 });
-$("import").onclick=()=>task(async()=>{const chosen=await api.selectFiles({extensions:["png","jpg","jpeg","gif","webp","json"]});const files=chosen.files||[],images=files.filter(file=>file.mimeType!=="application/json"),bundles=files.filter(file=>file.mimeType==="application/json");
+$("import").onclick=()=>task(async()=>{if(busy)return;busy=true;serial++;$("import").disabled=true;selectionBar();try{
+ const chosen=await api.selectFiles({extensions:["png","jpg","jpeg","gif","webp","json"]});const files=chosen.files||[],images=files.filter(file=>file.mimeType!=="application/json"),bundles=files.filter(file=>file.mimeType==="application/json");
  if(images.length)await api.ui.openOverlay({viewId:"scope",title:"导入表情",input:{importRefs:images.map(file=>file.ref)}});
- if(bundles.length)await call("importBundle",{refs:bundles.map(file=>file.ref)});await refresh();});
+ if(bundles.length)await call("importBundle",{refs:bundles.map(file=>file.ref)});await refresh();
+ }finally{busy=false;$("import").disabled=false;selectionBar();}});
 $("settings").onclick=()=>task(async()=>{await api.ui.openOverlay({viewId:"preferences",size:"md"});await refresh();});
 $("search-history").onclick=()=>task(()=>api.ui.openOverlay({viewId:"history"}));
 $("sync").onclick=()=>task(async()=>{await call("sync");await refresh();});

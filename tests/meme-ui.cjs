@@ -1,17 +1,38 @@
 "use strict";
 const assert = require("node:assert/strict"), path = require("node:path");
 
-module.exports = async function checkUi({ hostRequire, runtime, channel, plugin, action, media, actor, root }) {
+module.exports = async function checkUi({ hostRequire, runtime, channel, plugin, action, media, actor, root, picker }) {
   const { chromium, expect } = hostRequire("playwright/test");
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1100, height: 850 } }), errors = [];
     page.on("pageerror", error => errors.push(error.message));
-    await require("./helpers/view-host.cjs")({ page, hostRequire, runtime, channel, plugin });
+    let listCalls = 0, rejectList, holdList = false;
+    await require("./helpers/view-host.cjs")({ page, hostRequire, runtime, channel, plugin, onAction(args, next) {
+      if (args.actionId === "list") {
+        listCalls++;
+        if (holdList) { holdList = false; return new Promise((_resolve, reject) => { rejectList = reject; }); }
+      }
+      return next();
+    } });
     await page.locator(".channel-edit-tabs").getByRole("button", { name: "表情包", exact: true }).click();
     const view = page.frameLocator('iframe[title="表情包"]');
     await expect(view.locator('#source option[value="profile"]')).toHaveText("专属角色表情");
     await expect(page.locator(".channel-overview-facts")).toHaveCount(0);
+    await expect(view.locator(".tile")).toHaveCount(1);
+    holdList = true;
+    await view.locator("#query").fill("测试");
+    await expect.poll(() => !!rejectList).toBe(true);
+    await view.locator("#import").click();
+    await expect.poll(() => typeof picker.release === "function").toBe(true);
+    rejectList(new Error("Plugin initialization failed"));
+    const whilePicking = listCalls;
+    await page.waitForTimeout(5200);
+    assert.equal(listCalls, whilePicking, "background list polling pauses while the file picker is open");
+    await expect(view.locator("#error")).not.toBeVisible();
+    picker.release([]); picker.release = null;
+    await expect(view.locator("#import")).toBeEnabled();
+    await view.locator("#query").fill("");
     await expect(view.locator(".tile")).toHaveCount(1);
     await expect(view.locator('#chat-filter option')).toHaveText(['全部聊天', '表情交流群（123456）', '表情交流群（876543）']);
     await view.locator(".tile > button").click();

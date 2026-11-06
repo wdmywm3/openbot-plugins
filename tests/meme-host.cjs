@@ -38,7 +38,9 @@ async function main() {
       create: () => createLocalEmbeddingIndex(root, { embed: async () => { if (!engineAvailable) throw Error("model unavailable"); return vectors; } }),
     } } });
     retrieval = { models, vectors: createVectorCollections({ root, models }) };
+    const picker = { release: null };
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, groupNames, ensureStoreArray: key => store.data[key] || [],
+      selectPluginFiles: () => new Promise(resolve => { picker.release = resolve; }),
       resolveChannel: () => channel, botPluginsFor: () => [plugin], makeId: () => Math.random().toString(), safeError: String,
       getPluginState: (_channel, _plugin, scope, scopeId, key) => state.get(JSON.stringify([scope, scopeId, key])),
       setPluginState: (_channel, _plugin, scope, scopeId, key, value) => state.set(JSON.stringify([scope, scopeId, key]), value),
@@ -93,7 +95,7 @@ async function main() {
     const resolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments);
     assert.equal(resolved[0].data.file, "base64://" + bytes.toString("base64")); assert.equal(resolved[0].data.sub_type, 1);
     await assert.rejects(runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
-    if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root });
+    if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root, picker });
     engineAvailable = false;
     const secondBytes = await hostRequire("sharp")({ create: { width: 33, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const second = media.put(actor, secondBytes, { mimeType: "image/png", name: "offline.png" });
