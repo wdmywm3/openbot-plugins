@@ -1077,5 +1077,24 @@
         }
       ]
     }
+  ],
+  "personas": [
+    {
+      "id": "xixi",
+      "version": "1.1.14",
+      "name": "嘻嘻",
+      "description": "蓝发蓝眼、白色斗篷装的猫娘。配套表情需新版 OpenBot，并需安装启用表情包插件。",
+      "author": "OpenBot",
+      "file": "personas/xixi.openbot-persona.json",
+      "size": 23567,
+      "sha256": "441c921435cad6d56621285c9f0fc954b969e74f7bfd9b6fb2664a8604498b17",
+      "media": {
+        "file": "personas/xixi.media.openbot-persona.json",
+        "size": 24194156,
+        "sha256": "137fd6439b35172f9a9028259d354099705ee6583dfc2ef91082cdeac11e4d12",
+        "count": 33
+      },
+      "ref": "aef6808191e3aa23545feeec111da76fcc227d24"
+    }
   ]
 }
