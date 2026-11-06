@@ -94,8 +94,79 @@ function fixture() {
     onGenerate(fn) { beforeGenerate = fn; }, onEmbed(fn) { beforeEmbed = fn; }, modelReady(value) { modelReady = value; } };
 }
 async function main() {
+  const preset = fixture(), prepared = { schemaVersion: 1, analysis: { caption: "猫举起手", meaning: "主动打招呼", ocrText: "", tags: ["招呼"], usageExamples: ["刚见到朋友"], avoidContexts: ["对方正在认真求助"] } };
+  const roleMedia = [{ profileId: "p", id: "hello", name: "嘻嘻正比：挥手", description: "旧版简短描述", tags: ["旧标签"], contentHash: "c".repeat(64), metadata: { "meme-library": prepared } }];
+  preset.ctx.api.profileMedia = async input => input.action === "list" ? copy(roleMedia) : copy(preset.assets.get("qq"));
+  await preset.syncProfiles();
+  const presetKey = "c".repeat(64) + ":profile:p:hello", presetRow = () => copy(preset.records.get("items:" + presetKey));
+  assert.equal(presetRow().value.meaning, "主动打招呼"); assert.equal(presetRow().value.indexStatus, "ready");
+  assert(!preset.calls.includes("recognize"), "package analysis is indexed directly without another model call");
+  let editDuringCopy = true;
+  const profileMediaApi = preset.ctx.api.profileMedia;
+  preset.ctx.api.profileMedia = async input => {
+    if (input.action === "copy" && editDuringCopy) {
+      editDuringCopy = false;
+      await plugin.save({ ...preset.ctx, input: { id: presetKey, revision: presetRow().revision, enabled: false } });
+    }
+    return profileMediaApi(input);
+  };
+  await preset.syncProfiles();
+  assert.equal(presetRow().value.enabled, false, "an in-flight package sync cannot undo a user's disable action");
+  // Continue the separate untouched-item update scenario.
+  preset.ctx.api.profileMedia = profileMediaApi;
+  preset.records.get("items:" + presetKey).value.userEdited = false;
+  prepared.analysis.meaning = "友好应声或道别";
+  await preset.syncProfiles();
+  assert.equal(presetRow().value.meaning, "友好应声或道别", "meaning-only package updates propagate");
+  await plugin.save({ ...preset.ctx, input: { id: presetKey, revision: presetRow().revision, meaning: "我的解释" } });
+  prepared.analysis.meaning = "第三版解释"; await preset.syncProfiles();
+  assert.equal(presetRow().value.meaning, "我的解释", "package updates retain locally edited analysis");
+  await plugin.importFiles({ ...preset.ctx, input: { refs: ["import"] } });
+  const ordinaryId = "a".repeat(64);
+  await plugin.save({ ...preset.ctx, input: { id: ordinaryId, revision: preset.get("a").revision, roleProfileId: "p", profileIds: ["other"] } });
+  assert.deepEqual(preset.get("a").value.profileIds, ["p"]);
+  assert(plugin._test.isRoleSticker(preset.ctx, preset.get("a").value));
+  assert(!plugin._test.visible({ ...preset.ctx, profile: { id: "other" } }, { ...preset.get("a").value, profileIds: [] }), "exclusive identity cannot be widened through ordinary scope");
+  await plugin.save({ ...preset.ctx, input: { id: presetKey, revision: presetRow().revision, roleProfileId: "", profileIds: [] } });
+  assert(!plugin._test.isRoleSticker(preset.ctx, presetRow().value), "an explicit ordinary setting overrides imported provenance");
+  await assert.rejects(plugin.save({ ...preset.ctx, input: { id: ordinaryId, revision: preset.get("a").revision, roleProfileId: "missing" } }), /角色不存在/);
+
+  const renamed = fixture(), firstId = "a".repeat(64), secondId = "b".repeat(64);
+  await plugin.importFiles({ ...renamed.ctx, input: { refs: ["import", "chat"] } });
+  let named = renamed.get("a");
+  await plugin.save({ ...renamed.ctx, input: { id: firstId, revision: named.revision, name: "嘻嘻正比：开心" } });
+  assert.equal(renamed.get("a").value.analysisStatus, "pending", "naming a new image must not skip recognition");
+  assert.equal(renamed.get("a").value.manual, false);
+  await plugin.process({ ...renamed.ctx, input: { ids: [firstId, secondId] } });
+  named = renamed.get("a");
+  await plugin.save({ ...renamed.ctx, input: { id: firstId, revision: named.revision, caption: "人工旧描述", meaning: "人工旧含义" } });
+  const beforeCount = renamed.calls.filter(call => call === "recognize").length;
+  const otherBefore = renamed.get("b");
+  await plugin.update({ ...renamed.ctx, input: { ids: [firstId], reanalyze: true, requestKey: "selected" } });
+  const requested = renamed.jobs.at(-1).input;
+  assert.deepEqual(requested.ids, [firstId]); assert.equal(requested.reanalyze, true);
+  await plugin.process({ ...renamed.ctx, input: requested });
+  assert.equal(renamed.calls.filter(call => call === "recognize").length, beforeCount + 1);
+  assert.equal(renamed.get("a").value.caption, "捂住钱包的猫");
+  assert.equal(renamed.get("a").value.name, "嘻嘻正比：开心");
+  assert.deepEqual(renamed.get("b"), otherBefore, "selected reanalysis does not touch other images");
+  await plugin.process({ ...renamed.ctx, input: requested });
+  assert.equal(renamed.calls.filter(call => call === "recognize").length, beforeCount + 1, "resuming the same job does not recognize successful rows twice");
+  renamed.modelReady(false);
+  const namedSearch = await plugin.stickers({ ...renamed.ctx, input: { action: "search", query: "嘻嘻正比", mode: "text" } });
+  assert.equal(namedSearch.candidates[0].name, "嘻嘻正比：开心", "fixed names participate in search and reach the model");
+  for (const ids of [[], Array(501).fill(firstId), [""]]) await assert.rejects(plugin.update({ ...renamed.ctx, input: { ids, reanalyze: true } }), /请选择/);
+  // Old analysis fields remain readable, then collapse without duplication on edit.
+  const old = renamed.records.get("items:" + firstId);
+  Object.assign(old.value, { caption: "猫", literalDescription: "猫举手", meaning: "打招呼", tone: ["友好"], useCases: ["见面"], aliases: ["招手猫"] });
+  const detail = await plugin.detail({ ...renamed.ctx, input: { id: firstId } });
+  assert.equal(detail.caption, "猫；猫举手"); assert.equal(detail.meaning, "打招呼；友好"); assert(detail.tags.includes("招手猫")); assert(detail.usageExamples.includes("见面"));
+  await plugin.save({ ...renamed.ctx, input: { id: firstId, revision: detail.revision, caption: detail.caption + "，微笑" } });
+  assert.equal(renamed.get("a").value.caption, "猫；猫举手，微笑"); assert.equal(renamed.get("a").value.literalDescription, "");
+  assert.equal(renamed.get("a").value.meaning, "打招呼；友好");
+
   const migrated = fixture(), provenance = { caption: "旧表情", tags: ["高兴"], displayedEmotion: ["开心"], inducedEffect: ["庆祝"],
-    safetyLabels: ["普通表情"], intensity: "medium", analysisModelId: "legacy-vision", analyzedAt: 1700000000000 };
+    name: "嘻嘻正比：开心", safetyLabels: ["普通表情"], intensity: "medium", analysisModelId: "legacy-vision", analyzedAt: 1700000000000 };
   const originalEngine = migrated.ctx.api.callTool; let exportedAnnotation;
   migrated.ctx.principal = { channelId: "bot" };
   migrated.ctx.api.jobs = async () => ({ id: "export", checkpoint: null });
@@ -225,7 +296,7 @@ async function main() {
   const fallback = await plugin.process({ ...offline.ctx, input: { ids: ["a".repeat(64)] } });
   assert.equal(fallback.mode, "bm25"); assert.equal(fallback.failed, 0);
   assert.equal(offline.get("a").value.analysisStatus, "ready", "failed model downloads never block recognition");
-  assert.equal(offline.get("a").value.indexStatus, "fallback"); assert.equal(offline.get("a").value.textIndex.version, "bm25-cjk-v1");
+  assert.equal(offline.get("a").value.indexStatus, "fallback"); assert.equal(offline.get("a").value.textIndex.version, "bm25-cjk-v2");
   const matched = await plugin.stickers({ ...offline.ctx, input: { action: "search", query: "钱包" } });
   assert.equal(matched.retrieval, "bm25"); assert.equal(matched.candidates.length, 1);
   const priorRecognition = offline.calls.filter(action => action === "recognize").length;
