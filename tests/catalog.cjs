@@ -20,6 +20,24 @@ if (fs.existsSync(filename)) {
     assert.equal(entry.version, manifest.version);
     assert.deepEqual(entry.permissions, manifest.extensions?.["com.openbot"]?.permissions || manifest.permissions);
   }
+  for (const entry of catalog.personas || []) {
+    assert.match(entry.ref, /^[a-f0-9]{40}$/);
+    const read = resource => {
+      const bytes = execFileSync("git", ["show", `${entry.ref}:${resource.file}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+      assert.equal(bytes.length, resource.size);
+      assert.equal(crypto.createHash("sha256").update(bytes).digest("hex"), resource.sha256);
+      return JSON.parse(bytes.toString("utf8"));
+    };
+    const core = read(entry);
+    assert.equal(core.id, entry.id); assert.equal(core.version, entry.version);
+    if (entry.media) {
+      assert.equal(core.schemaVersion, 2, "legacy hosts must reject split-media packs before updating a role");
+      assert.equal(core.stickers.length, 0, "optional media is not included in the core package");
+      const media = read(entry.media);
+      assert.equal(media.id, entry.id); assert.equal(media.version, entry.version); assert.equal(media.schemaVersion, 2);
+      assert.equal(media.stickers.length, entry.media.count);
+    }
+  }
   console.log(`${name}: ${catalog.plugins.length} immutable packages verified`);
 } else console.log("catalog not generated yet");
 }

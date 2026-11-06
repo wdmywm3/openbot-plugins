@@ -82,6 +82,8 @@
 
 表情包 2.3.3 将角色自带图片同步为“专属角色表情”，提示模型在贴合语境时优先选择。需要支持分页角色媒体和分批后台任务的新版本 OpenBot，请先更新宿主再更新插件。
 
+角色市场提供嘻嘻 1.1.14 和 33 张配套表情。角色和表情分别下载，可在招募时跳过表情并在之后补装；需要支持角色包格式版本 2 的新版本 OpenBot，旧版会拒绝更新以保留已有表情。
+
 ## 开发验证与候选包
 
 测试使用 Node.js 24。独立检出插件仓库后，先运行 `npm ci --prefix plugins/memory --ignore-scripts` 和 `npm ci --prefix plugins/meme-library --ignore-scripts` 安装锁定依赖，再运行 `npm test`。这个入口不读取 OpenBot 源码，包含记忆策略的独立测试和表情图片引擎测试；GitHub Actions 使用同样的环境执行。
