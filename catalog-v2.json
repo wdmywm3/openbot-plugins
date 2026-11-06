@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.4",
+      "version": "2.3.5",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -354,12 +354,12 @@
         "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
         "requirements": [
-          "需要支持分页角色媒体和可继续后台任务的新版本 OpenBot，请先更新宿主再更新插件。",
+          "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "修复导入表情时后台刷新可能显示错误；角色图片自动同步为专属角色表情。",
+        "changelog": "多选保留滚动位置；支持单张和批量重新识别、固定名称、专属角色设置，以及人格包预置识别结果。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +370,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9b5bac6df5e6da7af24e2b19b617b12bb5a9f909",
+      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
       "files": [
         {
           "path": "README.md",
-          "size": 5327,
-          "sha256": "7daaa925cc818de7b7ff97c9addfc74fce2c2216d6fec86f453f8720f0404baa"
+          "size": 7081,
+          "sha256": "e1d0a96cbb512afec1ad3fd7ccbcfe24525063f038132de1728d5024a3922cce"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +394,8 @@
         },
         {
           "path": "index.js",
-          "size": 55816,
-          "sha256": "46ec90953a91d59fb9ef8c8bdf6e69ab16b6a78e35314b64ff66d5692e8b7a22"
+          "size": 60594,
+          "sha256": "0b415bf038f482c16b17fe63e4074dbf430c5f57c6768de5bfa819c3528ae17e"
         },
         {
           "path": "mcp.json",
@@ -414,8 +414,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 20148,
-          "sha256": "53b9d3db5dc77f5f7398678ece471e05c278f5bafe3b3a265283cef453dacda2"
+          "size": 20734,
+          "sha256": "7d8dd0c37ac94f8f83ae7825eaacbb97ebcaf39780e26ab9a3f320f2a9c6d418"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -424,13 +424,13 @@
         },
         {
           "path": "ui/app.js",
-          "size": 8541,
-          "sha256": "e086d16f05a2dda0b0a55bb1244a595e04fd9b95c69226c46a86e3bd5789c294"
+          "size": 10222,
+          "sha256": "f4c84e1d0ec47d383bc99ff579ab2656cbc3d716288a66a47c467c6d2da84b1a"
         },
         {
           "path": "ui/index.html",
-          "size": 2502,
-          "sha256": "8c777d40fa5308c56b67f02c304b04edd150876a8cea48b866d14db883452779"
+          "size": 2563,
+          "sha256": "d5228234775f69abf35852b5659c82485ce7527aa2ae402cab5c218653197729"
         },
         {
           "path": "ui/panel.html",
@@ -439,8 +439,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 12531,
-          "sha256": "f3fc51a503fd2c33c2c6fea708fc2b721a1c6aa39f5b4d1818553a528a3bd2e5"
+          "size": 13959,
+          "sha256": "1d5c92d5ccda4d04342615ed650d0c984e0e685df78dd49e8a723c7425921619"
         },
         {
           "path": "ui/style.css",
@@ -1171,24 +1171,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.14",
+      "version": "1.1.15",
       "name": "嘻嘻",
-      "description": "蓝发蓝眼、白色斗篷装的猫娘。需要新版 OpenBot；使用表情需安装启用表情包插件。",
+      "description": "蓝发蓝眼、白色斗篷装的猫娘。含 33 张预置识别的专属表情；需支持预置识别结果的新版 OpenBot 与表情包插件 2.3.5。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
       "size": 23567,
-      "sha256": "441c921435cad6d56621285c9f0fc954b969e74f7bfd9b6fb2664a8604498b17",
+      "sha256": "8e395ecf933f01e75d004948fd71de94d889e74ab84c6786d6cd827360135209",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 24194156,
-        "sha256": "137fd6439b35172f9a9028259d354099705ee6583dfc2ef91082cdeac11e4d12",
+        "size": 24221987,
+        "sha256": "d5257d88c7e13213d3941eec5e917c72b1e45e377d411961820c1622c762cddb",
         "count": 33
       },
-      "ref": "9b5bac6df5e6da7af24e2b19b617b12bb5a9f909",
+      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 1688856,
-        "sha256": "f06d40cb6f76444ac2867185d5e76d8a6852043a239c9c799e289c5a6b280bf1"
+        "size": 1716687,
+        "sha256": "d1339f422b1970e608fe631fe4b934ebd49bb5a089f106512b4e6e7696c32be1"
       }
     }
   ]
