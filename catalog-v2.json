@@ -324,7 +324,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -334,13 +334,14 @@
         "secret",
         "history",
         "assets",
+        "profiles:media",
         "state",
         "state:global",
         "model:request",
         "model:select"
       ],
       "metadata": {
-        "usage": "描述想画的图片或提出改图要求；自拍可单独开启，并先在自拍形象中上传角色图片。",
+        "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
         "platforms": [
           "napcat",
           "qqbot"
@@ -349,29 +350,29 @@
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.3.1：按接入方式显示设置，修复模型列表查询和选择；0.3.0：服务可在插件中统一配置，增加并发、排队及用量上限；0.2.6：可读取服务模型列表并选择模型；0.2.5：支持 GPT Image 2.6 动图请求。",
+        "changelog": "0.3.2：自我形象优先使用当前角色的人设图，支持选择正面、背面、侧面和 Q 版等参考。0.3.1：按接入方式显示设置，修复模型列表查询和选择。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "ref": "dacaeaebcbee617f28c6151a0850cc4ace27fe9c",
       "files": [
         {
           "path": "README.md",
-          "size": 7189,
-          "sha256": "a889c54a53bd29817049925eb9e5f8c27f217a71d17c3e580a62c7f4022774d5"
+          "size": 6907,
+          "sha256": "efe7dae9668e39e22020bb903eba53340b534c6dd0a734a22c290cc761ab245a"
         },
         {
           "path": "index.js",
-          "size": 34805,
-          "sha256": "ee8e7dcfe60c9d1576eb73d86f5422447ded3b044ccb8faf4146b2df245d202c"
+          "size": 38029,
+          "sha256": "49806f4d35dea51eaae791995e30515ce05a9e1c8c5d52ae66bb21c4f4004cd5"
         },
         {
           "path": "plugin.json",
-          "size": 21616,
-          "sha256": "accb9ab12374d13c49ed106114c17a93d727f971a8abc17e4ff7cb63cb11c455"
+          "size": 21914,
+          "sha256": "9b91933f6ab8e89051ed8dbaa924786636e3b6739470750f911d49ad51e9d3be"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -400,8 +401,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5086,
-          "sha256": "6cbd729ca8700cc13597abcd89b67fd7a31fed0b03c855cbb48be933fd285e6c"
+          "size": 5275,
+          "sha256": "6ecbd0c85a4c68d3d90b6d0b47f4666d62df50f45768204443b6cf3a50d3dd1d"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -425,13 +426,13 @@
         },
         {
           "path": "ui/reference.html",
-          "size": 1086,
-          "sha256": "a2debe4ff4afe37c8805b7811833fba819fd0e8a31600a61815e19cd4db2595d"
+          "size": 1240,
+          "sha256": "65445278623aa37c109430013e34514bfb3af0b222f07f83eb87316b49d99ef2"
         },
         {
           "path": "ui/reference.js",
-          "size": 2521,
-          "sha256": "aeb6700807578c7945fd3ff1eb40d2475e84e69a2ad1fb17cca50a794bef9fcd"
+          "size": 2700,
+          "sha256": "5fd94ef62041751c2c10a114541ae662779289eb3ea1e1976b61c67a52709e0e"
         }
       ]
     },
@@ -1363,25 +1364,26 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.16",
+      "version": "1.1.17",
       "name": "嘻嘻",
-      "description": "蓝发蓝眼、白色斗篷装的猫娘。含 39 张预置识别的专属表情；需支持预置识别结果的新版 OpenBot，思考框填字需表情包插件 2.5.0。",
+      "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 39 张专属角色表情。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 23657,
-      "sha256": "2a18b46a522a2fcd584679950c6fcfabf059fe78213196c2e6f833dd9cc4d5ce",
+      "size": 662269,
+      "sha256": "b5fbcb434d64930ee51eb7bfa0fc9c73115677e08dc6b70b6105a0fcdbb4825e",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 24844371,
-        "sha256": "a0065952e412601beb60416cd8ed9aa84661b3a70a02a1b5d1d62f2e43baf4ea",
+        "size": 25208146,
+        "sha256": "09c0b2418077e43ce6fe7362d77bd8373ed8c36500714e83374d15d03eb85e5d",
         "count": 39
       },
-      "ref": "0dbf35e7572e15d2a5cff6962d71aba4e7f9fdd6",
+      "ref": "dacaeaebcbee617f28c6151a0850cc4ace27fe9c",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 1820861,
-        "sha256": "31000b471ba1bec0190536966caa41eca1042eb434326930c0a8fba0c44e1c9e"
-      }
+        "size": 1874192,
+        "sha256": "25d6a3d16af8063eeebb001483f71d9162a099689348545e1a208529b87fa288"
+      },
+      "referenceCount": 3
     }
   ]
 }
