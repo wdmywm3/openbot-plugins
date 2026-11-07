@@ -30,6 +30,10 @@ if (fs.existsSync(filename)) {
     };
     const core = read(entry);
     assert.equal(core.id, entry.id); assert.equal(core.version, entry.version);
+    if (entry.referenceCount !== undefined) {
+      assert.equal(core.referenceImages?.length, entry.referenceCount);
+      assert(core.referenceImages.every(image => core.assets.some(asset => asset.id === image.asset)), "role references belong to the core package");
+    }
     if (entry.media) {
       assert.equal(core.schemaVersion, 2, "legacy hosts must reject split-media packs before updating a role");
       assert.equal(core.stickers.length, 0, "optional media is not included in the core package");

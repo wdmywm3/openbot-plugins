@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
   "extensions": {
     "com.openbot": {
@@ -16,6 +16,7 @@
         "secret",
         "history",
         "assets",
+        "profiles:media",
         "state",
         "state:global",
         "model:request",
@@ -309,7 +310,7 @@
         {
           "name": "draw_image",
           "export": "draw_image",
-          "description": "生成一张图片或 GIF 动图。mode=image 为普通生图或聊天参考图改图；mode=selfie 沿用设置中的固定角色形象自拍。两种方式分别启用，关闭时不自动换方式。返回可发送的图片地址。",
+          "description": "生成一张图片或 GIF 动图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取当前角色的人设图，也可指定视角。两种方式分别启用。返回可发送的图片地址。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -329,7 +330,12 @@
                   "image",
                   "selfie"
                 ],
-                "description": "默认image；角色自拍必须显式选择selfie，固定形象由设置提供。"
+                "description": "默认为 image。画自己的形象时使用 selfie，由插件选取当前角色人设图或实例备用图。"
+              },
+              "selfieView": {
+                "type": "string",
+                "enum": ["front", "side", "back", "chibi", "detail", "other"],
+                "description": "仅适用于自拍。明确要求侧面、背面、Q 版或细节时选择对应视角，留空优先正面。"
               },
               "prompt": {
                 "type": "string",
@@ -715,12 +721,12 @@
           "napcat",
           "qqbot"
         ],
-        "usage": "描述想画的图片或提出改图要求；自拍可单独开启，并先在自拍形象中上传角色图片。",
+        "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
         "requirements": [
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.3.1：按接入方式显示设置，修复模型列表查询和选择；0.3.0：服务可在插件中统一配置，增加并发、排队及用量上限；0.2.6：可读取服务模型列表并选择模型；0.2.5：支持 GPT Image 2.6 动图请求。"
+        "changelog": "0.3.2：自我形象优先使用当前角色的人设图，支持选择正面、背面、侧面和 Q 版等参考。0.3.1：按接入方式显示设置，修复模型列表查询和选择。"
       }
     }
   }

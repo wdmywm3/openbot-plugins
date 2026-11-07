@@ -97,6 +97,61 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
       assert.equal(calls.at(-1).tools[0].action, "edit");
     }
 
+    const { createMediaContentStore } = fromHost("features/retrieval/media-content-store.cjs");
+    const originals = createMediaContentStore(root);
+    const reference = (id, view, bytes) => ({ id, name: id, view, contentHash: originals.put(bytes), mimeType: "image/png" });
+    const large = await sharp(crypto.randomBytes(1024 * 1024 * 3), { raw: { width: 1024, height: 1024, channels: 3 } }).png().toBuffer();
+    const front = reference("front", "front", png), back = reference("back", "back", second), chibi = reference("chibi", "chibi", large);
+    const roleA = { id: "role-a", referenceImages: [front, back, chibi], stickers: [{ ...back, id: "only-a-sticker" }] };
+    const roleB = { id: "role-b", referenceImages: [{ ...back, id: "b-front", view: "front" }] };
+    store.data.channelAgents = [roleA, roleB];
+    channel.config.agentId = "channel-agent:role-a";
+    channel.config.chatOverrides = { [chatB]: { agentId: "channel-agent:role-b", commandManagedFields: ["agentId"] } };
+    const frontUrl = "data:image/jpeg;base64," + preview.data;
+    const backPreview = await background.call(actor, { action: "preview", ref: replacement.ref, maxEdge: 1024 }, scope);
+    const backUrl = "data:image/jpeg;base64," + backPreview.data;
+    const lastImages = () => calls.at(-1).input[0].content.filter(part => part.type === "input_image").map(part => part.image_url);
+    job = await finish(await start(chatA, "role-front")); assert.equal(job.status, "completed", job.error);
+    assert.equal(job.result.selfieReferenceRevision, undefined);
+    assert.deepEqual(lastImages(), [frontUrl], "role front takes priority over the manual image");
+    job = await finish(await start(chatB, "role-other-chat"), chatB); assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(lastImages(), [backUrl], "each chat uses its assigned role");
+    job = await finish(await runtime.runNativePluginTool(tool, { action: "start", requestKey: "role-in-turn",
+      input: { mode: "selfie", prompt: "画自己的形象" } }, { ...context(chatA), overrideAgent: { id: "channel-agent:role-b", source: "channel" } }));
+    assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(lastImages(), [backUrl], "a turn using an explicitly routed role uses that role's references");
+    job = await finish(await start(chatA, "role-back", { mode: "selfie", selfieView: "back", prompt: "从背面画我" }));
+    assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(lastImages(), [backUrl, frontUrl]);
+
+    let ticks = 0, largestGap = 0, previousTick = performance.now();
+    const heartbeat = setInterval(() => {
+      const now = performance.now();
+      largestGap = Math.max(largestGap, now - previousTick);
+      previousTick = now;
+      ticks++;
+    }, 5);
+    try {
+      job = await finish(await start(chatA, "role-chibi", { mode: "selfie", selfieView: "chibi", prompt: "画Q版的我" }));
+      assert.equal(job.status, "completed", job.error);
+      assert.equal(lastImages().length, 1);
+      assert(![frontUrl, backUrl].includes(lastImages()[0]), "the Q version uses its own reference without mixing body proportions");
+      assert(ticks > 0 && largestGap < 350, `host remained responsive during ${large.length} bytes of role media: ${largestGap.toFixed(0)} ms`);
+      console.log(`Role image preview: ${large.length} bytes, maximum host timer gap ${largestGap.toFixed(0)} ms`);
+    } finally { clearInterval(heartbeat); }
+
+    let roleRunning = await waitGate(chatA, "role-reference-replaced");
+    store.data.channelAgents = [{ ...roleA, referenceImages: [{ ...front, contentHash: back.contentHash }, back, chibi] }, roleB];
+    roleRunning.pending.release.resolve(); gate = null;
+    job = await finish(roleRunning.job); assert.equal(job.status, "failed"); assert.match(job.error, /角色人设图已更换/); assert.equal(job.result, undefined);
+    roleRunning = await waitGate(chatA, "role-rebound");
+    channel.config.agentId = "channel-agent:role-b";
+    roleRunning.pending.release.resolve(); gate = null;
+    job = await finish(roleRunning.job); assert.equal(job.status, "failed"); assert.match(job.error, /角色已更换/); assert.equal(job.result, undefined);
+    delete channel.config.agentId;
+    delete channel.config.chatOverrides;
+    store.data.channelAgents = [];
+
     let running = await waitGate(chatA, "replace-running");
     await set(replacement.ref); running.pending.release.resolve(); gate = null;
     job = await finish(running.job); assert.equal(job.status, "failed"); assert.match(job.error, /形象已更换或清除/); assert.equal(job.result, undefined);
@@ -131,7 +186,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     await background.call(actor, { action: "grant", ref: first.ref, expectedRevision: info.revision, shared: false, chats: [] }, scope);
     running.pending.release.resolve(); gate = null;
     job = await finish(running.job); assert.equal(job.status, "failed"); assert.equal(job.result, undefined);
-    console.log("Image studio selfie host: real installation/approval, shared/private/foreign media grants, scoped persistent reference CAS, stale-image rejection, per-chat live switches, independent modes, cancel and revoked-reference publication checks passed");
+    console.log("Image studio selfie host: role views, chat and turn role scopes, bounded previews, manual fallback, reference and role changes, live switches and cancellation passed");
   } finally {
     runtime?.clearChannelPluginPollTimers?.({ id: "selfies" }); await runtime?.pauseForDataSnapshot(); await pluginData?.pause(); await media?.pauseBackground(); shutdownPluginWorkers();
     const resolved = path.resolve(root); assert(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("openbot-selfie-host-"));

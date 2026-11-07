@@ -10,11 +10,13 @@ function errorText(error) {
 }
 function render() {
   const hasImage = !!current?.assetRef;
+  const useRole = current?.roleReferencesSupported === true;
   byId("choose").disabled = busy || !current;
   byId("clear").disabled = busy || !current;
   byId("clear").hidden = !hasImage;
-  byId("choose-label").textContent = hasImage ? "更换形象" : "上传形象";
-  byId("empty").hidden = !current || hasImage;
+  byId("choose-label").textContent = useRole ? (hasImage ? "更换备用图" : "上传备用图") : (hasImage ? "更换形象" : "上传形象");
+  byId("role-default").hidden = !useRole;
+  byId("empty").hidden = !current || hasImage || useRole;
   byId("reference").hidden = !hasImage;
   if (hasImage) byId("reference").src = api.assetUrl(current.assetRef);
   else byId("reference").removeAttribute("src");
