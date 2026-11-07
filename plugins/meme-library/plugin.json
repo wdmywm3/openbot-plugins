@@ -765,7 +765,7 @@
       "metadata": {
         "changelog": "回复前按表达含义搜索表情；纯表情直接发送，图文混合按频率保留表情，同一提交重试不重复抽签。",
         "requirements": [
-          "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"

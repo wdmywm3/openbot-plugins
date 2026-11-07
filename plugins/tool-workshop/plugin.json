@@ -9,21 +9,63 @@
       "category": "utility",
       "icon": "wrench",
       "apiVersion": 1,
-      "requiredFeatures": ["scriptExecution"],
+      "requiredFeatures": [
+        "scriptExecution"
+      ],
       "main": "index.js",
-      "permissions": ["state", "script:run", "network", "model:request", "model:select", "assets", "hook:context"],
-      "networkHosts": ["*"],
-      "config": { "allowNetwork": false, "allowModelRequests": false, "allowMedia": false },
+      "permissions": [
+        "state",
+        "script:run",
+        "network",
+        "model:request",
+        "model:select",
+        "assets",
+        "hook:context"
+      ],
+      "networkHosts": [
+        "*"
+      ],
+      "config": {
+        "allowNetwork": false,
+        "allowModelRequests": false,
+        "allowMedia": false
+      },
       "configSchema": {
         "type": "object",
         "properties": {
-          "allowNetwork": { "type": "boolean", "title": "允许工具联网", "default": false },
-          "allowModelRequests": { "type": "boolean", "title": "允许工具调用模型", "default": false },
-          "allowMedia": { "type": "boolean", "title": "允许工具保存媒体", "default": false }
+          "allowNetwork": {
+            "type": "boolean",
+            "title": "允许工具联网",
+            "default": false
+          },
+          "allowModelRequests": {
+            "type": "boolean",
+            "title": "允许工具调用模型",
+            "default": false
+          },
+          "allowMedia": {
+            "type": "boolean",
+            "title": "允许工具保存媒体",
+            "default": false
+          }
         },
         "additionalProperties": false
       },
-      "ui": { "version": 1, "sections": [{ "id": "settings", "title": "设置", "fields": ["allowNetwork", "allowModelRequests", "allowMedia"], "widgets": [] }] },
+      "ui": {
+        "version": 1,
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "allowNetwork",
+              "allowModelRequests",
+              "allowMedia"
+            ],
+            "widgets": []
+          }
+        ]
+      },
       "tools": [
         {
           "name": "manage",
@@ -36,19 +78,73 @@
           "inputSchema": {
             "type": "object",
             "properties": {
-              "action": { "type": "string", "enum": ["list", "read", "draft", "test", "save", "remove"] },
-              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
-              "revision": { "type": "integer", "minimum": 0 },
-              "title": { "type": "string", "minLength": 1, "maxLength": 80 },
-              "description": { "type": "string", "minLength": 1, "maxLength": 500 },
-              "code": { "type": "string", "minLength": 1, "maxLength": 48000 },
-              "inputSchema": { "type": "object", "additionalProperties": true },
-              "capabilities": { "type": "array", "items": { "type": "string", "enum": ["request", "modelRequest", "assets"] }, "maxItems": 3 },
-              "input": { "type": "object", "additionalProperties": true },
-              "expectedJson": { "type": "string", "maxLength": 60000 },
-              "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 180000 }
+              "action": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "read",
+                  "draft",
+                  "test",
+                  "save",
+                  "remove"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 48000
+              },
+              "inputSchema": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "request",
+                    "modelRequest",
+                    "assets"
+                  ]
+                },
+                "maxItems": 3
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "expectedJson": {
+                "type": "string",
+                "maxLength": 60000
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 180000
+              }
             },
-            "required": ["action"],
+            "required": [
+              "action"
+            ],
             "additionalProperties": false
           }
         },
@@ -63,20 +159,52 @@
           "inputSchema": {
             "type": "object",
             "properties": {
-              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
-              "revision": { "type": "integer", "minimum": 1 },
-              "input": { "type": "object", "additionalProperties": true },
-              "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 180000 }
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 180000
+              }
             },
-            "required": ["id", "revision", "input"],
+            "required": [
+              "id",
+              "revision",
+              "input"
+            ],
             "additionalProperties": false
           }
         }
       ],
-      "hooks": [{ "type": "context", "export": "context", "scope": "private", "permission": "owner", "tools": ["useSkill"] }],
+      "hooks": [
+        {
+          "type": "context",
+          "export": "context",
+          "scope": "private",
+          "permission": "owner",
+          "tools": [
+            "useSkill"
+          ]
+        }
+      ],
       "metadata": {
-        "platforms": ["napcat", "qqbot"],
-        "requirements": ["需要支持 scriptExecution 的 OpenBot。"],
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持 scriptExecution 及所选的显式能力。"
+        ],
         "changelog": "0.1.0：工具草稿、试运行、版本保存与复用；可显式授权联网、模型和媒体能力，自写绘图工具。"
       }
     }
