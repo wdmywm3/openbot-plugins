@@ -2,8 +2,10 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), os = require("node:os"), crypto = require("node:crypto");
 const engineRoot = path.join(__dirname, "../plugins/meme-library");
 const localRequire = require("node:module").createRequire(path.join(engineRoot, "package.json"));
-const { createEngine } = localRequire("./engine/server.cjs");
+const { createEngine, balanceCjkLines } = localRequire("./engine/server.cjs");
 async function main() {
+  assert.deepEqual(balanceCjkLines("你到底在想什么呢", 4).split("\n").map(line => [...line].length), [4, 4], "short Chinese lines are balanced");
+  assert.equal(balanceCjkLines("Hello world", 4), "Hello world", "Latin word wrapping remains natural");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-meme-engine-")); let engine, index;
   try {
     const png = await localRequire("sharp")({ create: { width: 32, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
@@ -15,6 +17,20 @@ async function main() {
     await engine.call({ action: "put", hash, offset: 20, data: png.subarray(20).toString("base64"), done: true });
     assert.equal((await engine.call({ action: "has", hash })).present, true);
     const picture = await engine.call({ action: "prepare", hash }); assert.equal(picture.mimeType, "image/jpeg");
+    const template = { version: 1, rect: { x: .1, y: .1, width: .8, height: .7 }, color: "#ff0000", align: "center", maxFontSize: .15 };
+    const rendered = await engine.call({ action: "renderText", hash, template, text: "白痴！< & >" });
+    assert.equal(rendered.mimeType, "image/webp");
+    const pixels = await localRequire("sharp")(Buffer.from(rendered.data, "base64")).raw().toBuffer({ resolveWithObject: true });
+    assert([...pixels.data].some((value, i) => i % pixels.info.channels === 0 && value > 100 && pixels.data[i + 2] < 180), "rendered text has visible red pixels");
+    assert.equal((await engine.call({ action: "has", hash })).present, true, "rendering preserves the original");
+    await assert.rejects(engine.call({ action: "renderText", hash, template: { ...template, rect: { ...template.rect, x: .8 } }, text: "test" }), /区域/);
+    await assert.rejects(engine.call({ action: "renderText", hash, template, text: "a".repeat(81) }), /80/);
+    const concurrent = await Promise.allSettled(Array.from({ length: 3 }, () => engine.call({ action: "renderText", hash, template, text: "你好" })));
+    assert.equal(concurrent.filter(item => item.status === "rejected").length, 1, "render concurrency is bounded");
+    const cancel = new AbortController();
+    const canceled = engine.call({ action: "renderText", hash, template, text: "取消测试" }, cancel.signal);
+    cancel.abort();
+    await assert.rejects(canceled, /abort/i, "a canceled render cannot return an image");
     await assert.rejects(engine.call({ action: "embed", hash, text: "蓝色方块" }), /未知/);
     await assert.rejects(engine.call({ action: "prepare", hash: "../secret" }), /摘要/);
     const exportId = "e".repeat(64);

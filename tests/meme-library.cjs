@@ -133,12 +133,52 @@ async function main() {
   assert.match(prompt.contextItems[0].content, /0%/);
   assert.doesNotMatch(prompt.systemPromptAppend, /needs_review|preparationId/);
   drawValue = undefined;
+  const templated = fixture(), templateId = "a".repeat(64);
+  await plugin.importFiles({ ...templated.ctx, input: { refs: ["import"] } });
+  const template = { version: 1, rect: { x: .1, y: .1, width: .7, height: .3 }, color: "#192550", align: "center", maxFontSize: .075 };
+  await plugin.save({ ...templated.ctx, input: { id: templateId, revision: templated.get("a").revision, textTemplate: template } });
+  const engineCall = templated.ctx.api.callTool, assetCall = templated.ctx.api.assets;
+  templated.ctx.api.callTool = async request => request.arguments.action === "renderText"
+    ? { structuredContent: { data: "aGk=", mimeType: "image/webp" } } : engineCall(request);
+  templated.ctx.api.assets = async input => {
+    if (input.action !== "put") return assetCall(input);
+    const result = { ref: "rendered", sha256: "e".repeat(64), mimeType: "image/webp", bytes: 2, revision: "1", shared: false, chatId: "group", chats: [] };
+    templated.assets.set("rendered", result); return result;
+  };
+  const templates = await plugin.stickers({ ...templated.ctx, input: { action: "search" } });
+  assert.equal(templates.candidates[0].textTemplate, true); assert.equal(templates.candidates[0].url, undefined, "blank templates are not offered as sendable images");
+  const renderInput = { action: "render", searchId: templates.searchId, id: templateId, text: "白痴" };
+  await assert.rejects(plugin.stickers({ ...templated.ctx, message: { chatId: "other" }, input: renderInput }), /当前聊天/);
+  const rendered = await plugin.stickers({ ...templated.ctx, input: renderInput });
+  assert(rendered.url.includes("e".repeat(64)));
+  const renderedSegments = [{ type: "image", data: { file: rendered.url } }];
+  assert.equal((await plugin.beforeSend({ ...templated.ctx, hook: { content: renderedSegments } })).content.length, 1);
+  templated.records.set("settings:default", { value: { frequency: 0, cooldownSeconds: 0 } });
+  assert.equal((await plugin.afterModel({ ...templated.ctx, hook: { replyId: "template-mixed", content: `文字![图](${rendered.url})` } })).content, "文字");
+  await plugin.afterSend({ ...templated.ctx, hook: { result: { status: "sent", sentSegments: renderedSegments } } });
+  assert(templated.state.get("lastSent"), "rendered stickers update cooldown");
+  await plugin.save({ ...templated.ctx, input: { id: templateId, revision: templated.get("a").revision, enabled: false } });
+  assert.equal((await plugin.beforeSend({ ...templated.ctx, hook: { content: renderedSegments } })).content.length, 0, "revocation also blocks previously rendered URLs");
+  await assert.rejects(plugin.stickers({ ...templated.ctx, input: renderInput }), /不可用/);
+  const variety = fixture();
+  await plugin.importFiles({ ...variety.ctx, input: { refs: ["import", "chat"] } });
+  await plugin.process({ ...variety.ctx, input: { ids: ["a".repeat(64), "b".repeat(64)] } });
+  const firstChoice = await plugin.stickers({ ...variety.ctx, input: { action: "search", query: "钱包" } });
+  const chosen = firstChoice.candidates[0];
+  const varietySegments = [{ type: "image", data: { file: chosen.url } }];
+  await plugin.afterSend({ ...variety.ctx, hook: { result: { status: "failed", sentSegments: varietySegments } } });
+  assert.equal(variety.state.has("recentStickers"), false, "a failed send does not affect recent history");
+  await plugin.afterSend({ ...variety.ctx, hook: { result: { status: "sent", sentSegments: varietySegments } } });
+  const nextChoice = await plugin.stickers({ ...variety.ctx, input: { action: "search", query: "钱包" } });
+  assert.notEqual(nextChoice.candidates[0].id, chosen.id, "among equally relevant pictures the recently sent one is gently deprioritized");
   const preset = fixture(), prepared = { schemaVersion: 1, analysis: { caption: "猫举起手", meaning: "主动打招呼", ocrText: "", tags: ["招呼"], usageExamples: ["刚见到朋友"], avoidContexts: ["对方正在认真求助"] } };
+  prepared.textTemplate = template;
   const roleMedia = [{ profileId: "p", id: "hello", name: "嘻嘻正比：挥手", description: "旧版简短描述", tags: ["旧标签"], contentHash: "c".repeat(64), metadata: { "meme-library": prepared } }];
   preset.ctx.api.profileMedia = async input => input.action === "list" ? copy(roleMedia) : copy(preset.assets.get("qq"));
   await preset.syncProfiles();
   const presetKey = "c".repeat(64) + ":profile:p:hello", presetRow = () => copy(preset.records.get("items:" + presetKey));
   assert.equal(presetRow().value.meaning, "主动打招呼"); assert.equal(presetRow().value.indexStatus, "ready");
+  assert.deepEqual(presetRow().value.textTemplate, template, "the role package supplies the editable template through generic media metadata");
   assert(!preset.calls.includes("recognize"), "package analysis is indexed directly without another model call");
   let editDuringCopy = true;
   const profileMediaApi = preset.ctx.api.profileMedia;
@@ -205,7 +245,7 @@ async function main() {
   assert.equal(renamed.get("a").value.meaning, "打招呼；友好");
 
   const migrated = fixture(), provenance = { caption: "旧表情", tags: ["高兴"], displayedEmotion: ["开心"], inducedEffect: ["庆祝"],
-    name: "嘻嘻正比：开心", safetyLabels: ["普通表情"], intensity: "medium", analysisModelId: "legacy-vision", analyzedAt: 1700000000000 };
+    name: "嘻嘻正比：开心", safetyLabels: ["普通表情"], intensity: "medium", analysisModelId: "legacy-vision", analyzedAt: 1700000000000, textTemplate: template };
   const originalEngine = migrated.ctx.api.callTool; let exportedAnnotation;
   migrated.ctx.principal = { channelId: "bot" };
   migrated.ctx.api.jobs = async () => ({ id: "export", checkpoint: null });

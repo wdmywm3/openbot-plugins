@@ -65,6 +65,14 @@ module.exports = async function checkUi({ hostRequire, runtime, channel, plugin,
     await expect(view.locator('#chat-filter option')).toHaveText(['全部聊天', '表情交流群（123456）', '表情交流群（876543）']);
     await view.locator(".tile > button").click();
     const editor = page.frameLocator('iframe[title="编辑表情"]');
+    await editor.locator('#template-enabled').check();
+    const surface = await editor.locator('#template-surface').boundingBox();
+    await page.mouse.move(surface.x + surface.width * .15, surface.y + surface.height * .2);
+    await page.mouse.down(); await page.mouse.move(surface.x + surface.width * .8, surface.y + surface.height * .65, { steps: 5 }); await page.mouse.up();
+    await editor.locator('#template-sample').fill('白痴，想什么呢');
+    await expect(editor.locator('#template-overlay')).toContainText('白痴');
+    const selectedRect = JSON.parse(await editor.locator('#template-rect').inputValue());
+    assert(selectedRect.width > .6 && selectedRect.height > .4, 'dragging marks an image-relative text area');
     await editor.getByLabel('名称', { exact: true }).fill('嘻嘻正比：冷静');
     await editor.getByLabel('专属角色', { exact: true }).selectOption('builtin-channelOperator');
     await expect(editor.locator('#profile-scope')).not.toBeVisible();
@@ -80,6 +88,9 @@ module.exports = async function checkUi({ hostRequire, runtime, channel, plugin,
     await page.getByRole("dialog", { name: "编辑表情", exact: true }).getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.locator('iframe[title="编辑表情"]')).toHaveCount(0);
     await view.locator(".tile > button").click();
+    await expect(editor.locator('#template-enabled')).toBeChecked();
+    assert.deepEqual(JSON.parse(await editor.locator('#template-rect').inputValue()), selectedRect, 'text region survives save and reopen');
+    await editor.locator('#template-enabled').uncheck();
     await expect(editor.getByLabel('专属角色', { exact: true })).toHaveValue('builtin-channelOperator');
     await expect(editor.locator('#chat-mode')).toHaveValue('include');
     await expect(editor.locator('#chats input[value="onebot:group:123456"]')).toBeChecked();

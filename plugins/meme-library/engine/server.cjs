@@ -4,6 +4,18 @@ const { animationInfo, animationSheet } = require("./animation-image.cjs");
 const sharp = require("sharp");
 const digest = data => crypto.createHash("sha256").update(data).digest("hex");
 const MAX_IMAGE = 10 * 1024 * 1024;
+function balanceCjkLines(content, perLine) {
+  const value = content.trim();
+  if (!/^[\p{Script=Han}\p{Punctuation}]+$/u.test(value)) return value;
+  const characters = [...value], count = Math.ceil(characters.length / perLine);
+  if (count <= 1) return value;
+  const lines = []; let position = 0;
+  for (let remaining = count; remaining > 0; remaining--) {
+    const size = Math.ceil((characters.length - position) / remaining);
+    lines.push(characters.slice(position, position + size).join("")); position += size;
+  }
+  return lines.join("\n");
+}
 
 function createEngine(root) {
   fs.mkdirSync(path.join(root, "images"), { recursive: true });
@@ -11,6 +23,8 @@ function createEngine(root) {
   fs.mkdirSync(path.join(root, "exports"), { recursive: true });
   const exports = new Map();
   const uploads = new Map();
+  const discardUpload = hash => { const entry = uploads.get(hash); if (entry?.timer) clearTimeout(entry.timer); uploads.delete(hash); };
+  let activeTextRenders = 0;
   const imagePath = hash => {
     if (!/^[a-f0-9]{64}$/.test(hash || "")) throw Error("图片摘要无效");
     return path.join(root, "images", hash);
@@ -90,16 +104,20 @@ function createEngine(root) {
       if (!Number.isSafeInteger(offset) || offset < 0 || typeof input.data !== "string" || input.data.length > 48000) throw Error("图片分块无效");
       const chunk = Buffer.from(input.data, "base64");
       if (chunk.toString("base64") !== input.data || offset + chunk.length > MAX_IMAGE) throw Error("图片分块过大或编码无效");
-      for (const [hash, entry] of uploads) if (entry.at < Date.now() - 300000) uploads.delete(hash);
+      for (const [hash, entry] of uploads) if (entry.at < Date.now() - 30000) discardUpload(hash);
       let entry = uploads.get(input.hash);
       if (offset === 0) {
         if (!entry && uploads.size >= 8) throw Error("图片上传队列已满");
+        discardUpload(input.hash);
         entry = { chunks: [], length: 0, at: Date.now() }; uploads.set(input.hash, entry);
       }
       if (!entry || entry.length !== offset) throw Error("图片分块顺序不一致，请重新传入");
       entry.chunks.push(chunk); entry.length += chunk.length; entry.at = Date.now();
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => { if (uploads.get(input.hash) === entry) discardUpload(input.hash); }, 30000);
+      entry.timer.unref?.();
       if (input.done) {
-        const bytes = Buffer.concat(entry.chunks); uploads.delete(input.hash);
+        const bytes = Buffer.concat(entry.chunks); discardUpload(input.hash);
         if (digest(bytes) !== input.hash) throw Error("图片校验失败");
         const meta = await sharp(bytes, { pages: 1, limitInputPixels: 40000000 }).metadata();
         if (!["png", "jpeg", "webp", "gif"].includes(meta.format)) throw Error("不支持的图片格式");
@@ -120,9 +138,55 @@ function createEngine(root) {
         .resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
       return { mimeType: "image/jpeg", data: data.toString("base64"), caption: "静态图片" };
     }
+    if (input.action === "renderText") {
+      if (activeTextRenders >= 2) throw Error("表情制作繁忙，请稍后再试");
+      const template = input.template, rect = template?.rect;
+      if (template?.version !== 1 || !rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+        || rect.x < 0 || rect.y < 0 || rect.width < 0.05 || rect.height < 0.05
+        || rect.x + rect.width > 1.000001 || rect.y + rect.height > 1.000001
+        || !/^#[0-9a-fA-F]{6}$/.test(template.color || "") || !["left", "center", "right"].includes(template.align)
+        || !Number.isFinite(template.maxFontSize) || template.maxFontSize < 0.02 || template.maxFontSize > 0.2) throw Error("文字区域设置无效");
+      const content = input.text;
+      if (typeof content !== "string" || !content.trim() || [...content].length > 80 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(content)) throw Error("请填写 1–80 个字");
+      activeTextRenders++;
+      try {
+        const bytes = image(input.hash);
+        const meta = await sharp(bytes, { limitInputPixels: 16000000, pages: 1 }).metadata();
+        if (!["png", "jpeg", "webp"].includes(meta.format) || (meta.pages || 1) > 1) throw Error("填字表情暂时只支持静态 PNG、JPEG 和 WebP 图片");
+        const base = await sharp(bytes, { limitInputPixels: 16000000, pages: 1 }).rotate()
+          .resize(768, 768, { fit: "inside", withoutEnlargement: true }).png().timeout({ seconds: 5 }).toBuffer({ resolveWithObject: true });
+        signal?.throwIfAborted();
+        const width = base.info.width, height = base.info.height;
+        const left = Math.round(rect.x * width), top = Math.round(rect.y * height);
+        const boxWidth = Math.min(width - left, Math.round(rect.width * width));
+        const boxHeight = Math.min(height - top, Math.round(rect.height * height));
+        if (boxWidth < 12 || boxHeight < 12) throw Error("文字区域太小");
+        const fontSize = Math.max(10, Math.round(height * template.maxFontSize));
+        const charsPerLine = Math.max(1, Math.floor(boxWidth / (fontSize * 0.95)));
+        const layoutText = balanceCjkLines(content, charsPerLine);
+        const lineCount = layoutText.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil([...line].length / charsPerLine)), 0);
+        const textHeight = Math.min(boxHeight, Math.max(12, Math.ceil(lineCount * fontSize * 1.25)));
+        const escaped = layoutText.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
+        const ink = await sharp({ text: { text: `<span foreground="${template.color}">${escaped}</span>`,
+          font: `sans-serif Bold ${fontSize}`, width: boxWidth, height: textHeight,
+          align: template.align === "center" ? "centre" : template.align, rgba: true } })
+          .png().timeout({ seconds: 5 }).toBuffer({ resolveWithObject: true });
+        signal?.throwIfAborted();
+        const x = template.align === "left" ? left : template.align === "right" ? left + boxWidth - ink.info.width : left + Math.floor((boxWidth - ink.info.width) / 2);
+        const y = top + Math.floor((boxHeight - ink.info.height) / 2);
+        let result = await sharp(base.data).composite([{ input: ink.data, left: x, top: y }])
+          .webp({ quality: 90 }).timeout({ seconds: 5 }).toBuffer();
+        signal?.throwIfAborted();
+        if (result.length > 256 * 1024) result = await sharp(result).resize(640, 640, { fit: "inside", withoutEnlargement: true })
+          .webp({ quality: 75 }).timeout({ seconds: 5 }).toBuffer();
+        signal?.throwIfAborted();
+        if (result.length > 256 * 1024) throw Error("合成图片过大");
+        return { mimeType: "image/webp", data: result.toString("base64") };
+      } finally { activeTextRenders--; }
+    }
     throw Error("未知表情处理操作");
   }
-  return { call, close() { uploads.clear(); } };
+  return { call, close() { for (const hash of uploads.keys()) discardUpload(hash); } };
 }
 
 function serve(root) {
@@ -155,4 +219,4 @@ function serve(root) {
   rl.on("close", () => { engine.close(); process.exit(0); });
 }
 if (require.main === module) serve(process.argv[2]);
-module.exports = { createEngine };
+module.exports = { createEngine, balanceCjkLines };

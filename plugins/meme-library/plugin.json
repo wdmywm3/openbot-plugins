@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -75,7 +75,7 @@
           "aliases": [
             "qqSticker"
           ],
-          "description": "检索并查看表情候选，或收藏当前聊天图片。search 标识专属角色表情，并返回原图预览及可用于 qqReply 的图片 url；collect 后自动识图和建立索引。",
+          "description": "检索并查看表情候选，给可填字表情填写短句，或收藏当前聊天图片。",
           "scope": "all",
           "permission": "member",
           "mutating": true,
@@ -86,6 +86,7 @@
                 "type": "string",
                 "enum": [
                   "search",
+                  "render",
                   "collect",
                   "add",
                   "no_match",
@@ -120,6 +121,14 @@
               "searchId": {
                 "type": "string",
                 "maxLength": 256
+              },
+              "id": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 160
               },
               "feedback": {
                 "type": "string",
@@ -387,6 +396,13 @@
               "roleProfileId": {
                 "type": "string",
                 "maxLength": 200
+              },
+              "clearTextTemplate": {
+                "type": "boolean"
+              },
+              "textTemplate": {
+                "type": "object",
+                "additionalProperties": true
               }
             },
             "required": [

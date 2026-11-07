@@ -9,14 +9,20 @@ async function main() {
   if (lookup.size !== 33) throw Error("Expected 33 independently reviewed sticker IDs");
   const output = path.resolve(outputDirectory); await fs.mkdir(output, { recursive: true });
   const promptHash = crypto.createHash("sha256").update(annotations.prompt).digest("hex"), files = [];
+  let releaseVersion;
   for (const suffix of ["", ".media", ".preview"]) {
     const name = `xixi${suffix}.openbot-persona.json`, original = await fs.readFile(path.join(sourceDirectory, name));
     const bundle = JSON.parse(original);
     if (bundle.id !== annotations.personaId) throw Error("Unexpected source persona");
-    if (suffix && (bundle.stickers.length !== lookup.size || bundle.stickers.some(item => !lookup.has(item.id)))) throw Error("Source sticker IDs have changed; review the new images first");
-    bundle.version = annotations.version;
+    if (suffix && [...lookup.keys()].some(id => !bundle.stickers.some(item => item.id === id))) throw Error("A reviewed source sticker is missing");
+    const version = value => String(value).split(".").map(Number);
+    const before = version(bundle.version), target = version(annotations.version);
+    if (target.some((part, index) => part !== before[index] && target.slice(0, index).every((previous, i) => previous === before[i]) && part > (before[index] || 0))) bundle.version = annotations.version;
+    if (releaseVersion && releaseVersion !== bundle.version) throw Error("Source persona versions differ");
+    releaseVersion = bundle.version;
     bundle.stickers = bundle.stickers.map(item => {
       const reviewed = lookup.get(item.id);
+      if (!reviewed) return item; // Later independently reviewed additions remain intact.
       if (suffix === ".media") {
         const asset = bundle.assets.find(asset => asset.id === item.asset);
         if (!asset || crypto.createHash("sha256").update(Buffer.from(asset.dataBase64, "base64")).digest("hex") !== reviewed.imageSha256) throw Error(`Image changed: ${item.id}; review it again`);
@@ -31,7 +37,7 @@ async function main() {
     files.push({ file: name, size: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex"), count: bundle.stickers.length });
     if (JSON.stringify(bundle.assets) !== JSON.stringify(JSON.parse(original).assets)) throw Error("Original image bytes changed");
   }
-  await fs.writeFile(path.join(output, "xixi-release.json"), JSON.stringify({ id: "xixi", version: annotations.version, files }, null, 2) + "\n");
-  console.log(JSON.stringify({ output, version: annotations.version, files }, null, 2));
+  await fs.writeFile(path.join(output, "xixi-release.json"), JSON.stringify({ id: "xixi", version: releaseVersion, files }, null, 2) + "\n");
+  console.log(JSON.stringify({ output, version: releaseVersion, files }, null, 2));
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

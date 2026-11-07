@@ -56,8 +56,8 @@ async function retrievalStatus(ctx, config = {}) {
   if (!selected) throw Error("请配置支持图片的检索模型");
   return ctx.api.embeddings({ action: "status", modelId: selected.id });
 }
-async function engine(ctx, input) {
-  const out = await ctx.api.callTool({ pluginId: ctx.plugin.id, pluginServer: "engine", name: "sticker_engine", arguments: input, timeoutMs: 120000 });
+async function engine(ctx, input, timeoutMs = 120000) {
+  const out = await ctx.api.callTool({ pluginId: ctx.plugin.id, pluginServer: "engine", name: "sticker_engine", arguments: input, timeoutMs });
   if (out.isError) throw Error(out.content?.find(p => p.type === "text")?.text || "表情处理失败");
   return out.structuredContent || JSON.parse(out.content.find(p => p.type === "text").text);
 }
@@ -68,6 +68,7 @@ async function transfer(ctx, ref) {
   if ((ctx.input?.profileBatch || ctx.input?.boundedProcess) && info.bytes > 262144) throw Error("使用原始图片附件");
   if (!(await engine(ctx, { action: "has", hash: info.sha256 })).present) {
     for (let offset = 0; offset < info.bytes; offset += 32768) {
+      ctx.signal.throwIfAborted();
       const chunk = await ctx.api.assets({ action: "read", ref, offset, length: 32768 });
       await engine(ctx, { action: "put", hash: info.sha256, offset, data: chunk.data, done: chunk.done });
     }
@@ -98,7 +99,19 @@ function annotations(input) {
   if (typeof input.intensity === "string") value.intensity = text(input.intensity, 80);
   if (typeof input.analysisModelId === "string") value.analysisModelId = text(input.analysisModelId, 200);
   if (Number.isSafeInteger(input.analyzedAt) && input.analyzedAt >= 0) value.analyzedAt = input.analyzedAt;
+  if (Object.hasOwn(input, "textTemplate")) value.textTemplate = normalizeTextTemplate(input.textTemplate);
   return value;
+}
+function normalizeTextTemplate(value) {
+  if (value === null) return null;
+  const rect = value?.rect;
+  if (value?.version !== 1 || !rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+    || rect.x < 0 || rect.y < 0 || rect.width < 0.05 || rect.height < 0.05
+    || rect.x + rect.width > 1.000001 || rect.y + rect.height > 1.000001
+    || !/^#[0-9a-fA-F]{6}$/.test(value.color || "") || !["left", "center", "right"].includes(value.align)
+    || !Number.isFinite(value.maxFontSize) || value.maxFontSize < 0.02 || value.maxFontSize > 0.2) throw Error("文字区域设置无效");
+  return { version: 1, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    color: value.color.toLowerCase(), align: value.align, maxFontSize: value.maxFontSize };
 }
 const indexText = v => [text(v.name, 200), ...Object.values(compactDescriptions(v)).map(value => Array.isArray(value) ? value.join("；") : value)].filter(Boolean).join("\n").slice(0, 15000) || "图片表情";
 function tokens(value) {
@@ -364,12 +377,15 @@ module.exports.syncProfiles = async ctx => {
         && typeof prepared.analysis.meaning === "string" && prepared.analysis.meaning.trim()
         && typeof prepared.analysis.ocrText === "string" && ["tags", "usageExamples", "avoidContexts"].every(key => Array.isArray(prepared.analysis[key]) && prepared.analysis[key].every(value => typeof value === "string"))
         ? compactDescriptions(descriptions(prepared.analysis)) : null;
-      const annotation = { name: item.name, caption: item.description || item.name, tags: item.tags,
+      let textTemplate = null, invalidTemplate = false;
+      if (prepared?.textTemplate) try { textTemplate = normalizeTextTemplate(prepared.textTemplate); }
+      catch { invalidTemplate = true; }
+      const annotation = { name: item.name, caption: item.description || item.name, tags: item.tags, textTemplate,
         analysisStatus: item.description ? "ready" : "pending", manual: !!item.description,
         ...(analysis ? { ...analysis, analysisStatus: "ready", manual: false } : {}),
-        scope: { enabled: item.enabled !== false, profileIds: [item.profileId], chatMode: "all", chatIds: [] } };
+        scope: { enabled: item.enabled !== false && !invalidTemplate, profileIds: [item.profileId], chatMode: "all", chatIds: [] } };
       const record = await ingest(ctx, asset.ref, { type: "profile", legacyId, profileId: item.profileId }, annotation, false);
-      const changes = { profileSyncGeneration: state.generation, enabled: item.enabled !== false, name: text(item.name, 200) || record.value.name };
+      const changes = { profileSyncGeneration: state.generation, enabled: item.enabled !== false && !invalidTemplate, name: text(item.name, 200) || record.value.name, textTemplate };
       if (old && (old.value.name !== annotation.name || Object.keys(descriptions(annotation)).some(key => JSON.stringify(old.value[key]) !== JSON.stringify(annotation[key])))) {
         Object.assign(changes, ...(analysis ? [legacyDescriptions()] : []), descriptions(annotation), { manual: annotation.manual, analysisStatus: annotation.analysisStatus,
           descriptionVersion: record.value.descriptionVersion + 1, indexStatus: "pending" });
@@ -441,6 +457,11 @@ module.exports.save = async ctx => {
     if (Array.isArray(input.profileIds) && input.profileIds.some(id => !contexts.profiles.some(profile => profile.id === id) && !row.value.profileIds?.includes(id))) throw Error("所选角色不存在");
     if (input.roleProfileId && !contexts.profiles.some(profile => profile.id === input.roleProfileId) && roleProfileId(row.value) !== input.roleProfileId) throw Error("所选专属角色不存在");
   }
+  if (Object.hasOwn(input, "textTemplate") && input.clearTextTemplate !== true) {
+    const info = await ctx.api.assets({ action: "info", ref: usableRef(row.value, "")?.ref });
+    if (!["image/png", "image/jpeg", "image/webp"].includes(info.mimeType)) throw Error("可填字表情暂时只支持静态 PNG、JPEG 和 WebP 图片");
+    normalizeTextTemplate(input.textTemplate);
+  }
   const changes = descriptions(input), descriptionChanged = Object.keys(changes).some(k => JSON.stringify(changes[k]) !== JSON.stringify(row.value[k]));
   const name = Object.hasOwn(input, "name") ? text(input.name, 200) : row.value.name;
   if (Object.hasOwn(input, "name") && !name) throw Error("请填写表情名称");
@@ -454,6 +475,7 @@ module.exports.save = async ctx => {
   }
   const value = { ...row.value, ...changes, userEdited: true, scopeEdited: row.value.scopeEdited ?? !!row.value.userEdited,
     name,
+    ...(input.clearTextTemplate === true ? { textTemplate: null } : Object.hasOwn(input, "textTemplate") ? { textTemplate: normalizeTextTemplate(input.textTemplate) } : {}),
     ...(Object.hasOwn(input, "roleProfileId") ? { roleProfileId: input.roleProfileId } : {}),
     ...(Object.hasOwn(input, "chatMode") || Object.hasOwn(input, "chatIds") ? { scopeEdited: true } : {}),
     ...(changed ? { descriptionVersion: row.value.descriptionVersion + 1, indexStatus: "pending", error: "" } : {}),
@@ -681,21 +703,21 @@ function lexical(query, item) {
   const grams = new Set(Array.from({ length: Math.max(1, q.length - 1) }, (_, i) => q.slice(i, i + 2)));
   return [...grams].filter(g => hay.includes(g)).length / grams.size * 0.8;
 }
-async function rememberPublished(ctx, id, url) {
+async function rememberPublished(ctx, id, url, templateToken) {
   // Indexed by the exact scoped URL. Sending examines only the selected images,
   // rather than republishing/scanning the entire library to recognize ownership.
   for (let attempt = 0; attempt < 4; attempt++) {
     const row = (await db(ctx, "published", url)).record;
     const ids = strings([...(row?.value.ids || []), id], 32);
-    if (row?.value.chatId === ctx.message.chatId && row.value.ids?.includes(id)) return;
+    if (row?.value.chatId === ctx.message.chatId && row.value.ids?.includes(id) && (!templateToken || row.value.templateToken === templateToken)) return;
     try {
-      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids } });
+      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids, ...(templateToken ? { templateToken } : {}) } });
       return;
     } catch (error) { if (!conflict(error) || attempt === 3) throw error; }
   }
 }
 async function search(ctx, input) {
-  const query = text(input.query, 1000), rows = (await all(ctx)).filter(r => visible(ctx, r.value));
+  const query = text(input.query, 1000), rows = (await all(ctx)).filter(r => visible(ctx, r.value) && (!input.ordinaryOnly || !r.value.textTemplate));
   const config = await settings(ctx);
   const semantic = new Map();
   let retrieval = "bm25", warning = "", minimum = 0.66;
@@ -719,23 +741,29 @@ async function search(ctx, input) {
     }
   }
   const scores = textScores(rows, query);
+  const savedRecent = query && input.mode !== "text" ? await ctx.api.getState("recentStickers", "chat") : [];
+  const recent = Array.isArray(savedRecent) ? savedRecent.slice(0, 8) : [];
+  const rank = item => {
+    const age = recent.indexOf(item.v.id);
+    return item.score + (query && input.mode !== "text" && item.roleSticker ? 0.08 : 0)
+      - (age === 0 ? 0.04 : age === 1 ? 0.02 : 0);
+  };
   const scored = rows.map((row, index) => {
     const v = row.value, words = Math.max(lexical(query, v), scores[index]);
     const hasVector = semantic.has(row.key);
     return { v, roleSticker: isRoleSticker(ctx, v), minimum: hasVector && input.mode !== "text" ? minimum : 0.16,
       score: !query ? Math.random() : input.mode === "text" ? words : Math.max(words, semantic.get(row.key) || 0) };
   }).filter(r => !query || r.score >= r.minimum)
-    .sort((a, b) => (b.score + (query && input.mode !== "text" && b.roleSticker ? 0.08 : 0))
-      - (a.score + (query && input.mode !== "text" && a.roleSticker ? 0.08 : 0)))
+    .sort((a, b) => rank(b) - rank(a))
     .slice(0, Math.max(1, Math.min(6, input.limit || 4)));
   const candidates = [], attachments = [];
   for (const { v, score, roleSticker } of scored) {
     const ref = usableRef(v, ctx.message.chatId)?.ref;
     try {
-      const published = await ctx.api.assets({ action: "publish", ref, compact: true });
-      await rememberPublished(ctx, v.id, published.url);
+      const published = v.textTemplate ? null : await ctx.api.assets({ action: "publish", ref, compact: true });
+      if (published) await rememberPublished(ctx, v.id, published.url);
       candidates.push({ id: v.id, name: v.name, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags, avoidContexts: v.avoidContexts,
-        roleSticker, score: Math.round(score * 1000) / 1000, url: published.url });
+        roleSticker, score: Math.round(score * 1000) / 1000, ...(published ? { url: published.url } : { textTemplate: true }) });
       attachments.push({ assetRef: ref, caption: `${v.id}：${roleSticker ? "专属角色表情，" : ""}${v.caption || "表情"}` });
     } catch { /* Scope may change while candidates are being prepared. */ }
   }
@@ -743,12 +771,39 @@ async function search(ctx, input) {
     { candidates: candidates.map(({ id, score }) => ({ id, score })), retrieval, warning });
   await ctx.api.setState("lastSearch", { key: event.key, candidates: candidates.map(({ id, url }) => ({ id, url })) }, "chat");
   return { searchId: event.key, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
-    instruction: "专属角色表情画的是你自己，包括 Q 版。查看候选图和含义；有符合当前语境的专属角色表情时优先选择它，将对应 url 原样放入 qqReply 的 <image src=\"...\"/>。没有合适的就不发。" };
+    instruction: "专属角色表情画的是你自己，包括 Q 版。有符合当前语境的专属角色表情时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
+}
+async function renderTemplate(ctx, input) {
+  const searchId = text(input.searchId, 256), id = text(input.id, 256);
+  const value = typeof input.text === "string" ? input.text.trim() : "";
+  if (!value || [...value].length > 80 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) throw Error("请填写 1–80 个字");
+  const event = (await journal(ctx, { action: "get", key: searchId })).record;
+  if (!event || event.value.stream !== "search" || event.value.subject !== ctx.message.chatId
+    || !event.value.data?.candidates?.some(candidate => candidate.id === id)) throw Error("请先在当前聊天中搜索并选择表情");
+  const row = await get(ctx, id);
+  if (!row || !visible(ctx, row.value) || !row.value.textTemplate) throw Error("这张可填字表情已不可用");
+  const template = normalizeTextTemplate(row.value.textTemplate), token = requestId(JSON.stringify(template));
+  const source = usableRef(row.value, ctx.message.chatId)?.ref;
+  const info = await transfer(ctx, source);
+  const image = await engine(ctx, { action: "renderText", hash: info.sha256, template, text: value }, 15000);
+  ctx.signal.throwIfAborted();
+  const current = await get(ctx, id);
+  if (!current || !visible(ctx, current.value) || !current.value.textTemplate
+    || requestId(JSON.stringify(normalizeTextTemplate(current.value.textTemplate))) !== token
+    || usableRef(current.value, ctx.message.chatId)?.ref !== source) throw Error("表情已变化，请重新选择");
+  const asset = await ctx.api.assets({ action: "put", data: image.data, mimeType: image.mimeType, name: current.value.name || "表情" });
+  ctx.signal.throwIfAborted();
+  const published = await ctx.api.assets({ action: "publish", ref: asset.ref, compact: true });
+  await rememberPublished(ctx, id, published.url, token);
+  const last = await ctx.api.getState("lastSearch", "chat");
+  if (last?.key === searchId) await ctx.api.setState("lastSearch", { ...last, candidates: [...last.candidates, { id, url: published.url }] }, "chat");
+  return { id, url: published.url };
 }
 module.exports.stickers = async ctx => {
   const action = ctx.input?.action || "search";
   if (["collect", "add"].includes(action)) return module.exports.collect(ctx);
   if (action === "search") return search(ctx, ctx.input || {});
+  if (action === "render") return renderTemplate(ctx, ctx.input || {});
   if (["feedback", "no_match"].includes(action)) {
     const row = (await journal(ctx, { action: "get", key: text(ctx.input.searchId, 256) })).record;
     if (!row || row.value.stream !== "search" || row.value.subject !== ctx.message.chatId) throw Error("检索记录不属于当前聊天");
@@ -764,7 +819,7 @@ module.exports.handle = async ctx => {
     const rows = (await all(ctx)).filter(r => visible(ctx, r.value));
     return `当前可用 ${rows.length} 张表情，已建立索引 ${rows.filter(r => r.value.indexStatus === "ready").length} 张。`;
   }
-  const found = await search(ctx, { query: ctx.args, limit: 1 });
+  const found = await search(ctx, { query: ctx.args, limit: 1, ordinaryOnly: true });
   return found.candidates.length ? { blocks: [{ type: "image", url: found.candidates[0].url }] } : "没找到合适的表情。";
 };
 module.exports.afterModel = async ctx => {
@@ -811,7 +866,7 @@ module.exports.afterModel = async ctx => {
 module.exports.beforeModel = async ctx => {
   if (!ctx.api.getCapabilities || !(await ctx.api.getCapabilities()).features?.persistentContextItems) throw Error("表情插件需要支持持久资料的新版本 OpenBot");
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
-  const systemPromptAppend = '表情插件提供 stickers 工具。决定回复后，每条独立回复提交 qqReply 前必须先按想表达的意思搜索一次并查看候选，不能跳过搜索直接默认文字。query 写态度、情绪和回应对象；不要只堆角色名、猫娘、可爱等外观词，也不要直接照抄含糊的短台词。找到贴切的表情就选用；候选都不合适、无结果或检索失败时正常用文字，不凑图、不反复搜索。专属角色表情画的是你自己，包括 Q 版，贴合语境时优先选择。将候选完整 url 用 <image src="..."/> 放入 qqReply。纯表情回复直接发送，不抽签、不补同义文字；图文混合由插件在发送前按频率决定是否保留表情，所以文字本身必须能表达完整意思。不要自行抽签，也不要因概率低而省略搜索；同一提交重试复用搜索结果。插件关闭、冷却或没有可用表情时按当前状态回复。详细选图和收藏流程见本插件 stickers Skill。';
+  const systemPromptAppend = '表情插件提供 stickers 工具。决定回复后，每条独立回复提交 qqReply 前必须先按想表达的意思搜索一次并查看候选，不能跳过搜索直接默认文字。query 写态度、情绪和回应对象；不要只堆角色名、猫娘、可爱等外观词，也不要直接照抄含糊的短台词。找到贴切的表情就选用；候选都不合适、无结果或检索失败时正常用文字，不凑图、不反复搜索。专属角色表情画的是你自己，包括 Q 版，贴合语境时优先选择。可填字候选用 action=render，传 searchId、id 和要公开说的简短文字，再使用返回的 url；可以表达想法、玩梗或对熟人轻轻吐槽，贴合当前语境，不把内部思考当公开内容。将完整 url 用 <image src="..."/> 放入 qqReply。纯表情回复直接发送，不抽签、不补同义文字；图文混合由插件在发送前按频率决定是否保留表情，所以文字本身必须能表达完整意思。不要自行抽签，也不要因概率低而省略搜索；同一提交重试复用搜索结果。插件关闭、冷却或没有可用表情时按当前状态回复。详细选图和收藏流程见本插件 stickers Skill。';
   let status;
   if (Date.now() - last < cfg.cooldownSeconds * 1000) status = "表情发送仍在冷却中，本轮不用表情。";
   else if (!await hasVisible(ctx)) status = "当前角色和聊天没有可用表情。";
@@ -834,7 +889,7 @@ async function hasVisible(ctx) {
 async function ownUrls(ctx, onlyVisible = false) {
   const urls = new Set();
   for (const row of await all(ctx, true)) {
-    if (onlyVisible && !visible(ctx, row.value)) continue;
+    if (onlyVisible && (!visible(ctx, row.value) || row.value.textTemplate)) continue;
     const ref = usableRef(row.value, ctx.message.chatId)?.ref;
     if (ref) try { urls.add((await ctx.api.assets({ action: "publish", ref, compact: true })).url); } catch {}
   }
@@ -843,7 +898,21 @@ async function ownUrls(ctx, onlyVisible = false) {
 module.exports.beforeSend = async ctx => {
   const content = ctx.hook?.content;
   if (!Array.isArray(content)) return {};
+  const images = content.filter(part => part?.type === "image");
+  if (images.length > 32) throw Error("单条回复图片过多");
   const cfg = await settings(ctx), own = await ownUrls(ctx), allowed = await ownUrls(ctx, true);
+  for (const part of images) {
+    const url = part.data?.file || part.data?.url;
+    if (!url) continue;
+    const published = (await db(ctx, "published", url)).record?.value;
+    if (published?.chatId !== ctx.message.chatId || !published.templateToken) continue;
+    own.add(url);
+    for (const id of published.ids || []) {
+      const row = await get(ctx, id);
+      if (row && visible(ctx, row.value) && row.value.textTemplate
+        && requestId(JSON.stringify(normalizeTextTemplate(row.value.textTemplate))) === published.templateToken) { allowed.add(url); break; }
+    }
+  }
   const cooldown = Date.now() - (await ctx.api.getState("lastSent", "chat") || 0) < cfg.cooldownSeconds * 1000;
   let selected = false;
   const next = content.filter(part => {
@@ -859,12 +928,19 @@ module.exports.afterSend = async ctx => {
   if (!["ok", "sent", "completed", "partial"].includes(receipt?.status) && !receipt?.data?.message_id) return;
   const own = await ownUrls(ctx);
   const sent = (receipt.sentSegments || []).filter(part => part.type === "image").map(part => part.data?.file || part.data?.url);
+  for (const url of sent.slice(0, 32)) {
+    const published = (await db(ctx, "published", url)).record?.value;
+    if (published?.chatId === ctx.message.chatId && published.templateToken) own.add(url);
+  }
   if (sent.some(url => own.has(url))) {
     await ctx.api.setState("lastSent", Date.now(), "chat");
     const search = await ctx.api.getState("lastSearch", "chat"), selected = search?.candidates?.find(item => sent.includes(item.url));
     if (selected) {
       const row = (await journal(ctx, { action: "get", key: search.key })).record;
       if (row?.value.status === "pending") await finishEvent(ctx, row, "sent", { selectedId: selected.id, decidedAt: Date.now() });
+      const prior = await ctx.api.getState("recentStickers", "chat");
+      const recent = Array.isArray(prior) ? prior.filter(id => typeof id === "string" && id !== selected.id).slice(0, 7) : [];
+      await ctx.api.setState("recentStickers", [selected.id, ...recent], "chat");
     }
   }
 };

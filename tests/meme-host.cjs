@@ -12,8 +12,24 @@ const { createSharedModels, MODELS } = hostRequire("./electron/lib/features/retr
 const { createVectorCollections } = hostRequire("./electron/lib/features/retrieval/vector-collections.cjs");
 const { createLocalEmbeddingIndex } = hostRequire("./electron/lib/features/retrieval/local-embedding-index.cjs");
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+function startMemeEngine(root) {
+  const { spawn } = require("node:child_process"), readline = require("node:readline");
+  const child = spawn(process.execPath, [path.join(__dirname, "../plugins/meme-library/engine/server.cjs"), root], { stdio: ["pipe", "pipe", "inherit"], windowsHide: true });
+  let serial = 0; const pending = new Map();
+  readline.createInterface({ input: child.stdout }).on("line", line => {
+    const message = JSON.parse(line), entry = pending.get(message.id); if (!entry) return;
+    pending.delete(message.id); clearTimeout(entry.timer);
+    if (message.error) entry.reject(Error(message.error.message)); else entry.resolve(message.result);
+  });
+  child.on("exit", () => { for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(Error("image process exited")); } pending.clear(); });
+  return { call(input) { return new Promise((resolve, reject) => {
+    const id = ++serial, timer = setTimeout(() => { pending.delete(id); reject(Error("image process timed out")); }, 20000);
+    pending.set(id, { resolve, reject, timer });
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "sticker_engine", arguments: input } }) + "\n");
+  }); }, close() { child.stdin.end(); } };
+}
 async function main() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-meme-plugin-")); let runtime, retrieval;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-meme-plugin-")); let runtime, retrieval, textEngine;
   try {
     const loaded = readPluginPackage(path.join(__dirname, "../plugins/meme-library"));
     const plugin = { ...loaded.manifest, id: "meme-library", enabled: true, runtimeEnabled: true, type: "js-plugin", basePath: loaded.basePath || path.join(__dirname, "../plugins/meme-library"),
@@ -31,7 +47,7 @@ async function main() {
     const bytes = await hostRequire("sharp")({ create: { width: 32, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const asset = media.put(actor, bytes, { mimeType: "image/png", name: "fixture.png" });
     const state = new Map(), vectors = Array(768).fill(0); vectors[0] = 1;
-    let generated = 0, engineAvailable = true;
+    let generated = 0, engineAvailable = true, useTextEngine = false;
     const models = createSharedModels({ root, providers: { "embeddinggemma-2": { ...MODELS[0],
       ready: () => engineAvailable,
       async install() { if (!engineAvailable) throw Error("model unavailable"); },
@@ -46,10 +62,11 @@ async function main() {
       setPluginState: (_channel, _plugin, scope, scopeId, key, value) => state.set(JSON.stringify([scope, scopeId, key]), value),
       pluginStateScopeId: (_channel, scope, msg) => scope === "chat" ? msg.chatId : "shared", isNapCatOneBotChannel: () => true,
       pluginData: createPluginDataStore({ rootFor: () => path.join(root, "data") }),
-      generatePluginModel: async ({ request }) => { generated++; assert.equal(request.attachments[0].mimeType, "image/jpeg"); return { text: JSON.stringify({ caption: "蓝色方块", meaning: "冷静", tags: ["冷静"] }), modelId: "vision" }; },
+      generatePluginModel: async ({ request }) => { generated++; assert(request.attachments[0].mimeType === "image/jpeg" || request.attachments[0].assetRef); return { text: JSON.stringify({ caption: "蓝色方块", meaning: "冷静", tags: ["冷静"] }), modelId: "vision" }; },
       pluginTools: { call: async args => {
         const input = args.input.arguments;
         assert(!["status", "install", "embed"].includes(input.action), "media engine never owns inference");
+        if (useTextEngine && ["has", "put", "renderText"].includes(input.action)) return textEngine.call(input);
         const result = input.action === "has" ? { present: true } : input.action === "prepare" ? { mimeType: "image/jpeg", data: bytes.toString("base64") } : {};
         return { structuredContent: result };
       }, list: async () => ({ tools: [] }) },
@@ -96,6 +113,30 @@ async function main() {
     assert.equal(resolved[0].data.file, "base64://" + bytes.toString("base64")); assert.equal(resolved[0].data.sub_type, 1);
     await assert.rejects(runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
     if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root, picker });
+
+    textEngine = startMemeEngine(path.join(root, "real-image-engine")); useTextEngine = true;
+    const beforeTemplate = await runtime.runPluginAction(channel, plugin, action("detail"), { id: asset.sha256 });
+    const template = { version: 1, rect: { x: .1, y: .1, width: .8, height: .8 }, color: "#ff0000", align: "center", maxFontSize: .15 };
+    await runtime.runPluginAction(channel, plugin, action("save"), { id: asset.sha256, revision: beforeTemplate.revision, textTemplate: template,
+      enabled: true, roleProfileId: "", profileIds: [], chatMode: "all", chatIds: [] });
+    const waitTool = async (input, principal = context) => {
+      let result = await runtime.runNativePluginTool("qqSticker", input, principal);
+      for (let n = 0; n < 500 && result.status === "running"; n++) { await wait(20); result = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: result.id }, principal); }
+      assert.equal(result.status, "completed", result.error); return result.result;
+    };
+    const candidates = await waitTool({ action: "search", query: "冷静" });
+    const selected = candidates.candidates.find(item => item.id === asset.sha256);
+    assert.equal(selected.textTemplate, true); assert.equal(selected.url, undefined);
+    const textResult = await waitTool({ action: "render", searchId: candidates.searchId, id: selected.id, text: "白痴！" });
+    const textSegments = [{ type: "image", data: { file: textResult.url } }];
+    assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, textSegments)).content.length, 1);
+    const textResolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, textSegments);
+    const output = Buffer.from(textResolved[0].data.file.slice("base64://".length), "base64");
+    assert.equal((await hostRequire("sharp")(output).metadata()).format, "webp");
+    const afterTemplate = await runtime.runPluginAction(channel, plugin, action("detail"), { id: asset.sha256 });
+    await runtime.runPluginAction(channel, plugin, action("save"), { id: asset.sha256, revision: afterTemplate.revision, clearTextTemplate: true });
+    assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, textSegments)).content.length, 0, "revoking the template blocks previously rendered images");
+    useTextEngine = false;
 
     const settingsPage = await runtime.runPluginAction(channel, plugin, action("list"), {});
     await runtime.runPluginAction(channel, plugin, action("settings"), { revision: settingsPage.preferences.revision, frequency: 0, cooldownSeconds: 0 });
@@ -152,7 +193,7 @@ async function main() {
     const preparedAnalysis = require("../personas/xixi-sticker-analysis.json").stickers[0].analysis;
     store.data.channelAgents = [{ id: "own", name: "角色", enabled: true,
       stickers: Array.from({ length: 105 }, (_, i) => ({ id: `role-${i}`, name: `角色 ${i}`, description: "角色冷静", tags: ["冷静"],
-        metadata: { "meme-library": { schemaVersion: 1, analysis: preparedAnalysis } },
+        metadata: { "meme-library": { schemaVersion: 1, analysis: preparedAnalysis, ...(i === 0 ? { textTemplate: template } : {}) } },
         enabled: true, contentHash: asset.sha256, mimeType: "image/png" })) }];
     channel.config.agentId = "channel-agent:own";
     let lastTick = Date.now(), maxGap = 0;
@@ -167,6 +208,9 @@ async function main() {
       assert.equal(page.total, 105, JSON.stringify(page.jobs));
       assert(page.items.every(item => item.meaning === preparedAnalysis.meaning), "media metadata reaches the plugin through the public host interface");
       assert(page.items.every(item => item.profileIds.includes("channel-agent:own")), "role media is synchronized with its role scope");
+      const templateRoleId = `${asset.sha256}:profile:channel-agent:own:role-0`;
+      assert.deepEqual((await runtime.runPluginAction(channel, plugin, action("detail"), { id: templateRoleId })).textTemplate, template,
+        "template metadata survives real role-media synchronization");
       assert(maxGap < 500, `role synchronization blocked the host for ${maxGap} ms`);
       let own = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
       for (let n = 0; n < 100 && own.status === "running"; n++) { await wait(20); own = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: own.id }, context); }
@@ -185,6 +229,32 @@ async function main() {
       assert.equal(page.total, 105, "reindexing a large library retains all role stickers");
       assert(maxGap < 500, `role indexing blocked the host for ${maxGap} ms`);
     } finally { clearInterval(heartbeat); }
+
+    // Exercise a multi-megabyte image through the real plugin worker, background
+    // asset service and separate renderer process while the host remains live.
+    const noise = require("node:crypto").randomBytes(1600 * 1600 * 3);
+    const largeBytes = await hostRequire("sharp")(noise, { raw: { width: 1600, height: 1600, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
+    assert(largeBytes.length > 1024 * 1024, "the isolation fixture must exercise large media");
+    const largeAsset = media.put(actor, largeBytes, { mimeType: "image/jpeg", name: "大图填字" });
+    useTextEngine = true;
+    let lastBeat = Date.now(), worstBeat = 0;
+    const pulse = setInterval(() => { const now = Date.now(); worstBeat = Math.max(worstBeat, now - lastBeat); lastBeat = now; }, 10);
+    try {
+      await runtime.runPluginAction(channel, plugin, action("import"), { refs: [largeAsset.ref] });
+      for (let attempt = 0; ; attempt++) {
+        const detail = await runtime.runPluginAction(channel, plugin, action("detail"), { id: largeAsset.sha256 });
+        try { await runtime.runPluginAction(channel, plugin, action("save"), { id: largeAsset.sha256, revision: detail.revision, name: "大图填字", textTemplate: template }); break; }
+        catch (error) { if (attempt >= 4 || !/更新|刷新|冲突/.test(error.message)) throw error; }
+      }
+      const largeSearch = await waitTool({ action: "search", query: "大图填字", mode: "text" });
+      const largeCandidate = largeSearch.candidates.find(item => item.id === largeAsset.sha256);
+      assert(largeCandidate?.textTemplate);
+      const largeResult = await waitTool({ action: "render", searchId: largeSearch.searchId, id: largeCandidate.id, text: "你好！" });
+      const image = (await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, [{ type: "image", data: { file: largeResult.url } }]))[0].data.file;
+      assert(Buffer.from(image.slice("base64://".length), "base64").length <= 256 * 1024);
+      assert(worstBeat < 500, `large template processing blocked the host for ${worstBeat} ms`);
+      console.log(`Large template: ${largeBytes.length} bytes, host maximum timer gap ${worstBeat} ms`);
+    } finally { clearInterval(pulse); useTextEngine = false; }
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");
@@ -192,6 +262,7 @@ async function main() {
     assert.deepEqual(media.readPublished(url).data, bytes);
     console.log("Meme plugin host integration: actual VM, 72 MiB model media without worker exhaustion, persistent SQLite/jobs, image preparation, model result previews and scoped/revoked outbound references passed");
   } finally {
+    textEngine?.close();
     await runtime?.pauseForDataSnapshot(); shutdownPluginWorkers();
     await retrieval?.models.pause(); await retrieval?.vectors.pause();
     assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir())); assert(path.basename(root).startsWith("openbot-meme-plugin-"));
