@@ -324,7 +324,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.2",
+      "version": "2.3.5",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -359,7 +359,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "聊天筛选、单张及批量范围设置、聊天设置统一显示群名和群号，支持按群名或群号搜索；配合 OpenBot 0.1.94，断线时保留已缓存的群名。",
+        "changelog": "多选保留滚动位置；支持单张和批量重新识别、固定名称、专属角色设置，以及人格包预置识别结果。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +370,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "75fcfbd7984d1e53afe63ab68e8a218cdc333715",
+      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
       "files": [
         {
           "path": "README.md",
-          "size": 4977,
-          "sha256": "8715155fa970e79aed175b9a82ed2bef6ba95f51f1f39529ed5e036a9a049d60"
+          "size": 7081,
+          "sha256": "e1d0a96cbb512afec1ad3fd7ccbcfe24525063f038132de1728d5024a3922cce"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +394,8 @@
         },
         {
           "path": "index.js",
-          "size": 50671,
-          "sha256": "3095774515a2455fe3a188784055dcf85313399b82c50c55873a9c7a463d0f3e"
+          "size": 60594,
+          "sha256": "0b415bf038f482c16b17fe63e4074dbf430c5f57c6768de5bfa819c3528ae17e"
         },
         {
           "path": "mcp.json",
@@ -414,23 +414,23 @@
         },
         {
           "path": "plugin.json",
-          "size": 20143,
-          "sha256": "9d3ad9288232bd51fe0968a445ec5c19353d48ed961a538013d7bb739a347074"
+          "size": 20734,
+          "sha256": "7d8dd0c37ac94f8f83ae7825eaacbb97ebcaf39780e26ab9a3f320f2a9c6d418"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 1852,
-          "sha256": "040dc9f3690c9614313439c04328b7ee33f1fb9279809b07887024c1ff0d7872"
+          "size": 1927,
+          "sha256": "82f47078de89629174d980c99b408f4d155295c6be493972287df5e7b1c1304d"
         },
         {
           "path": "ui/app.js",
-          "size": 8342,
-          "sha256": "c8c4acd14951d313015e7b6c698ae94bdede6163ae339080a75d5fd5eff5d017"
+          "size": 10222,
+          "sha256": "f4c84e1d0ec47d383bc99ff579ab2656cbc3d716288a66a47c467c6d2da84b1a"
         },
         {
           "path": "ui/index.html",
-          "size": 2496,
-          "sha256": "a334874df3250b5108a9c45195d0aead7badab9ad54320d34901f90c038c74f7"
+          "size": 2563,
+          "sha256": "d5228234775f69abf35852b5659c82485ce7527aa2ae402cab5c218653197729"
         },
         {
           "path": "ui/panel.html",
@@ -439,8 +439,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 12531,
-          "sha256": "f3fc51a503fd2c33c2c6fea708fc2b721a1c6aa39f5b4d1818553a528a3bd2e5"
+          "size": 13959,
+          "sha256": "1d5c92d5ccda4d04342615ed650d0c984e0e685df78dd49e8a723c7425921619"
         },
         {
           "path": "ui/style.css",
@@ -1076,6 +1076,30 @@
           "sha256": "15832e6fc849c167027e4e97a2dc656b885e2253d09b0af7e09f8b6d0f5e2941"
         }
       ]
+    }
+  ],
+  "personas": [
+    {
+      "id": "xixi",
+      "version": "1.1.15",
+      "name": "嘻嘻",
+      "description": "蓝发蓝眼、白色斗篷装的猫娘。含 33 张预置识别的专属表情；需支持预置识别结果的新版 OpenBot 与表情包插件 2.3.5。",
+      "author": "OpenBot",
+      "file": "personas/xixi.openbot-persona.json",
+      "size": 23567,
+      "sha256": "8e395ecf933f01e75d004948fd71de94d889e74ab84c6786d6cd827360135209",
+      "media": {
+        "file": "personas/xixi.media.openbot-persona.json",
+        "size": 24221987,
+        "sha256": "d5257d88c7e13213d3941eec5e917c72b1e45e377d411961820c1622c762cddb",
+        "count": 33
+      },
+      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
+      "preview": {
+        "file": "personas/xixi.preview.openbot-persona.json",
+        "size": 1716687,
+        "sha256": "d1339f422b1970e608fe631fe4b934ebd49bb5a089f106512b4e6e7696c32be1"
+      }
     }
   ]
 }
