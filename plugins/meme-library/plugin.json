@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -75,7 +75,7 @@
           "aliases": [
             "qqSticker"
           ],
-          "description": "检索并查看表情候选，给可填字表情填写短句，或收藏当前聊天图片。",
+          "description": "按想表达的意思或图片原话检索表情，给可填字表情填写短句，或收藏当前聊天图片。",
           "scope": "all",
           "permission": "member",
           "mutating": true,
@@ -95,13 +95,24 @@
               },
               "query": {
                 "type": "string",
-                "maxLength": 1000
+                "maxLength": 1000,
+                "description": "这次想表达的意思或要找的图片原话。"
               },
               "mode": {
                 "type": "string",
+                "description": "auto 按意思和文字匹配。text 优先匹配图上的原话。",
                 "enum": [
                   "auto",
                   "text"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "description": "检索时可选。template 只找可填字表情，ordinary 只找普通表情，any 搜索两种。",
+                "enum": [
+                  "any",
+                  "ordinary",
+                  "template"
                 ]
               },
               "limit": {
@@ -779,7 +790,7 @@
         ]
       },
       "metadata": {
-        "changelog": "回复前按表达含义搜索表情；纯表情直接发送，图文混合按频率保留表情，同一提交重试不重复抽签。",
+        "changelog": "图片原话优先匹配，关键词与语义分别判断相关度。可按普通表情或可填字表情筛选，选图提示补充了具体用法。",
         "requirements": [
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

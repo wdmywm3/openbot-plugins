@@ -1,7 +1,11 @@
 "use strict";
 // All catalog and workflow policy belongs to this package. The host only supplies
 // scoped persistence, media, platform, model and durable-job capabilities.
-const INDEX_BACKEND = "host-v1";
+const INDEX_BACKEND = "host-v2";
+const TEXT_INDEX_VERSION = "bm25-cjk-v3";
+// The vector input changed. A higher revision lets the host replace the old
+// content in the same collection even when the user's description is unchanged.
+const vectorRevision = descriptionVersion => 0x100000000 + descriptionVersion;
 const FIELDS = ["caption", "meaning", "literalDescription", "ocrText", "tags", "emotions", "useCases", "communicativeIntent", "tone", "targetRole", "usageExamples", "avoidContexts", "aliases", "style"];
 const SCALARS = new Set(["caption", "meaning", "literalDescription", "ocrText"]);
 const ANALYSIS_FIELDS = ["caption", "meaning", "ocrText", "tags", "usageExamples", "avoidContexts"];
@@ -113,7 +117,10 @@ function normalizeTextTemplate(value) {
   return { version: 1, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     color: value.color.toLowerCase(), align: value.align, maxFontSize: value.maxFontSize };
 }
-const indexText = v => [text(v.name, 200), ...Object.values(compactDescriptions(v)).map(value => Array.isArray(value) ? value.join("；") : value)].filter(Boolean).join("\n").slice(0, 15000) || "图片表情";
+function indexText(value) {
+  const { caption, meaning, ocrText, tags, usageExamples } = compactDescriptions(value);
+  return [text(value.name, 200), caption, meaning, ocrText, ...tags, ...usageExamples].filter(Boolean).join("\n").slice(0, 15000) || "图片表情";
+}
 function tokens(value) {
   const out = [];
   for (const word of String(value).normalize("NFKC").toLowerCase().match(/[\p{Script=Han}]+|[\p{L}\p{N}]+/gu) || []) {
@@ -129,24 +136,30 @@ function textIndex(value) {
     if (!Object.hasOwn(terms, token) && size++ >= 2048) continue;
     terms[token] = (terms[token] || 0) + 1; length++;
   }
-  return { version: "bm25-cjk-v2", descriptionVersion: value.descriptionVersion, length, terms };
+  return { version: TEXT_INDEX_VERSION, descriptionVersion: value.descriptionVersion, length, terms };
 }
 function textScores(rows, query) {
-  const terms = [...new Set(tokens(query))].slice(0, 128), documents = rows.map(row => row.value.textIndex?.descriptionVersion === row.value.descriptionVersion
-    && row.value.textIndex?.version === "bm25-cjk-v2" ? row.value.textIndex : textIndex(row.value));
+  const terms = [...new Set(tokens(query))].slice(0, 128);
+  if (!terms.length) return rows.map(() => 0);
+  const documents = rows.map(row => row.value.textIndex?.descriptionVersion === row.value.descriptionVersion
+    && row.value.textIndex?.version === TEXT_INDEX_VERSION ? row.value.textIndex : textIndex(row.value));
   const average = documents.reduce((sum, doc) => sum + doc.length, 0) / (documents.length || 1) || 1;
-  const frequencies = terms.map(term => documents.reduce((count, doc) => count + (doc.terms[term] ? 1 : 0), 0));
   const hasCompoundTerm = terms.some(term => term.length > 1);
+  const weighted = terms.map(term => {
+    const count = documents.reduce((total, doc) => total + (doc.terms[term] > 0 ? 1 : 0), 0);
+    const idf = Math.log(1 + (documents.length - count + 0.5) / (count + 0.5));
+    return { term, weight: /^\p{Script=Han}$/u.test(term) && hasCompoundTerm ? 0.25 * idf : idf };
+  });
+  const totalWeight = weighted.reduce((sum, { weight }) => sum + weight, 0);
   return documents.map(doc => {
-    let sum = 0;
-    terms.forEach((term, i) => {
+    let sum = 0, coveredWeight = 0;
+    for (const { term, weight } of weighted) {
       const frequency = doc.terms[term] || 0;
-      if (!frequency) return;
-      const idf = Math.log(1 + (documents.length - frequencies[i] + 0.5) / (frequencies[i] + 0.5));
-      const weight = /^\p{Script=Han}$/u.test(term) && hasCompoundTerm ? 0.25 : 1;
-      sum += weight * idf * frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * doc.length / average));
-    });
-    return 1 - Math.exp(-sum);
+      if (!(frequency > 0)) continue;
+      coveredWeight += weight;
+      sum += weight * frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * doc.length / average));
+    }
+    return (1 - Math.exp(-sum)) * coveredWeight / totalWeight;
   });
 }
 const enqueue = (ctx, ids, requestKey, options = {}) => ctx.api.jobs({ action: "start", actionId: "process", input: { ids: [...new Set(ids)], ...options }, requestKey });
@@ -228,7 +241,7 @@ async function processItem(ctx, id, config) {
     if (!row) return; // Manual edits made during recognition win.
     v = row.value; version = v.descriptionVersion;
   }
-  if (v.textIndex?.version !== "bm25-cjk-v2" || v.textIndex?.descriptionVersion !== version) {
+  if (v.textIndex?.version !== TEXT_INDEX_VERSION || v.textIndex?.descriptionVersion !== version) {
     const saved = await updateItem(ctx, id, { textIndex: textIndex(v) }, version);
     if (!saved) return; v = saved.value;
   }
@@ -241,7 +254,7 @@ async function processItem(ctx, id, config) {
   const references = v.refs.filter(r => !chat || r.shared || r.chatId === chat || r.chats?.includes(chat));
   for (let offset = 0; offset < references.length; offset += 32) {
     out = await ctx.api.vectorIndex({ action: "upsert", scope: "channel", collection: "items", modelId: model.id,
-      records: references.slice(offset, offset + 32).map(reference => ({ id, revision: version,
+      records: references.slice(offset, offset + 32).map(reference => ({ id, revision: vectorRevision(version),
         input: { assetRef: reference.ref, ...(model.modalities.includes("joint") ? { text: indexText(v) } : {}) } })) });
     if (out.version !== model.version || out.records?.some(record => !record.accepted) || !out.records?.length) throw Error("索引资料已更新，请重试");
   }
@@ -560,7 +573,7 @@ module.exports.history = ctx => ctx.input?.key
     where: ctx.input?.id ? { stream: "recognition", subject: text(ctx.input.id, 256) } : { stream: "search" } });
 function matchesFilter(row, input = {}) {
   const value = row.value, query = text(input.query, 200).toLowerCase();
-  if (query && !(indexText(value) + " " + (value.name || "")).toLowerCase().includes(query)) return false;
+  if (query && ![indexText(value), ...strings(value.avoidContexts)].join("\n").toLowerCase().includes(query)) return false;
   if (input.status === "enabled" && value.enabled === false || input.status === "disabled" && value.enabled !== false) return false;
   if (input.profileId && value.profileIds?.length && !value.profileIds.includes(input.profileId)) return false;
   if (input.chatId && (!usableRef(value, input.chatId) || value.chatMode === "include" && !value.chatIds?.includes(input.chatId) || value.chatMode === "exclude" && value.chatIds?.includes(input.chatId))) return false;
@@ -696,13 +709,14 @@ module.exports.sync = async ctx => {
   const result = ids.length ? await module.exports.process({ ...ctx, input: { ids } }) : {};
   return { ...result, imported: ids.length, downloadErrors: errors.slice(0, 50) };
 };
-function lexical(query, item) {
-  const q = query.toLowerCase().replace(/[\s，。！？!?、]/g, ""), hay = indexText(item).toLowerCase();
-  if (!q) return 0;
-  if (text(item.ocrText).toLowerCase().includes(q)) return 1;
-  if (hay.includes(q)) return 0.95;
-  const grams = new Set(Array.from({ length: Math.max(1, q.length - 1) }, (_, i) => q.slice(i, i + 2)));
-  return [...grams].filter(g => hay.includes(g)).length / grams.size * 0.8;
+const literalText = value => String(value || "").normalize("NFKC").toLowerCase().replace(/[\p{P}\s]/gu, "");
+function lexical(query, item, score) {
+  if (!query) return { words: score, ocrRank: 0 };
+  const ocr = literalText(item.ocrText);
+  if (ocr === query) return { words: 1, ocrRank: 2 };
+  if (ocr.includes(query)) return { words: 0.98, ocrRank: 1 };
+  const match = indexText(item).split("\n").some(field => literalText(field).includes(query));
+  return { words: match ? 0.95 : score, ocrRank: 0 };
 }
 async function rememberPublished(ctx, id, url, templateToken) {
   // Indexed by the exact scoped URL. Sending examines only the selected images,
@@ -718,20 +732,23 @@ async function rememberPublished(ctx, id, url, templateToken) {
   }
 }
 async function search(ctx, input) {
-  const query = text(input.query, 1000), rows = (await all(ctx)).filter(r => visible(ctx, r.value) && (!input.ordinaryOnly || !r.value.textTemplate));
+  const query = text(input.query, 1000);
+  const ordinary = input.ordinaryOnly || input.kind === "ordinary", template = input.kind === "template";
+  const rows = (await all(ctx)).filter(({ value }) => visible(ctx, value)
+    && (!ordinary || !value.textTemplate) && (!template || !!value.textTemplate));
   const config = await settings(ctx);
   const semantic = new Map();
   let retrieval = "bm25", warning = "", minimum = 0.66;
-  if (query && input.mode !== "text") {
+  if (query && rows.length && input.mode !== "text") {
     try {
       const model = await retrievalStatus(ctx, config);
       if (!model.modalities?.includes("image")) throw Error("所选检索模型不支持图片");
       const result = await ctx.api.vectorIndex({ action: "search", scope: "channel", collection: "items", modelId: model.id,
-        query: { text: query }, candidates: rows.map(row => ({ id: row.key, revision: row.value.descriptionVersion })), limit: 100, timeoutMs: 1500 });
+        query: { text: query }, candidates: rows.map(row => ({ id: row.key, revision: vectorRevision(row.value.descriptionVersion) })), limit: 100, timeoutMs: 1500 });
       if (result.version !== model.version) throw Error("检索模型已变化，请重试");
       for (const hit of result.matches) if (Number.isFinite(hit.score)) semantic.set(hit.id, hit.score);
       minimum = model.modalities.includes("joint") ? 0.66 : 0.25;
-      retrieval = "semantic";
+      if (semantic.size) retrieval = "semantic";
       if (result.missing && !await ctx.api.getState("recoveryPaused", "channel")) {
         try { await enqueue(ctx, [], `repair:${requestId(model.version)}:${Math.floor(Date.now() / 900000)}`,
           { retrievalModelId: model.id }); } catch { /* Lookup remains usable while a repair cannot be scheduled. */ }
@@ -742,6 +759,7 @@ async function search(ctx, input) {
     }
   }
   const scores = query ? textScores(rows, query) : [];
+  const literalQuery = literalText(query);
   const savedRecent = query && input.mode !== "text" ? await ctx.api.getState("recentStickers", "chat") : [];
   const recent = Array.isArray(savedRecent) ? savedRecent.slice(0, 8) : [];
   const rank = item => {
@@ -749,13 +767,13 @@ async function search(ctx, input) {
     return item.score + (query && input.mode !== "text" && item.roleSticker ? 0.08 : 0)
       - (age === 0 ? 0.04 : age === 1 ? 0.02 : 0);
   };
-  const scored = rows.map((row, index) => {
-    const v = row.value, words = query ? Math.max(lexical(query, v), scores[index]) : 0;
-    const hasVector = semantic.has(row.key);
-    return { v, roleSticker: isRoleSticker(ctx, v), minimum: hasVector && input.mode !== "text" ? minimum : 0.16,
-      score: !query ? Math.random() : input.mode === "text" ? words : Math.max(words, semantic.get(row.key) || 0) };
-  }).filter(r => !query || r.score >= r.minimum)
-    .sort((a, b) => rank(b) - rank(a))
+  const scored = rows.flatMap(({ key, value: v }, index) => {
+    const { words, ocrRank } = lexical(literalQuery, v, scores[index] || 0);
+    const vector = semantic.get(key) || 0;
+    if (query && words < 0.16 && vector < minimum) return [];
+    const score = query ? Math.max(words >= 0.16 ? words : 0, vector >= minimum ? vector : 0) : Math.random();
+    return [{ v, score, ocrRank, roleSticker: isRoleSticker(ctx, v) }];
+  }).sort((a, b) => (input.mode === "text" ? b.ocrRank - a.ocrRank : 0) || rank(b) - rank(a))
     .slice(0, Math.max(1, Math.min(6, input.limit || 4)));
   const candidates = [], attachments = [];
   for (const { v, score, roleSticker } of scored) {
@@ -763,7 +781,8 @@ async function search(ctx, input) {
     try {
       const published = v.textTemplate ? null : await ctx.api.assets({ action: "publish", ref, compact: true });
       if (published) await rememberPublished(ctx, v.id, published.url);
-      candidates.push({ id: v.id, name: v.name, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags, avoidContexts: v.avoidContexts,
+      candidates.push({ id: v.id, name: v.name, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags,
+        ocrText: text(v.ocrText, 300), usageExamples: strings(v.usageExamples, 3), avoidContexts: v.avoidContexts,
         roleSticker, score: Math.round(score * 1000) / 1000, ...(published ? { url: published.url } : { textTemplate: true }) });
       attachments.push({ assetRef: ref, caption: `${v.id}：${roleSticker ? "专属角色表情，" : ""}${v.caption || "表情"}` });
     } catch { /* Scope may change while candidates are being prepared. */ }
@@ -867,15 +886,20 @@ module.exports.afterModel = async ctx => {
 module.exports.beforeModel = async ctx => {
   if (!ctx.api.getCapabilities || !(await ctx.api.getCapabilities()).features?.persistentContextItems) throw Error("表情插件需要支持持久资料的新版本 OpenBot");
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
-  const systemPromptAppend = '表情插件提供 stickers 工具。决定回复后，每条独立回复提交 qqReply 前必须先按想表达的意思搜索一次并查看候选，不能跳过搜索直接默认文字。query 写态度、情绪和回应对象；不要只堆角色名、猫娘、可爱等外观词，也不要直接照抄含糊的短台词。找到贴切的表情就选用；候选都不合适、无结果或检索失败时正常用文字，不凑图、不反复搜索。专属角色表情画的是你自己，包括 Q 版，贴合语境时优先选择。可填字候选用 action=render，传 searchId、id 和要公开说的简短文字，再使用返回的 url；可以表达想法、玩梗或对熟人轻轻吐槽，贴合当前语境，不把内部思考当公开内容。将完整 url 用 <image src="..."/> 放入 qqReply。纯表情回复直接发送，不抽签、不补同义文字；图文混合由插件在发送前按频率决定是否保留表情，所以文字本身必须能表达完整意思。不要自行抽签，也不要因概率低而省略搜索；同一提交重试复用搜索结果。插件关闭、冷却或没有可用表情时按当前状态回复。详细选图和收藏流程见本插件 stickers Skill。';
+  const systemPromptAppend = [
+    '表情可用时，每条独立回复在提交 qqReply 前必须先调用 plugin__meme-library__stickers 搜索一次并查看候选。外层传 action=start 和稳定的 requestKey，input 传 action=search 和 query。只有任务仍在 running 时才按 jobId 查状态。',
+    'query 写这次想表达的意思、态度和对象，比如「被夸后得意叉腰」。找图上的原话用 mode=text。明确想填字时用 kind=template，并按用途搜索，比如「半垂眼想吐槽的思考框」。',
+    '结合候选原图、含义和 avoidContexts 选图。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
+    '选中可填字表情后用同一工具启动 input.action=render，传 searchId、id 和公开短句 text，思考框尽量在 20 字以内。短句可以表达想法、玩梗或对熟人轻轻吐槽。',
+    '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。图文混合按插件设置决定是否保留表情，文字要能独立表达完整意思。插件关闭、冷却或无可用表情时按当前状态回复。',
+  ].join("\n");
   let status;
-  if (Date.now() - last < cfg.cooldownSeconds * 1000) status = "表情发送仍在冷却中，本轮不用表情。";
+  const cooldownUntil = last + cfg.cooldownSeconds * 1000;
+  if (Date.now() < cooldownUntil) status = `表情发送冷却至 ${new Date(cooldownUntil).toISOString()}。到期后先检索再发送。`;
   else if (!await hasVisible(ctx)) status = "当前角色和聊天没有可用表情。";
   else {
     status = `当前可使用表情。每条独立回复须先搜索并查看候选；纯表情直接发送，图文混合中的表情按 ${cfg.frequency}% 的概率保留。没有合适的候选可只发文字，主动选择纯表情不受该概率限制。`;
   }
-  const cooling = Date.now() - last < cfg.cooldownSeconds * 1000;
-  if (cooling) status = `表情发送冷却至 ${new Date(last + cfg.cooldownSeconds * 1000).toISOString()}；到期后仍须检索并由发送检查确认可用性。`;
   return { systemPromptAppend, contextItems: [{ key: "availability", content: status + " 新状态替代本插件先前状态；历史状态不授予发送权限。" }] };
 };
 async function hasVisible(ctx) {
@@ -900,6 +924,7 @@ module.exports.beforeSend = async ctx => {
   const content = ctx.hook?.content;
   if (!Array.isArray(content)) return {};
   const images = content.filter(part => part?.type === "image");
+  if (!images.length) return {};
   if (images.length > 32) throw Error("单条回复图片过多");
   const cfg = await settings(ctx), own = await ownUrls(ctx), allowed = await ownUrls(ctx, true);
   for (const part of images) {
@@ -927,8 +952,9 @@ module.exports.beforeSend = async ctx => {
 module.exports.afterSend = async ctx => {
   const receipt = ctx.hook?.result;
   if (!["ok", "sent", "completed", "partial"].includes(receipt?.status) && !receipt?.data?.message_id) return;
-  const own = await ownUrls(ctx);
   const sent = (receipt.sentSegments || []).filter(part => part.type === "image").map(part => part.data?.file || part.data?.url);
+  if (!sent.length) return;
+  const own = await ownUrls(ctx);
   for (const url of sent.slice(0, 32)) {
     const published = (await db(ctx, "published", url)).record?.value;
     if (published?.chatId === ctx.message.chatId && published.templateToken) own.add(url);

@@ -148,6 +148,8 @@ async function main() {
   };
   const templates = await plugin.stickers({ ...templated.ctx, input: { action: "search" } });
   assert.equal(templates.candidates[0].textTemplate, true); assert.equal(templates.candidates[0].url, undefined, "blank templates are not offered as sendable images");
+  assert.equal((await plugin.stickers({ ...templated.ctx, input: { action: "search", kind: "ordinary" } })).candidates.length, 0);
+  assert.equal((await plugin.stickers({ ...templated.ctx, input: { action: "search", kind: "template" } })).candidates[0].id, templateId);
   const renderInput = { action: "render", searchId: templates.searchId, id: templateId, text: "白痴" };
   await assert.rejects(plugin.stickers({ ...templated.ctx, message: { chatId: "other" }, input: renderInput }), /当前聊天/);
   const rendered = await plugin.stickers({ ...templated.ctx, input: renderInput });
@@ -181,6 +183,8 @@ async function main() {
   assert.equal(presetRow().value.meaning, "主动打招呼"); assert.equal(presetRow().value.indexStatus, "ready");
   assert.deepEqual(presetRow().value.textTemplate, template, "the role package supplies the editable template through generic media metadata");
   assert(!preset.calls.includes("recognize"), "package analysis is indexed directly without another model call");
+  const cautionOnly = await plugin.stickers({ ...preset.ctx, input: { action: "search", query: "对方正在认真求助", mode: "text" } });
+  assert.equal(cautionOnly.candidates.length, 0, "avoidance contexts do not recall the sticker");
   let editDuringCopy = true;
   const profileMediaApi = preset.ctx.api.profileMedia;
   preset.ctx.api.profileMedia = async input => {
@@ -357,6 +361,11 @@ async function main() {
   assert(!unrelated.candidates.some(item => item.id === ownKey), "priority does not admit irrelevant role images");
   const literal = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "没钱", mode: "text", limit: 4 } });
   assert.equal(literal.candidates[0].id, genericKey, "text search preserves exact picture-text ranking");
+  await plugin.save({ ...preference.ctx, input: { id: genericKey, revision: preference.get("a").revision, ocrText: "你好，我吃一点" } });
+  const containing = preference.records.get("items:" + ownKey);
+  await plugin.save({ ...preference.ctx, input: { id: ownKey, revision: containing.revision, ocrText: "请等一下，你好我吃一点" } });
+  const punctuation = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "你好， 我吃一点！", mode: "text" } });
+  assert.deepEqual(Array.from(punctuation.candidates, item => item.id), [genericKey, ownKey], "complete normalized OCR outranks partial OCR");
   assert.equal(plugin._test.isRoleSticker({ profile: { id: "other" } }, { source: { type: "profile", profileId: "p" }, profileIds: ["other"] }), false);
   assert.equal(plugin._test.isRoleSticker(preference.ctx, { source: { type: "profile", legacyId: "profile:p:old" }, profileIds: ["p"] }), true);
   const paged = fixture(), profileRows = Array.from({ length: 205 }, (_, i) => ({ profileId: "p", id: `page-${i}`,
@@ -376,7 +385,7 @@ async function main() {
   const fallback = await plugin.process({ ...offline.ctx, input: { ids: ["a".repeat(64)] } });
   assert.equal(fallback.mode, "bm25"); assert.equal(fallback.failed, 0);
   assert.equal(offline.get("a").value.analysisStatus, "ready", "failed model downloads never block recognition");
-  assert.equal(offline.get("a").value.indexStatus, "fallback"); assert.equal(offline.get("a").value.textIndex.version, "bm25-cjk-v2");
+  assert.equal(offline.get("a").value.indexStatus, "fallback"); assert.equal(offline.get("a").value.textIndex.version, "bm25-cjk-v3");
   const matched = await plugin.stickers({ ...offline.ctx, input: { action: "search", query: "钱包" } });
   assert.equal(matched.retrieval, "bm25"); assert.equal(matched.candidates.length, 1);
   const priorRecognition = offline.calls.filter(action => action === "recognize").length;

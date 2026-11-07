@@ -5,7 +5,9 @@ description: 在聊天中按表达含义检索表情、查看候选原图，或�
 
 先决定是否回应、回应谁。当前可用时，每条独立回复提交 qqReply 前必须先搜索一次并查看候选；一条合并回复搜索一次，不按人数重复搜索。可以主动选择纯表情，无需等用户索要。表情合适时可以只发一张图，表达完整就结束，不补同义文字。
 
-调用本插件的 stickers 工具，action=search，query 写自己这次想表达的意思、态度和对象，不直接照抄含糊的短台词，也不只堆角色名、猫娘、可爱等外观词；找画面时写具体视觉特征。找图上的原文可用 mode=text。查看候选图片、含义和 avoidContexts；roleSticker 为 true 的候选是当前角色的专属角色表情，符合语境时优先选择。没有合适的就用文字，不反复换同义词搜，也不据此认定整个图库为空。
+调用 `plugin__meme-library__stickers`，外层传 `action=start` 和稳定的 `requestKey`，在 `input` 内传 `action=search` 和 `query`。任务回执为 `running` 时用 `action=status` 和 `jobId` 查询。
+
+用具体语境写 `query`，例如「被夸后得意叉腰」或「想拿空筷子蹭一口」。找图片上的原话时用 `mode=text`。想用填字表情时加 `kind=template`，按用途搜索，例如「半垂眼想吐槽的思考框」。结合候选图片、含义和 `avoidContexts` 判断。语境贴合时优先选择 `roleSticker: true` 的专属角色表情。没有合适的候选就用文字。
 
 发送时把候选返回的完整 url 原样放入 qqReply：`<image src="工具返回的完整url"/>`。不要编造图片地址。模型的思考、候选预览、收藏动作都不等于已发送。
 
