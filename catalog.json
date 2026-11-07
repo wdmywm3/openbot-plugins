@@ -322,9 +322,123 @@
       ]
     },
     {
+      "id": "image-studio",
+      "name": "画图",
+      "version": "0.3.1",
+      "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "network",
+        "network:stream",
+        "secret",
+        "history",
+        "assets",
+        "state",
+        "state:global",
+        "model:request",
+        "model:select"
+      ],
+      "metadata": {
+        "usage": "描述想画的图片或提出改图要求；自拍可单独开启，并先在自拍形象中上传角色图片。",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
+          "使用 Codex 绘图前，请先在模型设置中完成登录。"
+        ],
+        "changelog": "0.3.1：按接入方式显示设置，修复模型列表查询和选择；0.3.0：服务可在插件中统一配置，增加并发、排队及用量上限；0.2.6：可读取服务模型列表并选择模型；0.2.5：支持 GPT Image 2.6 动图请求。",
+        "components": [
+          "tools",
+          "skills"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 7189,
+          "sha256": "a889c54a53bd29817049925eb9e5f8c27f217a71d17c3e580a62c7f4022774d5"
+        },
+        {
+          "path": "index.js",
+          "size": 34805,
+          "sha256": "ee8e7dcfe60c9d1576eb73d86f5422447ded3b044ccb8faf4146b2df245d202c"
+        },
+        {
+          "path": "plugin.json",
+          "size": 21616,
+          "sha256": "accb9ab12374d13c49ed106114c17a93d727f971a8abc17e4ff7cb63cb11c455"
+        },
+        {
+          "path": "skills/gpt-image/LICENSE.txt",
+          "size": 10776,
+          "sha256": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9"
+        },
+        {
+          "path": "skills/gpt-image/SKILL.md",
+          "size": 1792,
+          "sha256": "8baa8742e01b0500a0bb1e365ffe2d19dc5151c627993384f06c27df544cf8f5"
+        },
+        {
+          "path": "skills/gpt-image/references/prompting.md",
+          "size": 8021,
+          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+        },
+        {
+          "path": "skills/gpt-image/references/sample-prompts.md",
+          "size": 17057,
+          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+        },
+        {
+          "path": "skills/imagegen/LICENSE.txt",
+          "size": 10776,
+          "sha256": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9"
+        },
+        {
+          "path": "skills/imagegen/SKILL.md",
+          "size": 5086,
+          "sha256": "6cbd729ca8700cc13597abcd89b67fd7a31fed0b03c855cbb48be933fd285e6c"
+        },
+        {
+          "path": "skills/imagegen/references/prompting.md",
+          "size": 8021,
+          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+        },
+        {
+          "path": "skills/imagegen/references/provider-controls.md",
+          "size": 2406,
+          "sha256": "6ee1ebe4781c6bf5923d528ed9c07c053762404227dabafe3c78076efac28d1b"
+        },
+        {
+          "path": "skills/imagegen/references/sample-prompts.md",
+          "size": 17057,
+          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+        },
+        {
+          "path": "ui/reference.css",
+          "size": 332,
+          "sha256": "3d55cade5590bfb85adfeaa0bf4f12bf5f957084442e6a8b490eedfefb7561d7"
+        },
+        {
+          "path": "ui/reference.html",
+          "size": 1086,
+          "sha256": "a2debe4ff4afe37c8805b7811833fba819fd0e8a31600a61815e19cd4db2595d"
+        },
+        {
+          "path": "ui/reference.js",
+          "size": 2521,
+          "sha256": "aeb6700807578c7945fd3ff1eb40d2475e84e69a2ad1fb17cca50a794bef9fcd"
+        }
+      ]
+    },
+    {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.3.5",
+      "version": "2.4.0",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -348,18 +462,19 @@
         "prompt:system",
         "hook:beforeDispatch",
         "profiles:media",
-        "hook:profileChanged"
+        "hook:profileChanged",
+        "hook:afterModel"
       ],
       "metadata": {
         "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
         "requirements": [
-          "需要支持插件导航 v2、宿主弹窗及持久上下文的新版本 OpenBot，请先更新宿主再更新插件。",
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "多选保留滚动位置；支持单张和批量重新识别、固定名称、专属角色设置，以及人格包预置识别结果。",
+        "changelog": "回复前按表达含义搜索表情；纯表情直接发送，图文混合按频率保留表情，同一提交重试不重复抽签。",
         "components": [
           "commands",
           "hooks",
@@ -370,12 +485,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
+      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
       "files": [
         {
           "path": "README.md",
-          "size": 7081,
-          "sha256": "e1d0a96cbb512afec1ad3fd7ccbcfe24525063f038132de1728d5024a3922cce"
+          "size": 8160,
+          "sha256": "4a1baeef16e111831fb4f98794e5e1c6a7ef4077fe7dcdb4d86dd6e74b458dbd"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -394,8 +509,8 @@
         },
         {
           "path": "index.js",
-          "size": 60594,
-          "sha256": "0b415bf038f482c16b17fe63e4074dbf430c5f57c6768de5bfa819c3528ae17e"
+          "size": 64062,
+          "sha256": "f33d7667af9100c289480dc5762dba1c78819c0623b55c81202030dbb955188b"
         },
         {
           "path": "mcp.json",
@@ -414,13 +529,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 20734,
-          "sha256": "7d8dd0c37ac94f8f83ae7825eaacbb97ebcaf39780e26ab9a3f320f2a9c6d418"
+          "size": 20858,
+          "sha256": "fa5eff31cfb3a15b086b8d07c7eb2b169398750e514de7b4f8be81cf33a2adde"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 1927,
-          "sha256": "82f47078de89629174d980c99b408f4d155295c6be493972287df5e7b1c1304d"
+          "size": 2810,
+          "sha256": "7abb47f5837605014e56fed1ea401a8d8a700d23209b2d91ae62e4bb5b1d7de8"
         },
         {
           "path": "ui/app.js",
@@ -439,8 +554,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 13959,
-          "sha256": "1d5c92d5ccda4d04342615ed650d0c984e0e685df78dd49e8a723c7425921619"
+          "size": 13960,
+          "sha256": "b0169872bc6c83f255ad9d74f63b7ae35b35bf9f46df08d8e65db860e12202b5"
         },
         {
           "path": "ui/style.css",
@@ -452,7 +567,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -482,9 +597,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "需要支持持续整理会话和人物画像的新版本 OpenBot；请先安装本次配套的 OpenBot 0.1.98 或更新版本，再更新插件。Node.js 24 由宿主管理。"
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持持续整理会话、统一记忆和人物画像。"
         ],
-        "changelog": "同一聊天持续整理会话，按内容容量从旧到新批量追加；通过工具查询、核对和提交记忆，重试复用回执。只输入实际聊天，暂停自动记录第一人称经历。用户画像来自本人确认的事实和偏好，保留原话和修订关系。定时整理与宿主临时关注独立设置。",
+        "changelog": "空闲整理增量筛选，普通事实先待确认；明确记住、稳定画像与重要边界可直接生效。定时整理复审候选和已有自动记忆，支持晋升、合并与可恢复归档。逐条按聊天和成员查重，同一事实改写不再重复新增；候选有容量和时效限制，未完成事项和手写记忆受保护。",
         "components": [
           "hooks",
           "tools",
@@ -493,12 +608,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2c7676057b41c6784539f2731fb65ef58ebd7ecd",
+      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
       "files": [
         {
           "path": "README.md",
-          "size": 10098,
-          "sha256": "aedfcedd8c29eae90252230e65ae455e6319aea86f244508fac5bd9c0e15dd53"
+          "size": 11580,
+          "sha256": "5d28f2bcaae052fdb713b9d79c4e45870479132de1c796cd38ddc78975c6fe01"
         },
         {
           "path": "followup-runtime.cjs",
@@ -527,8 +642,8 @@
         },
         {
           "path": "lib/context/channel-dream-run-repository.cjs",
-          "size": 9399,
-          "sha256": "e45656a89c64cec5430229276b7ae05ce4919661888848d7b731a8b4259b7ba6"
+          "size": 11065,
+          "sha256": "6cb0db71278af4ef6e19ae0b4fcb68326ee79ae6344502b1139d2068bcc51578"
         },
         {
           "path": "lib/context/channel-memory-repository.cjs",
@@ -557,8 +672,8 @@
         },
         {
           "path": "lib/features/channels/channel-dream-analysis.cjs",
-          "size": 14845,
-          "sha256": "695df7eab8744228a14604463ca8787319994216671fa43f25d8e71ac33303ee"
+          "size": 14878,
+          "sha256": "e0233295084a0d75b50bcae7dd19844fabd05e4855d822ce6f048e732de1ff99"
         },
         {
           "path": "lib/features/channels/channel-dream-coordinator.cjs",
@@ -643,17 +758,17 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "e3ab642a3b8b92c9e71b84607cdefa082abb7db89c210df3aedfc41e62b9e104"
+          "sha256": "09b3915fb18c8e527fd8aa5dd485b7608a028926a124c6cda32fcc3132b3f30f"
         },
         {
           "path": "package.json",
           "size": 166,
-          "sha256": "6abe7f412e18587fb5d6cfe73ce7ff158a0086732de5bc4f52a4c22f6e545129"
+          "sha256": "6acbe35627209249eba09ff791c677f9ea3a6bb3109e1765a3493c9d4cd4346d"
         },
         {
           "path": "plugin.json",
-          "size": 12864,
-          "sha256": "b7f9a1340340627a6908d43a10bbc17dff128e9b7b19fbd6698d25d42bfdd1d5"
+          "size": 12833,
+          "sha256": "aa4aa513e5ce97875bcc14df3298f8ee49bc5d291bb6ebc74cdfc890293e066c"
         },
         {
           "path": "process.cjs",
@@ -677,8 +792,8 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 6159,
-          "sha256": "14d3031ea93e44b12ab87878c5ee17e3a21a310333ac33b7f64c033e5f263228"
+          "size": 7011,
+          "sha256": "b06d958ed01cef94c5929411e7ab9377fa41ebea501a4d3e8786ffc2a5f433f7"
         },
         {
           "path": "source-retrieval.cjs",
@@ -697,8 +812,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 9263,
-          "sha256": "9e0f8c4cf1fa66192f66b2084f96d924c96cc298c7a272d6a45ba4119692ed40"
+          "size": 11340,
+          "sha256": "51f6f8e80637d4fa6cb338529e0683989d747f06bb3d8d1285c642f748b29213"
         },
         {
           "path": "ui/details.html",
@@ -707,8 +822,8 @@
         },
         {
           "path": "ui/details.js",
-          "size": 1886,
-          "sha256": "b984be32135fac37c02c5006703db34372a4eff27ecb2ae141977f0ebcf119df"
+          "size": 3498,
+          "sha256": "b2a6a2d5bfe486407d8f13c7ec6690abacb3a1dbacc9c755a776291a5a6523f2"
         },
         {
           "path": "ui/index.html",
@@ -722,13 +837,18 @@
         },
         {
           "path": "unified-assessment.cjs",
-          "size": 6021,
-          "sha256": "9503fc5a15f0072f8e9363233af395bb4e1ae9b6c41066138766c19260b1d27a"
+          "size": 7939,
+          "sha256": "77ae0c338fddb800a77038ea58016724d678384a57386cb958c2e225727d30f4"
         },
         {
           "path": "unified-candidates.cjs",
-          "size": 2743,
-          "sha256": "fbffa9bb77493aee7708f8a618cbb48a4d1eca3afe6a0e53cf4827cb53dd42bc"
+          "size": 6249,
+          "sha256": "5f21c1f613d3ac2be9dc2d634721eb5f97dfaee40a1e5b82dbb5d2c0376220b0"
+        },
+        {
+          "path": "unified-catalog-cache.cjs",
+          "size": 2915,
+          "sha256": "b56d8d3370017d89adfa12e533a12b273ff77a01cc1935bc77d8d4d79367e7b2"
         },
         {
           "path": "unified-checkpoints.cjs",
@@ -742,8 +862,13 @@
         },
         {
           "path": "unified-dream.cjs",
-          "size": 16699,
-          "sha256": "43ed33bb0a7daef6e2bcebdfc7132d529d6f9e9135131841adaea7b1902de2b1"
+          "size": 17282,
+          "sha256": "69e5479452e701a9707548388f6ae299a893bf343682a8eccf3ece37d2ce7b6b"
+        },
+        {
+          "path": "unified-existing.cjs",
+          "size": 5230,
+          "sha256": "70e4908441ebc5c01a5fd61854e9d305812beb2161ea3e4cd9f83d7d38fb6d27"
         },
         {
           "path": "unified-followup-activity.cjs",
@@ -761,6 +886,11 @@
           "sha256": "bcf22f377980e55f895de817a35aa7beeb6326e0a335b7db93ac9742a4365086"
         },
         {
+          "path": "unified-maintenance.cjs",
+          "size": 18861,
+          "sha256": "8cabeaabe2d5650dee28e31c332c3b65379cc524828435c0280b5564fc48b79a"
+        },
+        {
           "path": "unified-material-policy.cjs",
           "size": 743,
           "sha256": "2b65b532966bfdb7dbf954f8717274d8b5c539d1a9433160758f87e3b4e11a63"
@@ -772,8 +902,8 @@
         },
         {
           "path": "unified-organizer.cjs",
-          "size": 16330,
-          "sha256": "d2f94a2f16ecb51f665f2594ae1653a4ad9c89f74991476e51a85f54dc41d83b"
+          "size": 17468,
+          "sha256": "218b554a6a4acdcea3ca04b208c37551c4668800e75807add645b58c4aedc410"
         },
         {
           "path": "unified-peer.cjs",
@@ -787,8 +917,13 @@
         },
         {
           "path": "unified-profile-policy.cjs",
-          "size": 2866,
-          "sha256": "75cc1592a5cb4b081631618415a7c63b86642fae0519313bfdc068d80062fb20"
+          "size": 4356,
+          "sha256": "6d8146a67a558c58213bddc1a83ef74af819bd32d4e472012c7af4807ea41c56"
+        },
+        {
+          "path": "unified-retention.cjs",
+          "size": 5995,
+          "sha256": "0c837df5e1b99eef7494c75700ad1a4b548297df7721037ae1dfb1a84eae9fe5"
         },
         {
           "path": "unified-retrieval.cjs",
@@ -802,13 +937,13 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 27065,
-          "sha256": "34c253c6f60f6c2185935144bbbc946ae038cccb574f30a2878f19009c2737b7"
+          "size": 33233,
+          "sha256": "b4d403437bc756afd0bfd3ffd79898171501616d6b21a7611c29a805da62c533"
         },
         {
           "path": "unified-scheduling.cjs",
-          "size": 1899,
-          "sha256": "bc29f527554e93d2a59028071629b822a8635569f06d97f47a5a9babb2ee1512"
+          "size": 2302,
+          "sha256": "7638e114945c00b2154d1a1efb00a83d792dbbc45318d36103130e094ebb9935"
         },
         {
           "path": "unified-state.cjs",
@@ -817,8 +952,8 @@
         },
         {
           "path": "utterance-recall.cjs",
-          "size": 6448,
-          "sha256": "f27ff28c2fa57bfdee40bc46bd2c65fd51bd2f8fb6e0f312f1fabf29d1790853"
+          "size": 6468,
+          "sha256": "a29d0dbaad464487abd2acbad6fb597fff9e6841373f6dbf98773a7eec7d5fa3"
         }
       ]
     },
@@ -913,6 +1048,63 @@
           "path": "skills/search/SKILL.md",
           "size": 1883,
           "sha256": "0988d8ff7e531d7f2b954a9f15b998e7cd236a26e9948041e455877110cb9c76"
+        }
+      ]
+    },
+    {
+      "id": "tool-workshop",
+      "name": "工具工坊",
+      "version": "0.1.0",
+      "description": "让 Bot 编写、试运行并保存可重复调用的 JavaScript 工具。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "state",
+        "script:run",
+        "network",
+        "model:request",
+        "model:select",
+        "assets",
+        "hook:context"
+      ],
+      "metadata": {
+        "usage": "",
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "requirements": [
+          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持 scriptExecution 及所选的显式能力。"
+        ],
+        "changelog": "0.1.0：工具草稿、试运行、版本保存与复用；可显式授权联网、模型和媒体能力，自写绘图工具。",
+        "components": [
+          "hooks",
+          "tools",
+          "skills"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3418,
+          "sha256": "4eafc3b42a899dd05ad0727a6c29fd20f668ac6767880bc7dc4740f87b03169a"
+        },
+        {
+          "path": "index.js",
+          "size": 12593,
+          "sha256": "8113854df3df98f0e1f6f534ae96e73e6ae24436fc093d7dec61ecc5e503ae3c"
+        },
+        {
+          "path": "plugin.json",
+          "size": 5949,
+          "sha256": "d6fcd456c689d9f2abce061e780976d0b00d6ada5d318ed596c180b3384d8317"
+        },
+        {
+          "path": "skills/tool-workshop/SKILL.md",
+          "size": 5499,
+          "sha256": "c5ca51963f7d4dacc9cd5ed0ff3a1e1ddbe91c1c188122305371249b082de9d4"
         }
       ]
     },

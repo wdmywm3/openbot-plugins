@@ -32,9 +32,10 @@ const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plu
     assert.equal(installed.enabled, false, "new package remains stopped without configuration");
     const saved = store.data.plugins.find(plugin => plugin.id === "image-studio");
     decidePluginAuthorization(saved, pluginAuthorization(saved).fingerprint, true);
-    await assert.rejects(commands.togglePlugin({ pluginId: saved.id, enabled: true }), /配置.*画图服务/);
+    await assert.rejects(commands.togglePlugin({ pluginId: saved.id, enabled: true }), /配置OpenAI API Key/);
     assert.equal(saved.enabled, false);
     const config = commands.getPluginGlobalSettings({ pluginId: saved.id }).config;
+    assert.equal(config.provider, "openai-images", "new installations use the explicit OpenAI Images provider");
     assert.equal(config.globalConcurrency, 2); assert.equal(config.instanceConcurrencyDefault, 1);
     await commands.savePluginGlobalSettings({ pluginId: saved.id, config: { provider: "openai-images", globalHourly: 7 } });
     await assert.rejects(commands.savePluginGlobalSettings({ pluginId: saved.id, config: { instanceConcurrency: 4 } }), /未声明/);
