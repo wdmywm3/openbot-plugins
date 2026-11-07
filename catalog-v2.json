@@ -439,7 +439,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.5.0",
+      "version": "2.5.1",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -475,7 +475,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "回复前按表达含义搜索表情；纯表情直接发送，图文混合按频率保留表情，同一提交重试不重复抽签。",
+        "changelog": "图片原话优先匹配，关键词与语义分别判断相关度。可按普通表情或可填字表情筛选，选图提示补充了具体用法。",
         "components": [
           "commands",
           "hooks",
@@ -486,12 +486,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "0dbf35e7572e15d2a5cff6962d71aba4e7f9fdd6",
+      "ref": "6530138008c4e990b7c33b1daffa0800c7c99327",
       "files": [
         {
           "path": "README.md",
-          "size": 8959,
-          "sha256": "89fdcc82c246e0827fb575c65b89a1d4749526398f6cf696bc5872dc5278466f"
+          "size": 9237,
+          "sha256": "150bbbb656ab7c34f67ca915b17e3dae09b32311b1c3af5dd0785fb9756d9090"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -510,8 +510,8 @@
         },
         {
           "path": "index.js",
-          "size": 70155,
-          "sha256": "2522ae39c2109399560cded3161638e24db39c743f22539249c16192d999ff96"
+          "size": 71129,
+          "sha256": "aeedcb7a79956124b82b3e4f2932ef6d8c78b52e8d40f712a71a86e67087e93f"
         },
         {
           "path": "mcp.json",
@@ -530,13 +530,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 21216,
-          "sha256": "000effec445771ab952c4d741a7a438f3ae62178f281584e71f22c07c3942341"
+          "size": 21778,
+          "sha256": "848e8f002892d54ba8a01222c5462c347e6707e96738f59812f9ed510fc46192"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 3461,
-          "sha256": "7c6440284ffe2bfaa205cb90dd46a7f6913e6c05a85db250cb0ab8f0cc873b34"
+          "size": 3569,
+          "sha256": "09e23b151282822b0ae9112ed97aff8015a46c08b5282481fc4695188a86ce3b"
         },
         {
           "path": "ui/app.js",
@@ -1364,24 +1364,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.18",
+      "version": "1.1.19",
       "name": "嘻嘻",
-      "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 39 张专属角色表情。",
+      "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 27 张 Q 版专属角色表情。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 662269,
-      "sha256": "b746f3d916740772f9fdf84d074aee5e5e8383f32341019843624cc7ce37d245",
+      "size": 601706,
+      "sha256": "578cca6029579cb1a8a2757577ae478fdb99e92ea6200b8a9b7a738063f3016f",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 25092247,
-        "sha256": "7af06be6a0d782ea76c8d75675aa7ef3102af94458fcccc141a12a589fe0b4de",
-        "count": 39
+        "size": 19647261,
+        "sha256": "663ceaaa0fc4e422c1656c952c95905d44c0ba1242ef3950a2685ba5a02ce92a",
+        "count": 27
       },
-      "ref": "3169bbd4e0d44b7e6420397017a16d3375c4457c",
+      "ref": "6530138008c4e990b7c33b1daffa0800c7c99327",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 1856641,
-        "sha256": "4da1ec6af9c3bd99b370514ce32e9453de7fa7cb6ba685827dcd1ac70363aa13"
+        "size": 2662151,
+        "sha256": "222e66ca8b7939230422e16609e4d3d93ec1e17f31e7c1917a2888654073bc9c"
       },
       "referenceCount": 3
     }
