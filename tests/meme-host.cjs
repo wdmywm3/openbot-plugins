@@ -47,11 +47,11 @@ async function main() {
     const bytes = await hostRequire("sharp")({ create: { width: 32, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const asset = media.put(actor, bytes, { mimeType: "image/png", name: "fixture.png" });
     const state = new Map(), vectors = Array(768).fill(0); vectors[0] = 1;
-    let generated = 0, engineAvailable = true, useTextEngine = false;
+    let generated = 0, engineAvailable = true, useTextEngine = false, slowEmbedding = false;
     const models = createSharedModels({ root, providers: { "embeddinggemma-2": { ...MODELS[0],
       ready: () => engineAvailable,
       async install() { if (!engineAvailable) throw Error("model unavailable"); },
-      create: () => createLocalEmbeddingIndex(root, { embed: async () => { if (!engineAvailable) throw Error("model unavailable"); return vectors; } }),
+      create: () => createLocalEmbeddingIndex(root, { embed: async () => { if (slowEmbedding) await wait(3000); if (!engineAvailable) throw Error("model unavailable"); return vectors; } }),
     } } });
     retrieval = { models, vectors: createVectorCollections({ root, models }) };
     const picker = { release: null };
@@ -255,6 +255,16 @@ async function main() {
       assert(worstBeat < 500, `large template processing blocked the host for ${worstBeat} ms`);
       console.log(`Large template: ${largeBytes.length} bytes, host maximum timer gap ${worstBeat} ms`);
     } finally { clearInterval(pulse); useTextEngine = false; }
+    for (let n = 0; n < 500; n++) {
+      const pending = await runtime.runPluginAction(channel, plugin, action("list"), {});
+      if (pending.jobs.every(job => !["queued", "running"].includes(job.status))) break;
+      await wait(20);
+    }
+    slowEmbedding = true;
+    const slowStart = Date.now(), fallback = await waitTool({ action: "search", query: "测试慢查询回退" });
+    assert.equal(fallback.retrieval, "bm25", "slow semantic lookup falls back to keyword retrieval");
+    assert(Date.now() - slowStart < 2800, "interactive search does not wait for a slow embedding");
+    slowEmbedding = false;
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");

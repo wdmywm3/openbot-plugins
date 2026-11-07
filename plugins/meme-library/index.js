@@ -135,14 +135,15 @@ function textScores(rows, query) {
   const terms = [...new Set(tokens(query))].slice(0, 128), documents = rows.map(row => row.value.textIndex?.descriptionVersion === row.value.descriptionVersion
     && row.value.textIndex?.version === "bm25-cjk-v2" ? row.value.textIndex : textIndex(row.value));
   const average = documents.reduce((sum, doc) => sum + doc.length, 0) / (documents.length || 1) || 1;
-  const frequencies = terms.map(term => documents.filter(doc => doc.terms[term]).length);
+  const frequencies = terms.map(term => documents.reduce((count, doc) => count + (doc.terms[term] ? 1 : 0), 0));
+  const hasCompoundTerm = terms.some(term => term.length > 1);
   return documents.map(doc => {
     let sum = 0;
     terms.forEach((term, i) => {
       const frequency = doc.terms[term] || 0;
       if (!frequency) return;
       const idf = Math.log(1 + (documents.length - frequencies[i] + 0.5) / (frequencies[i] + 0.5));
-      const weight = /^\p{Script=Han}$/u.test(term) && terms.some(t => t.length > 1) ? 0.25 : 1;
+      const weight = /^\p{Script=Han}$/u.test(term) && hasCompoundTerm ? 0.25 : 1;
       sum += weight * idf * frequency * 2.2 / (frequency + 1.2 * (0.25 + 0.75 * doc.length / average));
     });
     return 1 - Math.exp(-sum);
@@ -726,7 +727,7 @@ async function search(ctx, input) {
       const model = await retrievalStatus(ctx, config);
       if (!model.modalities?.includes("image")) throw Error("所选检索模型不支持图片");
       const result = await ctx.api.vectorIndex({ action: "search", scope: "channel", collection: "items", modelId: model.id,
-        query: { text: query }, candidates: rows.map(row => ({ id: row.key, revision: row.value.descriptionVersion })), limit: 100 });
+        query: { text: query }, candidates: rows.map(row => ({ id: row.key, revision: row.value.descriptionVersion })), limit: 100, timeoutMs: 1500 });
       if (result.version !== model.version) throw Error("检索模型已变化，请重试");
       for (const hit of result.matches) if (Number.isFinite(hit.score)) semantic.set(hit.id, hit.score);
       minimum = model.modalities.includes("joint") ? 0.66 : 0.25;
@@ -740,7 +741,7 @@ async function search(ctx, input) {
       ctx.signal.throwIfAborted(); warning = "语义检索暂不可用，当前按文字匹配：" + String(error.message).slice(0, 200);
     }
   }
-  const scores = textScores(rows, query);
+  const scores = query ? textScores(rows, query) : [];
   const savedRecent = query && input.mode !== "text" ? await ctx.api.getState("recentStickers", "chat") : [];
   const recent = Array.isArray(savedRecent) ? savedRecent.slice(0, 8) : [];
   const rank = item => {
@@ -749,7 +750,7 @@ async function search(ctx, input) {
       - (age === 0 ? 0.04 : age === 1 ? 0.02 : 0);
   };
   const scored = rows.map((row, index) => {
-    const v = row.value, words = Math.max(lexical(query, v), scores[index]);
+    const v = row.value, words = query ? Math.max(lexical(query, v), scores[index]) : 0;
     const hasVector = semantic.has(row.key);
     return { v, roleSticker: isRoleSticker(ctx, v), minimum: hasVector && input.mode !== "text" ? minimum : 0.16,
       score: !query ? Math.random() : input.mode === "text" ? words : Math.max(words, semantic.get(row.key) || 0) };

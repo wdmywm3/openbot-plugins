@@ -29,6 +29,7 @@ function fixture() {
           }
           return { version: VERSION, records: input.records.map(row => ({ id: row.id, revision: row.revision, accepted: true })) };
         }
+        assert.equal(input.timeoutMs, 1500, "interactive semantic lookup has a bounded deadline");
         await beforeEmbed?.({ query: true, text: input.query.text });
         const matches = input.candidates.filter(row => indices.get(row.id)?.revision === row.revision).map(row => ({ ...row, score: 1 }));
         return { version: VERSION, matches, missing: input.candidates.length - matches.length };
