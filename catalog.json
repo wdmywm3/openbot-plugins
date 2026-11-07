@@ -438,7 +438,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -485,12 +485,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "ref": "0dbf35e7572e15d2a5cff6962d71aba4e7f9fdd6",
       "files": [
         {
           "path": "README.md",
-          "size": 8160,
-          "sha256": "4a1baeef16e111831fb4f98794e5e1c6a7ef4077fe7dcdb4d86dd6e74b458dbd"
+          "size": 8959,
+          "sha256": "89fdcc82c246e0827fb575c65b89a1d4749526398f6cf696bc5872dc5278466f"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -504,13 +504,13 @@
         },
         {
           "path": "engine/server.cjs",
-          "size": 10504,
-          "sha256": "8192324450d05a0b5eb8ffdc40f6c0852e25b8750cafa6288ede27ae927c64e1"
+          "size": 15302,
+          "sha256": "92d4878d3eb16fac7e90f5de68ca4a971370a7db93d6fed9ad46683693db45ee"
         },
         {
           "path": "index.js",
-          "size": 64062,
-          "sha256": "f33d7667af9100c289480dc5762dba1c78819c0623b55c81202030dbb955188b"
+          "size": 70155,
+          "sha256": "2522ae39c2109399560cded3161638e24db39c743f22539249c16192d999ff96"
         },
         {
           "path": "mcp.json",
@@ -529,13 +529,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 20858,
-          "sha256": "fa5eff31cfb3a15b086b8d07c7eb2b169398750e514de7b4f8be81cf33a2adde"
+          "size": 21216,
+          "sha256": "000effec445771ab952c4d741a7a438f3ae62178f281584e71f22c07c3942341"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 2810,
-          "sha256": "7abb47f5837605014e56fed1ea401a8d8a700d23209b2d91ae62e4bb5b1d7de8"
+          "size": 3461,
+          "sha256": "7c6440284ffe2bfaa205cb90dd46a7f6913e6c05a85db250cb0ab8f0cc873b34"
         },
         {
           "path": "ui/app.js",
@@ -554,13 +554,13 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 13960,
-          "sha256": "b0169872bc6c83f255ad9d74f63b7ae35b35bf9f46df08d8e65db860e12202b5"
+          "size": 17404,
+          "sha256": "6b7aab096d90917feb08e8ac8def9779060ba49f1a6020f0017be1a1a059ab39"
         },
         {
           "path": "ui/style.css",
-          "size": 1997,
-          "sha256": "754a426247cb614f8fc60123a190c01168a370fc9da3f7d9cc64f59f7e5b20a6"
+          "size": 2663,
+          "sha256": "32dd17bd1740728cb6404ee8f974ecc7a4d53ed9337d7e74e79457ebc658b542"
         }
       ]
     },
@@ -1273,24 +1273,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "name": "嘻嘻",
-      "description": "蓝发蓝眼、白色斗篷装的猫娘。含 33 张预置识别的专属表情；需支持预置识别结果的新版 OpenBot 与表情包插件 2.3.5。",
+      "description": "蓝发蓝眼、白色斗篷装的猫娘。含 39 张预置识别的专属表情；需支持预置识别结果的新版 OpenBot，思考框填字需表情包插件 2.5.0。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 23567,
-      "sha256": "8e395ecf933f01e75d004948fd71de94d889e74ab84c6786d6cd827360135209",
+      "size": 23657,
+      "sha256": "2a18b46a522a2fcd584679950c6fcfabf059fe78213196c2e6f833dd9cc4d5ce",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 24221987,
-        "sha256": "d5257d88c7e13213d3941eec5e917c72b1e45e377d411961820c1622c762cddb",
-        "count": 33
+        "size": 24844371,
+        "sha256": "a0065952e412601beb60416cd8ed9aa84661b3a70a02a1b5d1d62f2e43baf4ea",
+        "count": 39
       },
-      "ref": "36b688427bff09a4d4e4bf44db296562caa0ebc6",
+      "ref": "0dbf35e7572e15d2a5cff6962d71aba4e7f9fdd6",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 1716687,
-        "sha256": "d1339f422b1970e608fe631fe4b934ebd49bb5a089f106512b4e6e7696c32be1"
+        "size": 1820861,
+        "sha256": "31000b471ba1bec0190536966caa41eca1042eb434326930c0a8fba0c44e1c9e"
       }
     }
   ]
