@@ -64,7 +64,7 @@ async function check(name, action) { await action(); passed++; console.log("Drea
       add({ ...previous, attributes: { nextReviewAt: when, reviewIntervalMinutes: 120 } }); assert.equal(operations.length, 2);
     });
     await check("私聊偏好和风格必须属于本人，群聊不提取私人事项", async () => {
-      const value = { facts: [{ kind: "preference", content: "喜欢茶", subjectId: "other", evidence }], topics: [], style: { values: { tone: "warm" }, evidence } };
+      const value = { facts: [{ kind: "preference", content: "喜欢茶", subjectId: "other", retention: { basis: "stable", reason: "后续饮品建议使用本人稳定喜好。" }, evidence }], topics: [], style: { values: { tone: "warm" }, evidence } };
       const own = await dream.plan(ctx, scope, value, [material], []); assert.equal(own.operations.length, 0); assert(own.style);
       const foreign = await dream.plan(ctx, scope, value, [{ ...material, sender: { id: "other" } }], []); assert.equal(foreign.style, null);
       const group = await dream.plan(ctx, { ...scope, chatId: "onebot:group:g" }, { ...value, records: [{ kind: "matter" }] }, [material], []);

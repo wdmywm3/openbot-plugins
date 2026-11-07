@@ -58,9 +58,13 @@ function createDreamRunRepository(db, now = Date.now) {
   }
   return { get, append, finish,
     enableRollback(scope, id) { const run = get(scope, id); if (run) save(scope, { ...run, rollbackVersion: 1 }); },
-    list(scope, { offset = 0, limit = 20 } = {}) {
+    list(scope, { offset = 0, limit = 20, meaningfulOnly = false } = {}) {
       offset = Math.max(0, Math.floor(Number(offset) || 0)); limit = Math.max(1, Math.min(20, Math.floor(Number(limit) || 20)));
-      const rows = db.prepare("SELECT value_json FROM channel_dream_runs WHERE channel_id=? AND chat_id=? ORDER BY rowid DESC LIMIT ? OFFSET ?")
+      // Keep the journal for recovery and direct inspection, but do not fill the
+      // user-facing list with successful scans that committed no changes.
+      const changed = ["memories", "records", "removed", "invalidated", "style"].map(key => `coalesce(json_extract(value_json,'$.counts.${key}'),0)>0`).join(" OR ");
+      const visible = meaningfulOnly ? ` AND (coalesce(json_extract(value_json,'$.status'),'')<>'completed' OR ${changed})` : "";
+      const rows = db.prepare(`SELECT value_json FROM channel_dream_runs WHERE channel_id=? AND chat_id=?${visible} ORDER BY rowid DESC LIMIT ? OFFSET ?`)
         .all(...args(scope), Math.max(1, Math.min(20, Number(limit) || 20)) + 1, Math.max(0, Math.floor(Number(offset) || 0)));
       const items = rows.slice(0, limit).map(r => JSON.parse(r.value_json));
       return { items, nextOffset: rows.length > items.length ? offset + items.length : null };
@@ -81,6 +85,13 @@ function createDreamRunRepository(db, now = Date.now) {
       const text = JSON.stringify(project(row), null, 2), start = Math.max(0, Math.floor(Number(offset) || 0)), end = Math.min(text.length, start + 6000);
       return { eventSeq: Number(seq), text: text.slice(start, end), nextOffset: end < text.length ? end : null };
     },
+    readEventText(scope, id, seq, offset = 0) {
+      const row = db.prepare("SELECT * FROM channel_dream_run_events WHERE channel_id=? AND chat_id=? AND run_id=? AND seq=?").get(...args(scope), id, Number(seq));
+      if (!row) throw new Error("运行事件不存在或不属于当前聊天");
+      const event = project(row), text = typeof event.text === "string" ? event.text : event.kind;
+      const start = Math.max(0, Math.floor(Number(offset) || 0)), end = Math.min(text.length, start + 6000);
+      return { eventSeq: Number(seq), text: text.slice(start, end), nextOffset: end < text.length ? end : null };
+    },
     start(scope, job) {
       const old = job.runId && get(scope, job.runId);
       const run = old || { id: randomUUID(), trigger: job.trigger, createdAt: now(), cutoff: job.cutoff, upper: job.upper, counts: {}, summary: "", modelId: "" };
@@ -99,7 +110,7 @@ function createDreamRunRepository(db, now = Date.now) {
       run.summary = summary(run); save(scope, run);
       if (detail) append(scope, id, "dream_change", { text: detail });
     },
-    events(scope, id, before = 0, after = 0) {
+    events(scope, id, before = 0, after = 0, { previews = false } = {}) {
       const base = [...args(scope), id], conditions = "channel_id=? AND chat_id=? AND run_id=?";
       const rows = db.prepare(`SELECT * FROM channel_dream_run_events WHERE ${conditions}${after ? " AND seq>?" : before ? " AND seq<?" : ""} ORDER BY seq ${after ? "ASC" : "DESC"} LIMIT 21`)
         .all(...base, ...(after || before ? [after || before] : []));
@@ -109,9 +120,16 @@ function createDreamRunRepository(db, now = Date.now) {
         const first = db.prepare(`SELECT * FROM channel_dream_run_events WHERE ${conditions} ORDER BY seq LIMIT 1`).get(...base);
         if (first && !events.some(e => e.seq === first.seq)) events.unshift(project(first));
       }
-      const related = events.filter(e => e.callSeq && !events.some(call => call.seq === e.callSeq)).map(event =>
+      const related = (previews ? [] : events.filter(e => e.callSeq && !events.some(call => call.seq === e.callSeq))).map(event =>
         db.prepare(`SELECT * FROM channel_dream_run_events WHERE ${conditions} AND seq=?`).get(...base, event.callSeq)).filter(Boolean);
-      return { events: [...new Map([...events, ...related.map(project)].map(e => [e.id, e])).values()], hasMore: rows.length > 20, nextBefore, nextAfter };
+      const combined = [...new Map([...events, ...related.map(project)].map(e => [e.id, e])).values()];
+      return { events: previews ? combined.map(event => {
+        const text = typeof event.text === "string" ? event.text : event.kind;
+        let end = Math.min(500, text.length);
+        while (Buffer.byteLength(JSON.stringify(text.slice(0, end))) > 2000) end = Math.floor(end * 0.8);
+        return { id: event.id, seq: event.seq, kind: event.kind, createdAt: event.createdAt,
+          text: text.slice(0, end), textLength: text.length, nextOffset: end < text.length ? end : null };
+      }) : combined, hasMore: rows.length > 20, nextBefore, nextAfter };
     },
     deleteChannel(channelId) {
       for (const table of ["channel_dream_runs", "channel_dream_run_events"]) db.prepare(`DELETE FROM ${table} WHERE channel_id=?`).run(channelId);

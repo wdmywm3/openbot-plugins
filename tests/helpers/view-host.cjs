@@ -3,7 +3,7 @@ const fs = require("node:fs"), path = require("node:path");
 
 // Exercise bundled plugin pages inside the real host renderer. Only the Electron
 // transport is adapted to HTTP; view sessions/actions use the real runtime.
-module.exports = async function mountView({ page, hostRequire, runtime, channel, plugin }) {
+module.exports = async function mountView({ page, hostRequire, runtime, channel, plugin, onAction }) {
   const host = path.dirname(hostRequire.resolve("./package.json")), dist = path.join(host, "dist");
   const authorization = { required: false, status: "approved", fingerprint: "ui-test", permissions: [], components: [] };
   const binding = { ...plugin, sourcePluginId: plugin.id, sourcePluginVersion: plugin.version || "test", authorization };
@@ -12,7 +12,8 @@ module.exports = async function mountView({ page, hostRequire, runtime, channel,
     const view = await runtime.openPluginView(channel.id, plugin.id, args.viewId, args);
     return { ...view, url: `/__fixture_view/${view.token}/${new URL(view.url).pathname.slice(1)}` };
   });
-  await page.exposeFunction("fixtureCall", args => runtime.callPluginViewAction(args.token, args.actionId, args.input));
+  await page.exposeFunction("fixtureCall", args => onAction ? onAction(args, () => runtime.callPluginViewAction(args.token, args.actionId, args.input))
+    : runtime.callPluginViewAction(args.token, args.actionId, args.input));
   await page.exposeFunction("fixtureClose", args => runtime.closePluginView(args.token));
   await page.addInitScript(({ binding, channel }) => {
     const info = { id: channel.id, name: "界面测试", platform: "qq", enabled: true, status: "disconnected", configSummary: { provider: "qq-official", appId: "test" } };

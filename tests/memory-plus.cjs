@@ -34,7 +34,8 @@ require("./helpers/organizer-model.cjs").organizerModel(ctx);
   try {
     await runtime.initialize(ctx);
     const { storage } = current(ctx);
-    output = { facts: [{ kind: "preference", content: "主人喜欢拿铁咖啡", subjectId: "owner", evidence: [{ id: "m1", quote: "我喜欢拿铁咖啡。" }] }], topics: [], style: null,
+    output = { facts: [{ kind: "preference", profileSection: "interests", content: "主人喜欢拿铁咖啡", subjectId: "owner",
+      retention: { basis: "stable", reason: "后续讨论饮品选择时遵守对话方明确的稳定喜好。" }, evidence: [{ id: "m1", quote: "我喜欢拿铁咖啡。" }] }], topics: [], style: null,
       records: [{ kind: "experience", content: "浏览任务已经完成比较", evidence: [{ id: "m1", quote: "浏览任务已经完成比较。" }] }] };
     ctx.input = { chatId, dream: true };
     const done = await runtime.process(ctx); assert.equal(done.saved, 1); assert.equal(generated, 1);

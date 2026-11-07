@@ -1,0 +1,727 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "image-studio",
+  "version": "0.3.1",
+  "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "画图",
+      "category": "utility",
+      "icon": "image",
+      "apiVersion": 1,
+      "main": "index.js",
+      "permissions": [
+        "network",
+        "network:stream",
+        "secret",
+        "history",
+        "assets",
+        "state",
+        "state:global",
+        "model:request",
+        "model:select"
+      ],
+      "requiredFeatures": [
+        "livePluginConfig",
+        "nativeModelRequests",
+        "modelResponseSelection",
+        "connectedModelCatalog",
+        "pluginGlobalSettings",
+        "globalPluginDatabase",
+        "pluginAdmissionQueue",
+        "conditionalGlobalSettings"
+      ],
+      "networkHosts": [
+        "*"
+      ],
+      "config": {
+        "imageEnabled": true,
+        "selfieEnabled": false,
+        "provider": "openai-images",
+        "openaiImageModel": "gpt-image-2.6-flare",
+        "openaiTextModel": "gpt-6-sol",
+        "compatibleBaseUrl": "",
+        "compatibleImageModel": "",
+        "compatibleTextModel": "",
+        "compatibleJsonEdits": false,
+        "compatibleStream": true,
+        "codexModelId": "",
+        "codexImageModel": "",
+        "codexResponseModel": "",
+        "size": "1024x1024",
+        "quality": "medium",
+        "globalConcurrency": 2,
+        "instanceConcurrencyDefault": 1,
+        "instanceConcurrency": 0,
+        "queueLimit": 20,
+        "queueTimeoutSeconds": 300,
+        "instanceHourlyDefault": 10,
+        "instanceDailyDefault": 50,
+        "instanceHourly": 0,
+        "instanceDaily": 0,
+        "globalHourly": 20,
+        "globalDaily": 100
+      },
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "imageEnabled": {
+            "type": "boolean",
+            "title": "普通生图",
+            "default": true
+          },
+          "selfieEnabled": {
+            "type": "boolean",
+            "title": "自拍",
+            "default": false
+          },
+          "provider": {
+            "type": "string",
+            "title": "接入方式",
+            "enum": [
+              "auto",
+              "openai-images",
+              "openai-responses",
+              "compatible-images",
+              "compatible-responses",
+              "codex"
+            ],
+            "ui": {
+              "enumLabels": [
+                "自动选择",
+                "OpenAI 图片",
+                "OpenAI 对话绘图",
+                "兼容图片服务",
+                "兼容对话绘图",
+                "Codex 登录"
+              ]
+            },
+            "default": "openai-images",
+            "scope": "global"
+          },
+          "openaiImageModel": {
+            "type": "string",
+            "title": "OpenAI 画图模型",
+            "default": "gpt-image-2.6-flare",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "openaiTextModel": {
+            "type": "string",
+            "title": "OpenAI 对话模型",
+            "default": "gpt-6-sol",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "compatibleBaseUrl": {
+            "type": "string",
+            "title": "兼容服务地址",
+            "description": "填写带版本路径的 HTTPS 根地址。",
+            "default": "",
+            "maxLength": 2000,
+            "scope": "global"
+          },
+          "compatibleImageModel": {
+            "type": "string",
+            "title": "兼容服务画图模型",
+            "default": "",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "compatibleTextModel": {
+            "type": "string",
+            "title": "兼容服务对话模型",
+            "default": "",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "compatibleJsonEdits": {
+            "type": "boolean",
+            "title": "兼容图片服务支持 JSON 参考图",
+            "default": false,
+            "scope": "global"
+          },
+          "compatibleStream": {
+            "type": "boolean",
+            "title": "兼容图片服务使用流式返回",
+            "default": true,
+            "scope": "global"
+          },
+          "codexModelId": {
+            "type": "string",
+            "title": "登录模型",
+            "description": "留空自动选用已登录的模型。",
+            "default": "",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "codexImageModel": {
+            "type": "string",
+            "title": "Codex 画图模型",
+            "description": "留空时图片使用服务默认值，GIF 使用 GPT Image 2.6 Flare。",
+            "default": "",
+            "maxLength": 200,
+            "scope": "global"
+          },
+          "codexResponseModel": {
+            "type": "string",
+            "title": "绘图执行模型",
+            "description": "留空沿用所选登录模型。",
+            "default": "",
+            "maxLength": 128,
+            "scope": "global"
+          },
+          "size": {
+            "type": "string",
+            "title": "默认尺寸",
+            "enum": [
+              "auto",
+              "1024x1024",
+              "1536x1024",
+              "1024x1536"
+            ],
+            "ui": {
+              "enumLabels": [
+                "自动",
+                "方形",
+                "横图",
+                "竖图"
+              ]
+            },
+            "default": "1024x1024",
+            "scope": "global"
+          },
+          "quality": {
+            "type": "string",
+            "title": "默认画质",
+            "enum": [
+              "auto",
+              "low",
+              "medium",
+              "high"
+            ],
+            "ui": {
+              "enumLabels": [
+                "自动",
+                "低",
+                "中",
+                "高"
+              ]
+            },
+            "default": "medium",
+            "scope": "global"
+          },
+          "globalConcurrency": {
+            "type": "integer",
+            "title": "总并发数",
+            "default": 2,
+            "minimum": 1,
+            "maximum": 32,
+            "scope": "global"
+          },
+          "instanceConcurrencyDefault": {
+            "type": "integer",
+            "title": "每个实例默认并发数",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 32,
+            "scope": "global"
+          },
+          "instanceConcurrency": {
+            "type": "integer",
+            "title": "并发数",
+            "description": "0 使用插件默认值。",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 32,
+            "scope": "instance"
+          },
+          "queueLimit": {
+            "type": "integer",
+            "title": "最多排队任务",
+            "default": 20,
+            "minimum": 0,
+            "maximum": 100,
+            "scope": "global"
+          },
+          "queueTimeoutSeconds": {
+            "type": "integer",
+            "title": "最长排队时间（秒）",
+            "default": 300,
+            "minimum": 1,
+            "maximum": 3600,
+            "scope": "global"
+          },
+          "instanceHourlyDefault": {
+            "type": "integer",
+            "title": "每实例默认每小时上限",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100000,
+            "scope": "global"
+          },
+          "instanceDailyDefault": {
+            "type": "integer",
+            "title": "每实例默认每日上限",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 100000,
+            "scope": "global"
+          },
+          "instanceHourly": {
+            "type": "integer",
+            "title": "每小时上限",
+            "description": "0 使用插件默认值。",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 100000,
+            "scope": "instance"
+          },
+          "instanceDaily": {
+            "type": "integer",
+            "title": "每日上限",
+            "description": "0 使用插件默认值。",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 100000,
+            "scope": "instance"
+          },
+          "globalHourly": {
+            "type": "integer",
+            "title": "总每小时上限",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 100000,
+            "scope": "global"
+          },
+          "globalDaily": {
+            "type": "integer",
+            "title": "总每日上限",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 100000,
+            "scope": "global"
+          }
+        },
+        "additionalProperties": false
+      },
+      "tools": [
+        {
+          "name": "draw_image",
+          "export": "draw_image",
+          "description": "生成一张图片或 GIF 动图。mode=image 为普通生图或聊天参考图改图；mode=selfie 沿用设置中的固定角色形象自拍。两种方式分别启用，关闭时不自动换方式。返回可发送的图片地址。",
+          "scope": "all",
+          "permission": "member",
+          "cancellation": "cooperative",
+          "admission": {
+            "global": "globalConcurrency",
+            "instance": "instanceConcurrency",
+            "instanceDefault": "instanceConcurrencyDefault",
+            "queue": "queueLimit",
+            "timeoutSeconds": "queueTimeoutSeconds"
+          },
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "image",
+                  "selfie"
+                ],
+                "description": "默认image；角色自拍必须显式选择selfie，固定形象由设置提供。"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12000
+              },
+              "provider": {
+                "type": "string",
+                "enum": [
+                  "openai-images",
+                  "openai-responses",
+                  "compatible-images",
+                  "compatible-responses",
+                  "codex"
+                ],
+                "description": "仅在用户明确选择服务时填写，否则沿用设置。"
+              },
+              "size": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536"
+                ]
+              },
+              "quality": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "background": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "opaque",
+                  "transparent"
+                ]
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "png",
+                  "webp",
+                  "jpeg",
+                  "gif"
+                ]
+              },
+              "frameCount": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 16,
+                "description": "仅 GIF 动图使用；留空使用服务默认值。"
+              },
+              "frameDurationMs": {
+                "type": "integer",
+                "minimum": 20,
+                "maximum": 2000,
+                "description": "仅 GIF 动图使用，每帧时长，单位毫秒。"
+              },
+              "references": {
+                "type": "array",
+                "maxItems": 2,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "messageId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 99
+                    },
+                    "assetRef": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "prompt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "actions": [
+        {
+          "id": "model_catalog",
+          "title": "获取模型",
+          "kind": "native",
+          "export": "model_catalog",
+          "readOnly": true,
+          "global": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "compatible",
+                  "codex",
+                  "codex-connections"
+                ]
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "image",
+                  "response"
+                ]
+              }
+            },
+            "required": [
+              "source"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "id": "readiness",
+          "title": "检查画图服务",
+          "kind": "native",
+          "export": "readiness",
+          "readOnly": true,
+          "global": true,
+          "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          }
+        },
+        {
+          "id": "selfie_reference",
+          "title": "自拍形象",
+          "kind": "native",
+          "export": "selfie_reference",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "get",
+                  "set",
+                  "clear"
+                ]
+              },
+              "assetRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "expectedRevision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "ui": {
+        "version": 1,
+        "readinessAction": "readiness",
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "imageEnabled",
+              "selfieEnabled"
+            ]
+          },
+          {
+            "id": "limits",
+            "title": "用量",
+            "fields": [
+              "instanceConcurrency",
+              "instanceHourly",
+              "instanceDaily"
+            ]
+          }
+        ],
+        "globalSections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "provider",
+              "size",
+              "quality"
+            ]
+          },
+          {
+            "id": "openai",
+            "title": "OpenAI",
+            "fields": [],
+            "widgets": [
+              {
+                "type": "secret",
+                "key": "openaiKey",
+                "title": "OpenAI API Key"
+              },
+              {
+                "type": "remote-options",
+                "field": "openaiImageModel",
+                "title": "画图模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "openai",
+                  "target": "image"
+                }
+              },
+              {
+                "type": "remote-options",
+                "field": "openaiTextModel",
+                "title": "对话模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "openai",
+                  "target": "response"
+                },
+                "when": {
+                  "field": "provider",
+                  "equals": "openai-responses"
+                }
+              }
+            ],
+            "when": {
+              "field": "provider",
+              "oneOf": [
+                "openai-images",
+                "openai-responses"
+              ]
+            }
+          },
+          {
+            "id": "compatible",
+            "title": "兼容服务",
+            "fields": [
+              "compatibleBaseUrl",
+              "compatibleJsonEdits",
+              "compatibleStream"
+            ],
+            "widgets": [
+              {
+                "type": "secret",
+                "key": "compatibleKey",
+                "title": "兼容服务 API Key"
+              },
+              {
+                "type": "remote-options",
+                "field": "compatibleImageModel",
+                "title": "画图模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "compatible",
+                  "target": "image"
+                },
+                "dependsOn": [
+                  "compatibleBaseUrl"
+                ]
+              },
+              {
+                "type": "remote-options",
+                "field": "compatibleTextModel",
+                "title": "对话模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "compatible",
+                  "target": "response"
+                },
+                "dependsOn": [
+                  "compatibleBaseUrl"
+                ],
+                "when": {
+                  "field": "provider",
+                  "equals": "compatible-responses"
+                }
+              }
+            ],
+            "when": {
+              "field": "provider",
+              "oneOf": [
+                "compatible-images",
+                "compatible-responses"
+              ]
+            }
+          },
+          {
+            "id": "codex",
+            "title": "Codex 登录",
+            "fields": [],
+            "widgets": [
+              {
+                "type": "remote-options",
+                "field": "codexModelId",
+                "title": "登录模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "codex-connections"
+                }
+              },
+              {
+                "type": "remote-options",
+                "field": "codexImageModel",
+                "title": "画图模型",
+                "description": "登录服务可能不提供画图模型列表；实际模型由服务决定。",
+                "action": "model_catalog",
+                "input": {
+                  "source": "codex",
+                  "target": "image"
+                },
+                "dependsOn": [
+                  "codexModelId"
+                ]
+              },
+              {
+                "type": "remote-options",
+                "field": "codexResponseModel",
+                "title": "绘图执行模型",
+                "action": "model_catalog",
+                "input": {
+                  "source": "codex",
+                  "target": "response"
+                },
+                "dependsOn": [
+                  "codexModelId"
+                ]
+              }
+            ],
+            "when": {
+              "field": "provider",
+              "oneOf": [
+                "codex"
+              ]
+            }
+          },
+          {
+            "id": "limits",
+            "title": "用量",
+            "fields": [
+              "globalConcurrency",
+              "instanceConcurrencyDefault",
+              "queueLimit",
+              "queueTimeoutSeconds",
+              "instanceHourlyDefault",
+              "instanceDailyDefault",
+              "globalHourly",
+              "globalDaily"
+            ]
+          }
+        ],
+        "views": [
+          {
+            "id": "selfie-reference",
+            "title": "自拍形象",
+            "entry": "ui/reference.html",
+            "actions": [
+              "selfie_reference"
+            ]
+          }
+        ]
+      },
+      "metadata": {
+        "platforms": [
+          "napcat",
+          "qqbot"
+        ],
+        "usage": "描述想画的图片或提出改图要求；自拍可单独开启，并先在自拍形象中上传角色图片。",
+        "requirements": [
+          "需要支持画图插件的 OpenBot 版本。",
+          "使用 Codex 绘图前，请先在模型设置中完成登录。"
+        ],
+        "changelog": "0.3.1：按接入方式显示设置，修复模型列表查询和选择；0.3.0：服务可在插件中统一配置，增加并发、排队及用量上限；0.2.6：可读取服务模型列表并选择模型；0.2.5：支持 GPT Image 2.6 动图请求。"
+      }
+    }
+  }
+}

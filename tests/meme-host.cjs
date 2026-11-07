@@ -38,7 +38,9 @@ async function main() {
       create: () => createLocalEmbeddingIndex(root, { embed: async () => { if (!engineAvailable) throw Error("model unavailable"); return vectors; } }),
     } } });
     retrieval = { models, vectors: createVectorCollections({ root, models }) };
+    const picker = { release: null };
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, groupNames, ensureStoreArray: key => store.data[key] || [],
+      selectPluginFiles: () => new Promise(resolve => { picker.release = resolve; }),
       resolveChannel: () => channel, botPluginsFor: () => [plugin], makeId: () => Math.random().toString(), safeError: String,
       getPluginState: (_channel, _plugin, scope, scopeId, key) => state.get(JSON.stringify([scope, scopeId, key])),
       setPluginState: (_channel, _plugin, scope, scopeId, key, value) => state.set(JSON.stringify([scope, scopeId, key]), value),
@@ -70,7 +72,7 @@ async function main() {
     const originalMessages = [{ role: "system", content: "host protocol" }, { role: "user", content: "hello" }];
     const prompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages, requestId: "turn" }, context.channelPrincipal);
     assert.equal(prompt.messages[1].role, "system"); assert.match(prompt.messages[1].content, /stickers/);
-    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /主动使用倾向/);
+    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /图文混合中的表情/);
     assert.equal(prompt.contextRecords.length, 1, "availability is a durable context record");
     const repeated = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: prompt.messages, requestId: "next-turn" }, context.channelPrincipal);
     assert.equal(repeated.contextRecords?.length || 0, 0, "the same availability is not appended twice");
@@ -82,7 +84,7 @@ async function main() {
     const mediaPrompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel",
       { messages: [...originalMessages, mediaMessage], requestId: "large-media-turn" }, context.channelPrincipal);
     assert.match(mediaPrompt.messages[1].content, /stickers/);
-    assert.match(mediaPrompt.messages.at(-1).content, /主动使用倾向/);
+    assert.match(mediaPrompt.messages.at(-1).content, /图文混合中的表情/);
     const retained = mediaPrompt.messages.find(message => Array.isArray(message.content));
     assert.deepEqual(retained, mediaMessage, "the model retains all 72 MiB of image input while the plugin prepares availability");
     let found = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
@@ -93,17 +95,51 @@ async function main() {
     const resolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments);
     assert.equal(resolved[0].data.file, "base64://" + bytes.toString("base64")); assert.equal(resolved[0].data.sub_type, 1);
     await assert.rejects(runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
-    if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root });
+    if (process.env.OPENBOT_TEST_MEME_UI === "1") await require("./meme-ui.cjs")({ hostRequire, runtime, channel, plugin, action, media, actor, root, picker });
+
+    const settingsPage = await runtime.runPluginAction(channel, plugin, action("list"), {});
+    await runtime.runPluginAction(channel, plugin, action("settings"), { revision: settingsPage.preferences.revision, frequency: 0, cooldownSeconds: 0 });
+    const mixedContent = `先冷静一下。然后再说。![表情](${url})`;
+    const modelHook = (replyId, content) => runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "afterModel",
+      { replyId, content, purpose: "chat", messageIds: ["source"] }, context.channelPrincipal);
+    assert.equal((await modelHook("mixed-zero", mixedContent)).content, "先冷静一下。然后再说。");
+    assert.equal((await modelHook("pure-zero", `![表情](${url})`)).content, `![表情](${url})`);
+    assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, segments)).content.length, 1,
+      "zero mixed frequency does not block pure sticker delivery");
+    const changedSettings = await runtime.runPluginAction(channel, plugin, action("list"), {});
+    await runtime.runPluginAction(channel, plugin, action("settings"), { revision: changedSettings.preferences.revision, frequency: 100, cooldownSeconds: 0 });
+    assert.equal((await modelHook("mixed-zero", mixedContent)).content, "先冷静一下。然后再说。", "same submission reuses its decision after settings change");
+    assert.equal((await modelHook("mixed-hundred", mixedContent)).content, mixedContent);
+    // Exercise the actual outbox: filtering must run once before it splits text
+    // and images into separate sends, with no extra model/draft exchange.
+    const { createChannelReplyOutbox } = hostRequire("./electron/lib/commands/chat/channel-reply-outbox.cjs");
+    let sendId = 0; const delivered = [], hookInputs = [];
+    const currentSettings = await runtime.runPluginAction(channel, plugin, action("list"), {});
+    await runtime.runPluginAction(channel, plugin, action("settings"), { revision: currentSettings.preferences.revision, frequency: 0, cooldownSeconds: 0 });
+    const outbound = createChannelReplyOutbox({ commands: {
+      getChannelReplyDeliveryConfig: () => ({ segmentedReply: { enabled: true, intervalSeconds: 0, maxSegments: 3 } }),
+      runChannelModelHook: args => { hookInputs.push(args.payload); return modelHook(args.payload.replyId, args.payload.content); },
+      send_channel_host_reply: async args => { if (args.dryRun) return { dryRun: true }; delivered.push(args); return { networkStatus: "sent", content: args.text }; },
+    }, storage: { getEvent: () => ({ id: "source", direction: "in", chatId: context.channelPrincipal.chatId, sender: { id: "user" } }) },
+      makeId: prefix => prefix + "-" + ++sendId, persistMessage() {}, chatRecord: (_session, role, content, extra) => ({ role, content, ...extra }), sendEvent() {}, safeError: String });
+    const turn = outbound.createTurn({ sessionId: "session", requestId: "turn", principal: context.channelPrincipal, agent: {} });
+    const args = { requestKey: "mixed", messageIds: ["source"], content: `先冷静一下。然后再说。<image src="${url}"/>` };
+    const ack = turn.submit(args); assert.equal(ack.ok, true); assert.equal(turn.submit(args), ack);
+    await outbound.drain();
+    assert.equal(hookInputs.length, 1); assert(hookInputs[0].content.includes(url));
+    assert.equal(delivered.map(row => row.text || "").join(""), "先冷静一下。然后再说。");
+    assert(!JSON.stringify(delivered).includes(url), "image cannot escape filtering as a later pure segment");
     engineAvailable = false;
     const secondBytes = await hostRequire("sharp")({ create: { width: 33, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const second = media.put(actor, secondBytes, { mimeType: "image/png", name: "offline.png" });
     await runtime.runPluginAction(channel, plugin, action("import"), { refs: [second.ref] });
     for (let n = 0; n < 200; n++) {
       page = await runtime.runPluginAction(channel, plugin, action("list"), {});
-      if (page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
+      if (page.items.find(item => item.id === second.sha256)?.indexStatus === "fallback"
+        && page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
       await wait(20);
     }
-    assert.equal(page.items.find(item => item.id === second.sha256).indexStatus, "fallback", JSON.stringify(page.jobs));
+    assert.equal(page.items.find(item => item.id === second.sha256).indexStatus, "fallback", JSON.stringify({ items: page.items, jobs: page.jobs }));
     assert.equal(page.retrievalStatus.mode, "bm25"); assert.equal(page.counts.searchable, 2);
     engineAvailable = true;
     await runtime.runPluginAction(channel, plugin, action("update"), {});
@@ -113,6 +149,42 @@ async function main() {
       await wait(20);
     }
     assert.equal(page.counts.ready, 2); assert.equal(page.retrievalStatus.mode, "semantic");
+    const preparedAnalysis = require("../personas/xixi-sticker-analysis.json").stickers[0].analysis;
+    store.data.channelAgents = [{ id: "own", name: "角色", enabled: true,
+      stickers: Array.from({ length: 105 }, (_, i) => ({ id: `role-${i}`, name: `角色 ${i}`, description: "角色冷静", tags: ["冷静"],
+        metadata: { "meme-library": { schemaVersion: 1, analysis: preparedAnalysis } },
+        enabled: true, contentHash: asset.sha256, mimeType: "image/png" })) }];
+    channel.config.agentId = "channel-agent:own";
+    let lastTick = Date.now(), maxGap = 0;
+    const heartbeat = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - lastTick); lastTick = now; }, 10);
+    try {
+      await runtime.notifyPluginProfilesChanged("channel-agent:own");
+      for (let n = 0; n < 1200; n++) {
+        page = await runtime.runPluginAction(channel, plugin, action("list"), { source: "profile", profileId: "channel-agent:own" });
+        if (page.total === 105 && page.jobs.every(job => !["running", "queued"].includes(job.status))) break;
+        await wait(20);
+      }
+      assert.equal(page.total, 105, JSON.stringify(page.jobs));
+      assert(page.items.every(item => item.meaning === preparedAnalysis.meaning), "media metadata reaches the plugin through the public host interface");
+      assert(page.items.every(item => item.profileIds.includes("channel-agent:own")), "role media is synchronized with its role scope");
+      assert(maxGap < 500, `role synchronization blocked the host for ${maxGap} ms`);
+      let own = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
+      for (let n = 0; n < 100 && own.status === "running"; n++) { await wait(20); own = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: own.id }, context); }
+      assert.equal(own.status, "completed", own.error);
+      assert(own.result.candidates.some(item => item.roleSticker), "retrieved role stickers are identified to the model");
+      const rebuild = await runtime.runPluginAction(channel, plugin, action("update"), {});
+      let rebuildState;
+      for (let n = 0; n < 1800; n++) {
+        page = await runtime.runPluginAction(channel, plugin, action("list"), { source: "profile", profileId: "channel-agent:own" });
+        rebuildState = page.jobs.find(item => item.id === rebuild.id);
+        if (rebuildState && !["running", "queued"].includes(rebuildState.status)) break;
+        await wait(20);
+      }
+      assert.equal(rebuildState?.status, "completed", JSON.stringify(rebuildState));
+      assert.equal(rebuildState.progress?.completed, 107, "reindexing visits every role and ordinary sticker");
+      assert.equal(page.total, 105, "reindexing a large library retains all role stickers");
+      assert(maxGap < 500, `role indexing blocked the host for ${maxGap} ms`);
+    } finally { clearInterval(heartbeat); }
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");

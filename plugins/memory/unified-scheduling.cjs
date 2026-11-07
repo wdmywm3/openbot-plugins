@@ -19,11 +19,16 @@ function active(storage, scope) {
 }
 async function due(ctx, storage, scope) {
   let live = state(storage, scope);
-  if (!live.nextRun) { save(storage, scope, { nextRun: nextRun(live.settings, Date.now()) }); live = state(storage, scope); }
+  if (!live.maintenanceNextRun) {
+    save(storage, scope, { maintenanceNextRun: live.nextRun || nextRun(live.settings, Date.now()) }); live = state(storage, scope);
+  }
   const batch = get(storage, `plus:organizer-batch:${scope.chatId}`);
-  if (live.paused || !live.settings.enabled && (live.job?.trigger || batch?.trigger) !== "manual" || active(storage, scope)) return "";
+  const maintenance = get(storage, `plus:maintenance-cycle:${scope.chatId}`);
+  if (live.paused || !live.settings.enabled && (live.job?.trigger || batch?.trigger) !== "manual" && !maintenance?.manual && !live.maintenanceManual || active(storage, scope)) return "";
   if (live.job || batch) return "continuation";
-  if (live.nextRun <= Date.now()) return "scheduled";
+  const maintenanceReady = (live.maintenanceFailures || 0) < 5 && !(live.maintenanceRetryAt > Date.now());
+  if (maintenanceReady && (maintenance || live.maintenanceRequested)) return "maintenance";
+  if (maintenanceReady && live.maintenanceNextRun <= Date.now()) return "scheduled";
   if (live.settings.idleMinutes) {
     const head = await ctx.api.sources({ action: "head", chatId: scope.chatId });
     const last = Math.max(head.observedAt || 0, live.lastActivityAt || 0);

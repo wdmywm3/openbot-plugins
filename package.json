@@ -5,6 +5,7 @@
   "scripts": {
     "test:integration": "node scripts/test-integration.cjs",
     "test:all": "npm test && npm run test:integration",
+    "pretest": "node tests/image-studio.cjs && node tests/image-studio-selfie.cjs && node tests/image-studio-catalog.cjs",
     "test:memory:unit": "node tests/memory-standalone.cjs && node tests/memory-dream-policy.cjs",
     "prepare:candidates": "node scripts/prepare-candidates.cjs",
     "test:conversation": "node tests/conversation-events.cjs",
@@ -13,9 +14,11 @@
     "sync:shared": "node scripts/sync-learning.cjs",
     "test:watch": "python -B -m unittest discover -s tests -p watch*_test.py -v",
     "test:search": "node tests/search.cjs && node tests/search-content.cjs",
+    "test:images": "node tests/image-studio.cjs && node tests/image-studio-selfie.cjs && node tests/image-studio-catalog.cjs && node tests/image-studio-limits.cjs",
     "test:memes": "node tests/meme-library.cjs && node tests/meme-engine.cjs",
     "test:meme-host": "node tests/meme-host.cjs",
-    "test:memory": "node tests/memory-organizer.cjs && node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-multimodal.cjs && node tests/memory-source-recall.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs && node tests/memory-dream-host.cjs"
+    "test:memory": "node tests/memory-retention-behavior.cjs && node tests/memory-dedup.cjs && node tests/memory-maintenance.cjs && node tests/memory-organizer-policy.cjs && node tests/memory-organizer.cjs && node tests/memory-management.cjs && node tests/memory-catalog-cache.cjs && node tests/memory-usage-sync.cjs && node tests/memory-unified.cjs && node tests/memory-plus.cjs && node tests/memory-index.cjs && node tests/memory-multimodal.cjs && node tests/memory-source-recall.cjs && node tests/memory-host.cjs && node tests/memory-lifecycle.cjs && node tests/memory-context.cjs && node tests/memory-dream-host.cjs",
+    "test:workshop": "node tests/tool-workshop.cjs"
   },
   "engines": {
     "node": ">=24"

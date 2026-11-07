@@ -49,14 +49,15 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
           const invoke = input => run("organize", context({ ticket: batch.ticket, ...input }));
           await invoke({ operation: "search", query: "拿铁咖啡" });
           const source = batch.messages.find(item => item.text.includes("喜欢喝拿铁咖啡"));
-          await invoke({ operation: "commit", result: { facts: source ? [{ content: "用户平时喜欢喝咖啡", kind: "fact",
-            evidence: [{ id: source.id, quote: "喜欢喝拿铁咖啡" }] }] : [], topics: [] } });
+          await invoke({ operation: "commit", result: { facts: source ? [{ content: "用户平时喜欢喝咖啡", kind: "preference", subjectId: "u", profileSection: "interests",
+            retention: { basis: "stable", reason: "后续饮品建议需要考虑本人持续的咖啡喜好。" }, evidence: [{ id: source.id, quote: "喜欢喝拿铁咖啡" }] }] : [], topics: [] } });
           return { taskId: request.taskId, status: "completed", summary: "已提交" };
         },
         jobs: async () => ({ jobs: [] }), generate: async input => {
           generated++; generationStarted(); await gate;
           const payload = JSON.parse(input.prompt);
-          return { modelId: "fixture", text: JSON.stringify({ facts: [{ content: "用户平时喜欢喝咖啡", kind: "fact", sourceIds: ["m1"], evidence: [{ id: "m1", quote: "喜欢喝拿铁咖啡" }] }],
+          return { modelId: "fixture", text: JSON.stringify({ facts: [{ content: "用户平时喜欢喝咖啡", kind: "preference", subjectId: "u", profileSection: "interests",
+            retention: { basis: "stable", reason: "后续饮品建议需要考虑本人持续的咖啡喜好。" }, sourceIds: ["m1"], evidence: [{ id: "m1", quote: "喜欢喝拿铁咖啡" }] }],
             topics: [], revisions: [], invalidations: [], records: [], outcomes: (payload.candidates || []).map(entry => ({ id: entry.id, revision: entry.revision, outcome: "not_used", evidenceRefs: [] })) }) };
         },
       } });

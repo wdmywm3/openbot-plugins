@@ -1,0 +1,6 @@
+body{max-width:680px}
+#reference{display:block;max-width:100%;width:auto;max-height:min(360px,calc(100vh - 100px));object-fit:contain;margin:0 0 16px;border-radius:var(--radius-sm,6px)}
+#empty{margin:0 0 16px}
+#error{margin:12px 0 0}
+.toolbar{margin:0}
+@media(max-width:420px){#reference{max-height:min(300px,calc(100vh - 100px))}}

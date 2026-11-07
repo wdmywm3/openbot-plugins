@@ -35,15 +35,13 @@ function recordFields(item, materials, privateChat, { scope, previous } = {}) {
 }
 async function plan(ctx, scope, parsed, materials, existing) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
-  const operations = [], before = [], known = new Map(existing.map(item => [item.id, item]));
-  const ownSpace = ctx.api.memorySpace && existing.length
-    ? (await ctx.api.memorySpace({ action: "list", chatId: scope.chatId })).spaces?.find(item => item.kind === "chat" && item.ownerId === scope.chatId) : null;
-  const full = [];
-  for (const item of existing) {
-    const record = await readMemory(ctx, scope, item.id);
-    if (record && ctx.api.memorySpace && record.spaceId !== ownSpace?.id) throw Error("整理只能更新当前聊天自己的记忆，不能合并其他聊天的画像");
-    if (record) { full.push(record); known.set(record.id, record); }
-  }
+  if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 64)) throw Error("事项条目过多");
+  if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 32)) throw Error("事项更新过多");
+  const admittedFacts = result.facts.map(item => ({ item, admitted: require("./unified-retention.cjs").admission(item, materials, scope) })).filter(value => value.admitted);
+  const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
+    ...admittedFacts.map(({ item }) => item), ...(parsed.records || []).filter(item => privateChat && item?.kind === "matter"),
+  ]);
+  const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
     const source = materials.find(item => item.id === ref.id && item.version === ref.version);
     return source?.direction === "in" && !source.sender?.isBot && String(source.sender?.id || source.senderId || "") === subjectId;
@@ -55,7 +53,7 @@ async function plan(ctx, scope, parsed, materials, existing) {
     if (!ctx.api.activities) throw Error("当前宿主不支持工作事项订阅");
     await ctx.api.activities({ action: "read", chatId: scope.chatId, id });
   };
-  for (const item of result.facts) {
+  for (const { item, admitted } of admittedFacts) {
     const sources = proof(item.evidence, materials);
     if (!materialPolicy.factsAllowed(sources, materials)) continue;
     const subjectId = item.subjectId || item.fact?.subjectId || (item.kind === "preference" ? scope.chatId.split(":private:")[1] : "");
@@ -64,10 +62,10 @@ async function plan(ctx, scope, parsed, materials, existing) {
     if (item.kind === "preference" && privateChat && subjectId !== scope.chatId.split(":private:")[1]) continue;
     if (item.kind === "preference" && item.fact && item.fact.subjectId !== subjectId) continue;
     const profile = require("./unified-profile-policy.cjs").profileAttributes({ ...item, subjectId }, sources, materials);
-    add({ content: item.content, kind: item.kind, tier: "working", status: "active",
+    add({ content: item.content, kind: item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
       category: profile.profile || item.kind === "preference" ? "profile" : "",
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
-      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...(item.fact ? { fact: item.fact } : {}), ...profile } });
+      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(item.fact ? { fact: item.fact } : {}), ...profile } });
   }
   for (const item of result.revisions) {
     const old = known.get(item.supersedes.id);
@@ -122,7 +120,8 @@ async function plan(ctx, scope, parsed, materials, existing) {
     operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: "edit",
       patch: { content: record.content, subtype: record.subtype, progress: record.progress, sources: record.sources, attributes: record.attributes } }); before.push({ id: old.id, revision: old.revision });
   }
-  return { operations, before, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
+  const bounded = await require("./unified-retention.cjs").candidateBudget(ctx, scope, operations, before);
+  return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length - admittedFacts.length + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
     links: (parsed.records || []).filter(item => privateChat && item.kind === "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
 }
 async function commit(ctx, storage, scope, job, { onReceipt } = {}) {
@@ -192,7 +191,8 @@ async function commit(ctx, storage, scope, job, { onReceipt } = {}) {
   if (!pending) storage.dreamRepository.runs.finish(scope, job.runId, "completed");
   // Never keep a second mutable copy of committed memory bodies in a strategy checkpoint.
   storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:plan:${scope.chatId}`);
-  const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length, runId: job.runId };
+  if (prepared.omitted) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify({ code: "retention", count: prepared.omitted }) });
+  const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length + (prepared.omitted || 0), runId: job.runId };
   onReceipt?.(receipt);
   storage.db.exec("RELEASE plus_commit");
   return receipt;

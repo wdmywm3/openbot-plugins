@@ -2,7 +2,7 @@
 const { randomUUID } = require("node:crypto");
 const { get, put, state, save, hash } = require("./unified-state.cjs");
 const materialPolicy = require("./unified-material-policy.cjs");
-const VERSION = 1, TOKEN_BUDGET = 12000, MAX_MESSAGES = 400, MAX_SCANNED = 1000;
+const VERSION = 2, TOKEN_BUDGET = 12000, MAX_MESSAGES = 400, MAX_SCANNED = 1000;
 const TOOL = "plugin__memory__organize";
 const activeTools = new Set();
 const empty = () => ({ facts: [], topics: [], records: [], updates: [], revisions: [], invalidations: [], style: null });
@@ -22,16 +22,25 @@ function instructions(ctx, storage, scope) {
   const built = require("./unified-dream-prompts.cjs").build(ctx, storage, scope);
   return `持续整理当前聊天的事实、偏好、事项和用户画像。每次追加是一批新的聊天资料；此前历史只作上下文，不重做已提交操作。\n${built.system}\n` +
     `本任务使用 ${TOOL} 工具，action=start 时提供稳定 requestKey 和 input。input.ticket 取本次追加资料中的 ticket。\n` +
-    `operation=search 按主题和成员查已存记忆；operation=read 按返回 id 读正文与版本；operation=material 按本批 s编号和 offset 补读原消息。不要为无价值闲聊发起检索；需要新增或修订记忆时先查已有内容。\n` +
-    `用 operation=commit，result 包含 facts/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。facts 可含 profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配用户原话。修订的 id/revision 必须来自本批 search/read。experience 不写入。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
+    `operation=search 按主题和成员查已存记忆；operation=read 按返回 id 读正文与版本；operation=material 按本批 s编号和 offset 补读原消息。不要为无价值闲聊发起检索。修订前逐条读取对应记录；提交时插件还会逐项核对当前聊天已有记录。\n` +
+    `用 operation=commit，result 包含 facts/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。每条facts必须有retention:{basis,reason}，稳定画像还可含profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配用户原话。修订的 id/revision 必须来自本批 search/read。experience 不写入。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
     `工具返回 running 时按 jobId 查询 status，收到 completed/result 才判断提交成功。只有 commit 回执确认后才调用 task_result，summary 简述本批结果；不要发聊天回复，不调用其他业务工具。读取下一批由插件追加，你只处理当前 ticket。`;
 }
 function session(ctx, storage, scope) {
   let value = get(storage, sessionKey(scope));
-  if (!value || value.version !== VERSION) value = put(storage, sessionKey(scope), {
-    version: VERSION, id: `memory-organizer-${randomUUID()}`, nextSequence: 1, prompt: instructions(ctx, storage, scope),
+  const prompt = instructions(ctx, storage, scope), fingerprint = hash(prompt);
+  if (!value || value.version !== VERSION || value.fingerprint !== fingerprint) value = put(storage, sessionKey(scope), {
+    version: VERSION, fingerprint, id: `memory-organizer-${randomUUID()}`, nextSequence: 1, prompt,
   });
   return value;
+}
+function consumeReceipt(storage, scope, batch) {
+  storage.db.exec("SAVEPOINT plus_organizer_completed");
+  try {
+    save(storage, scope, { error: "", failures: 0, retryAt: 0 });
+    storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(batchKey(scope));
+    storage.db.exec("RELEASE plus_organizer_completed"); return batch.receipt;
+  } catch (error) { storage.db.exec("ROLLBACK TO plus_organizer_completed; RELEASE plus_organizer_completed"); throw error; }
 }
 async function collect(ctx, scope, after, upper) {
   const materials = [], messages = [], people = {};
@@ -100,8 +109,6 @@ async function executeTool(ctx, storage, scope) {
     if (batch.commitFingerprint && batch.commitFingerprint !== fingerprint) throw Error("本批已提交不同提案，请先核对回执");
     if (batch.receipt) return batch.receipt;
     const parsed = normalizeResult(input.result, batch);
-    const hasWrites = ["facts", "records", "updates", "revisions", "invalidations"].some(key => parsed[key].length);
-    if (hasWrites && !batch.searched) throw Error("写入前请按对象或主题 search 已有记忆");
     const dream = require("./unified-dream.cjs"), policy = live(ctx, storage, scope, batch);
     if (!policy.job || policy.job.runId !== batch.runId) throw Error("整理作业已变化");
     if (!policy.job.prepared) {
@@ -175,7 +182,7 @@ async function runBatch(ctx, storage, scope, trigger) {
     job.runId = storage.dreamRepository.runs.start(scope, job); save(storage, scope, { job });
     const conversation = session(ctx, storage, scope);
     batch = { ...collected, ticket: randomUUID(), runId: job.runId, trigger: job.trigger,
-      sequence: conversation.nextSequence, existing: [], searched: false };
+      sessionId: conversation.id, sequence: conversation.nextSequence, existing: [], searched: false };
     const context = require("./unified-dream-prompts.cjs").build(ctx, storage, scope).context;
     batch.input = JSON.stringify({ ticket: batch.ticket, people: batch.people, messages: batch.messages, context });
     put(storage, batchKey(scope), batch);
@@ -186,6 +193,15 @@ async function runBatch(ctx, storage, scope, trigger) {
     batch.receipt = await tool({ ...ctx, input: { ticket: batch.ticket, operation: "commit", result: empty() } }, storage, scope);
   } else {
     let conversation = session(ctx, storage, scope);
+    if (batch.sessionId !== conversation.id) {
+      // Prompt updates replace the model conversation, while retaining the
+      // source ticket and any already committed receipt from the old session.
+      if (batch.receipt) {
+        return consumeReceipt(storage, scope, batch);
+      }
+      batch.sessionId = conversation.id; batch.sequence = conversation.nextSequence;
+      put(storage, batchKey(scope), batch);
+    }
     const invoke = () => ctx.api.runAgent({ chatId: scope.chatId, taskId: conversation.id, prompt: conversation.prompt,
       tools: [TOOL], usageCategory: "memory", timeoutMs: 600000,
       continuation: { sequence: batch.sequence, content: batch.input } });
@@ -197,7 +213,7 @@ async function runBatch(ctx, storage, scope, trigger) {
       // Keep the batch and its write receipt so no old operation is duplicated.
       live(ctx, storage, scope, batch);
       storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(sessionKey(scope));
-      conversation = session(ctx, storage, scope); batch.sequence = 1;
+      conversation = session(ctx, storage, scope); batch.sequence = 1; batch.sessionId = conversation.id;
       put(storage, batchKey(scope), batch); result = await invoke();
     }
     batch = get(storage, batchKey(scope));
@@ -218,9 +234,7 @@ async function runBatch(ctx, storage, scope, trigger) {
     }
     put(storage, sessionKey(scope), { ...conversation, nextSequence: batch.sequence + 1 });
   }
-  const result = batch.receipt;
-  storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(batchKey(scope));
-  return result;
+  return consumeReceipt(storage, scope, batch);
 }
 async function run(ctx, storage, scope, trigger = "manual") {
   const dream = require("./unified-dream.cjs"), key = `${storage.root}:${scope.chatId}`;
@@ -237,7 +251,13 @@ async function run(ctx, storage, scope, trigger = "manual") {
   dream.running.set(key, task);
   try { return await task; }
   catch (error) {
-    const policy = state(storage, scope), failures = (policy.failures || 0) + 1;
+    const policy = state(storage, scope);
+    if (ctx.signal.aborted || policy.paused) {
+      save(storage, scope, { error: "", failures: 0, retryAt: 0 });
+      if (policy.job?.runId) storage.dreamRepository.runs.finish(scope, policy.job.runId, "paused", "整理已停止，已保留进度");
+      throw error;
+    }
+    const failures = (policy.failures || 0) + 1;
     save(storage, scope, { error: String(error.message || error), failures, retryAt: Date.now() + Math.min(3600000, 60000 * 2 ** Math.min(failures, 6)) });
     if (policy.job?.runId) storage.dreamRepository.runs.finish(scope, policy.job.runId, "failed", String(error.message || error));
     throw error;

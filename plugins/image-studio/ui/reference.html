@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>自拍形象</title><link rel="stylesheet" href="/__ui/controls.css"><link rel="stylesheet" href="reference.css"></head>
+<body>
+  <p id="empty" class="muted" hidden>上传一张清晰的角色图片，用于之后的自拍。</p>
+  <img id="reference" alt="自拍使用的固定角色形象" hidden>
+  <div class="toolbar">
+    <button id="choose" class="primary" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h6M19 2v6M21 11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span id="choose-label">上传形象</span></button>
+    <button id="clear" hidden disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M19 6l-1 14H6L5 6M10 10v7M14 10v7M9 6V3h6v3"/></svg>清除</button>
+    <span id="status" class="muted" role="status"></span>
+  </div>
+  <p id="error" role="alert" hidden></p>
+  <script src="reference.js"></script>
+</body></html>

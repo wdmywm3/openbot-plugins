@@ -1,6 +1,37 @@
 "use strict";
 const { get, put, readMemory, hash } = require("./unified-state.cjs");
 const { parseResult } = require("./lib/features/channels/channel-dream-analysis.cjs");
+async function reportUsage(ctx, storage, scope, refs, supported = false) {
+  if (!supported && !(await ctx.api.getCapabilities?.())?.features?.memoryUsage) return;
+  for (const ref of refs) {
+    const key = `plus:score:${ref.id}:${ref.revision}`, value = get(storage, key);
+    if (!value) continue;
+    const item = { id: ref.id, revision: ref.revision, selected: value.selected, used: value.used, misapplied: value.misapplied };
+    const fingerprint = hash(JSON.stringify(item)), marker = `plus:usage-synced:${ref.id}:${ref.revision}`;
+    if (get(storage, marker) === fingerprint) continue;
+    ctx.signal.throwIfAborted();
+    try {
+      const record = await readMemory(ctx, scope, ref.id, { complete: false });
+      if (!record) continue;
+      const result = await ctx.api.memory({ action: "recordUsage", chatId: scope.chatId,
+        requestKey: `memory-usage:${fingerprint}`, items: [item] });
+      if (result.ok) put(storage, marker, fingerprint);
+    } catch (error) {
+      ctx.signal.throwIfAborted();
+      if (error.code !== "MEMORY_NOT_FOUND") throw error;
+    }
+  }
+}
+async function syncUsage(ctx, storage, scope) {
+  if (!(await ctx.api.getCapabilities?.())?.features?.memoryUsage) return;
+  const cursorKey = `plus:usage-cursor:${scope.chatId}`, after = get(storage, cursorKey, "");
+  const rows = storage.db.prepare("SELECT key FROM plugin_meta WHERE key LIKE 'plus:score:%' AND key>? ORDER BY key LIMIT 20").all(after);
+  for (const row of rows) {
+    const match = /^plus:score:(.+):(\d+)$/.exec(row.key);
+    if (match) await reportUsage(ctx, storage, scope, [{ id: match[1], revision: Number(match[2]) }], true);
+  }
+  put(storage, cursorKey, rows.length === 20 ? rows.at(-1).key : "");
+}
 function pending(storage, scope) {
   const prefix = `plus:turn:${scope.chatId}:`;
   return storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:turn:%'").all()
@@ -56,6 +87,8 @@ async function assess(ctx, storage, scope) {
           outcomes: [...(turn.outcomes || []), ...result.outcomes.map(({ id, revision, outcome }) => ({ id, revision, outcome }))] });
         storage.db.exec("RELEASE usage_assessment"); count++;
       } catch (error) { storage.db.exec("ROLLBACK TO usage_assessment; RELEASE usage_assessment"); throw error; }
+      try { await reportUsage(ctx, storage, scope, result.outcomes); }
+      catch { ctx.signal.throwIfAborted(); /* Background sync retries reporting without repeating the assessment. */ }
     } catch (error) {
       if (ctx.signal.aborted) throw error;
       const failures = (turn.failures || 0) + 1;
@@ -64,4 +97,4 @@ async function assess(ctx, storage, scope) {
   }
   return { assessed: count };
 }
-module.exports = { assess, pending };
+module.exports = { assess, pending, syncUsage };

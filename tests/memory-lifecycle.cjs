@@ -31,6 +31,8 @@ async function main() {
     const original = old.memoryRepository.get(scope, "legacy-fact");
     const runId = old.dreamRepository.runs.start(scope, { trigger: "manual", cutoff: Date.now(), upper: 1 });
     old.dreamRepository.runs.trace(scope, runId, "dream_output", { text: "迁移后仍能读到的运行日志" });
+    old.dreamRepository.runs.trace(scope, runId, "dream_input", { text: "长日志分页开头：" + "聊天原文。".repeat(3000) + "长日志分页结尾" });
+    old.dreamRepository.runs.change(scope, runId, { memories: 1 });
     old.dreamRepository.runs.finish(scope, runId, "completed");
     const secretRun = old.dreamRepository.runs.start(other, { trigger: "manual", cutoff: Date.now(), upper: 1 });
     old.dreamRepository.runs.trace(other, secretRun, "dream_output", { text: "FOREIGN_INSTANCE_PRIVATE_MATERIAL" });
@@ -135,12 +137,13 @@ async function main() {
       let idlePage;
       for (let i = 0; i < 150; i++) {
         idlePage = await call("list", { chatId: scope.chatId });
-        if (idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed")
+        if (idleGenerations > 0 && idlePage.lastRun > 0
           && idlePage.jobs.every(job => !["running", "queued"].includes(job.status))) break;
         await wait(20);
       }
       assert(idleGenerations > 0, "the actual host poll must reach organization's model call");
-      assert(idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed"), JSON.stringify(idlePage.jobs));
+      assert(idlePage.lastRun > 0, JSON.stringify(idlePage.jobs));
+      assert(!idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed"), "empty completed idle runs stay out of the user-facing list");
     } finally {
       const restore = clockDb.prepare("UPDATE conversation_source_changes SET observed_at=? WHERE seq=?");
       for (const row of observed) restore.run(row.observed_at, row.seq);

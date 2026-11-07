@@ -1,5 +1,9 @@
 # OpenBot 插件
 
+## 画图
+
+通过一个工具生成图片、根据聊天参考图改图，或沿用固定角色形象自拍，支持 OpenAI、兼容绘图服务与 OpenBot 内的 Codex 登录。普通生图与自拍分别开关，固定形象在设置中上传。默认单张绘制，任务可查询与取消。[安装与配置](plugins/image-studio/README.md)。尚未发布，可从本地候选包导入。
+
 ## 搜索
 
 网页搜索、网页阅读和以图搜图，分别配置服务，由 Bot 按任务选择工具。网页支持 AnySearch、Tavily、Exa、Brave，图片搜索支持 Google Cloud Vision。
@@ -86,4 +90,4 @@
 
 `npm run test:integration` 执行记忆宿主测试、表情／词库／搜索／视频宿主测试、配置页面和 Python 集成；`npm run test:all` 执行独立测试和完整集成。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。集成环境或依赖缺失会明确失败，不静默略过。`npm run test:memory` 为记忆宿主测试的单独入口，包含持续整理与人物画像检查；CI 的独立记忆入口为 `npm run test:memory:unit`。
 
-`npm run prepare:candidates -- <新目录>` 为当前工作区生成 12 个本地安装目录、ZIP 和内容摘要，`npm run prepare:candidates -- <目录> --verify` 重验。它们是未发布候选；正式发布仍用真实提交运行 `npm run catalog -- <提交SHA>`，不可用工作区摘要伪造远端提交。
+`npm run prepare:candidates -- <新目录>` 为当前工作区各插件生成本地安装目录、ZIP 和内容摘要，`npm run prepare:candidates -- <目录> --verify` 重验。它们是未发布候选；正式发布仍用真实提交运行 `npm run catalog -- <提交SHA>`，不可用工作区摘要伪造远端提交。

@@ -20,8 +20,6 @@ async function recall(ctx, storage, scope, topics) {
   if (!focused.length && inputs.length) focused.push(inputs.at(-1));
   focused.sort((a, b) => Number(b.id === primaryId) - Number(a.id === primaryId));
   const deadline = Math.min(ctx.deadlineAt || Infinity, Date.now() + 2000) - 100;
-  const catalog = await require("./unified-state.cjs").catalog(ctx, scope);
-  if (!catalog.length || Date.now() >= deadline) return { contextItems: [], memories: [] };
   const anchors = anchorIds(ctx), selected = new Map(), priorities = [];
   const currentIndex = (ctx.hook.messages || []).findIndex(item => item.contextRecordId === ctx.hook.requestId);
   const earlier = currentIndex >= 0 ? ctx.hook.messages.slice(0, currentIndex) : ctx.hook.messages || [];
@@ -44,6 +42,8 @@ async function recall(ctx, storage, scope, topics) {
     batches.push(queries.map(task => ({ ...task, message, priority })));
   }
   if (Date.now() >= deadline || !batches.some(batch => batch.length)) return { contextItems: [], memories: [] };
+  const catalog = await require("./unified-catalog-cache.cjs").candidates(ctx, storage, scope);
+  if (!catalog.length || Date.now() >= deadline) return { contextItems: [], memories: [] };
   const tasks = [];
   for (let at = 0; at < Math.max(0, ...batches.map(batch => batch.length)); at++) for (const batch of batches) if (batch[at]) tasks.push(batch[at]);
   let next = 0;

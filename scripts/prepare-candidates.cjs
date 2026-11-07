@@ -5,8 +5,11 @@ const root = path.resolve(__dirname, ".."), host = path.resolve(process.env.OPEN
 const fromHost = require("node:module").createRequire(path.join(host, "package.json"));
 const Zip = fromHost("jszip"), { readPluginPackage } = fromHost("./electron/lib/plugins/plugin-package.cjs");
 const digest = data => crypto.createHash("sha256").update(data).digest("hex");
-const args = process.argv.slice(2), verify = args.includes("--verify"), target = args.find(value => value !== "--verify");
-if (!target) throw Error("Usage: node scripts/prepare-candidates.cjs DESTINATION [--verify]");
+const args = process.argv.slice(2), verify = args.includes("--verify"), selection = args.indexOf("--only");
+const selected = selection < 0 ? null : new Set(String(args[selection + 1] || "").split(",").filter(Boolean));
+if (selected && (!selected.size || [...selected].some(name => !/^[a-z0-9][a-z0-9-]*$/.test(name)))) throw Error("--only requires comma-separated plugin directory names");
+const target = args.find((value, index) => !["--verify", "--only"].includes(value) && (selection < 0 || index !== selection + 1));
+if (!target) throw Error("Usage: node scripts/prepare-candidates.cjs DESTINATION [--verify] [--only name,name]");
 const output = path.resolve(target);
 function inside(base, relative) {
   const value = path.resolve(base, relative), rel = path.relative(base, value);
@@ -38,6 +41,7 @@ async function main() {
     hostVersion: JSON.parse(fs.readFileSync(path.join(host, "package.json"))).version,
     hostFeatures: fromHost("./electron/lib/plugins/plugin-protocol.cjs").FEATURES, plugins: [] };
   for (const name of fs.readdirSync(path.join(root, "plugins")).sort()) {
+    if (selected && !selected.has(name)) continue;
     const source = path.join(root, "plugins", name); if (!fs.existsSync(path.join(source, "plugin.json"))) continue;
     const pack = readPluginPackage(source), directory = `packages/${name}`, archive = `${name}-${pack.manifest.version}.zip`;
     const dest = inside(output, directory), files = [], zip = new Zip();
@@ -61,6 +65,7 @@ async function main() {
       previousPublishedVersion: previous?.version || null, requiredFeatures: pack.manifest.requiredFeatures || [],
       directory, archive, archiveSha256: digest(bytes), sourceSha256: digest(JSON.stringify(files)), files });
   }
+  if (selected && manifest.plugins.length !== selected.size) throw Error("An explicitly selected plugin directory is missing");
   fs.writeFileSync(path.join(output, "candidates.json"), JSON.stringify(manifest, null, 2), { flag: "wx" });
   fs.writeFileSync(path.join(output, "README.md"), "# 本地插件候选包\n\n这些包包含当前源码，尚未发布到市场。可在 OpenBot 的插件导入入口选择 packages 下的目录进行本地验收。ZIP 与目录逐文件核验。\n\n正式发布需将对应源码提交到插件仓库，再用该提交生成生产目录；不能用候选包摘要冒充远程 Git 提交。\n\n" + manifest.plugins.map(p => `- ${p.name} ${p.version}：${p.directory}`).join("\n") + "\n", { flag: "wx" });
   await verifyCandidates();

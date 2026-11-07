@@ -34,7 +34,8 @@ const ctx = { signal: new AbortController().signal, principal: { ...scope, sourc
     const result = { facts: [], topics: [], records: [{ kind: "experience", content: "我记得一起聊天", evidence: [] }] };
     if (source) {
       await invoke({ operation: "search", query: "回答简短" });
-      result.facts.push({ kind: "preference", subjectId: "alice", profileSection: "communication", content: "阿明希望回答简短一些。", evidence: [{ id: source.id, quote: source.text }] });
+      result.facts.push({ kind: "preference", subjectId: "alice", profileSection: "communication", content: "阿明希望回答简短一些。",
+        retention: { basis: "stable", reason: "后续回答遵守该成员明确的长期表达偏好。" }, evidence: [{ id: source.id, quote: source.text }] });
     } else result.records = [];
     const receipt = await invoke({ operation: "commit", result }); assert.equal(receipt.ok, true);
     assert.deepEqual(await invoke({ operation: "commit", result }), receipt, "duplicate tool call reuses the committed receipt");
@@ -72,7 +73,8 @@ const ctx = { signal: new AbortController().signal, principal: { ...scope, sourc
       changeType: "correction", content: "阿明希望详细说明。", evidence: [{ id: correction.id, quote: correction.content }] }] }, [correction], [current]);
     assert.equal(revised.operations.length, 1); assert.equal(revised.operations[0].patch.attributes.profile.section, "communication");
     assert.equal(revised.operations[0].id, current.id, "group preference corrections keep the member and profile category");
-    const wrong = { facts: [{ kind: "fact", subjectId: "other", profileSection: "identity", content: "别人的身份", evidence: [{ id: messages[1].id, quote: messages[1].content }] }], topics: [] };
+    const wrong = { facts: [{ kind: "fact", subjectId: "other", profileSection: "identity", content: "别人的身份",
+      retention: { basis: "stable", reason: "后续交流时正确区分聊天成员。" }, evidence: [{ id: messages[1].id, quote: messages[1].content }] }], topics: [] };
     await assert.rejects(dream.plan(ctx, scope, wrong, [messages[1]], []), /本人/);
     messages.push({ ...messages[1], id: "last-receipt", seq: 352 }); failed = false;
     await assert.rejects(dream.run(ctx, storage, scope), /response lost/);

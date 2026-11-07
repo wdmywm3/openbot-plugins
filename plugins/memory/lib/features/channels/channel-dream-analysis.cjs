@@ -93,6 +93,7 @@ function validateExtraction(raw, messages, containsSecret = () => false) {
       if (validFrom && validTo && validFrom >= validTo) throw new Error("事实时间区间无效");
     } catch (error) { throw new DreamOutputError(error.message); }
     return { content: fact.content.trim(), kind: fact.kind === "preference" ? "preference" : "fact", subjectId: String(fact.subjectId || "").slice(0, 128),
+      retention: fact.retention,
       validFrom, validTo, ...(fact.profileSection !== undefined ? { profileSection: fact.profileSection } : {}),
       fact: (() => { try { return require("./channel-memory-write.cjs").factProjection(fact.fact, fact.content.trim()); }
         catch (error) { throw new DreamOutputError(error.message); } })(),
