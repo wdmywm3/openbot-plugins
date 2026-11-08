@@ -16,6 +16,7 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
       create: () => createLocalEmbeddingIndex(root, { embed: async input => {
         embeddings.push({ query: input.query, image: input.image?.toString(), text: input.text });
         const value = input.image?.toString() || input.text, axis = /blue|蓝色/.test(value) ? 2 : /red|红色/.test(value) ? 1 : 0;
+        if (/会议地点的补充说明/.test(value)) return Array.from({ length: 768 }, (_, index) => index === 0 ? 0.8 : index === 3 ? 0.6 : 0);
         return Array.from({ length: 768 }, (_, index) => Number(index === axis)); } }) } } });
     vectors = createVectorCollections({ root, models });
     repo = createChannelStorageRepository({ fs, paths: createContextPaths({ root }) });

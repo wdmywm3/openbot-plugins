@@ -1,4 +1,5 @@
 "use strict";
+const { CATEGORY } = require("./unified-memes.cjs");
 
 // Duplicate lookup is a submission requirement for each proposed record. It is
 // scoped to this chat's own space and bounded independently of model searches.
@@ -11,6 +12,7 @@ function descriptor(item, scope) {
 }
 function queries(item, scope) {
   const value = descriptor(item, scope);
+  if (item.category === CATEGORY && value.subjectId) return [{ kind: value.kind, category: CATEGORY, query: value.subjectId }];
   // Subject-only lookup finds paraphrases whose prose no longer contains the
   // structured attribute/value. Unattributed facts use bounded text queries.
   if (value.subjectId) return [{ kind: value.kind, subjectId: value.subjectId, query: "" }];

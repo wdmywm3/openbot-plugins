@@ -43,10 +43,13 @@ async function startNow(ctx, storage, scope, occupied = () => false) {
         const historyKey = `plus:checkpoint-history:${start.chatId}`;
         put(storage, historyKey, [...get(storage, historyKey, []), { at, from: live.cursor || 0, to: start.cursor, requestKey }].slice(-50));
         save(storage, target, { cursor: start.cursor, checkpointAt: at, scanStart: { ...start, at }, job: null,
-          error: "", failures: 0, retryAt: 0, nextRun: nextRun(live.settings, at) });
+          forkManualRequested: false, error: "", failures: 0, retryAt: 0, nextRun: nextRun(live.settings, at) });
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:plan:${start.chatId}`);
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-batch:${start.chatId}`);
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-session:${start.chatId}`);
+        const forkKey = `plus:fork-plan:${start.chatId}`, fork = get(storage, forkKey);
+        if (fork?.runId) storage.dreamRepository.runs.finish(target, fork.runId, "interrupted", "用户更新整理起点，旧批次不再继续");
+        storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(forkKey);
         put(storage, `plus:topics:${start.chatId}`, []);
       }
       put(storage, receiptKey, result);

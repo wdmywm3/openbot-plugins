@@ -22,7 +22,7 @@ updates:[{id:"existing 中编号",revision:1,content:"更新后的完整正文",
 function build(ctx, storage, scope) {
   const context = { ...require("./unified-peer.cjs").context(ctx, storage, scope), now: Date.now(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   return { context, system: [DREAM_PROMPT, FACT_PROMPT, REVISION_PROMPT, context.chatType === "group" ? GROUP : PRIVATE,
-    ...(context.relationship === "owner" ? [OWNER] : []), MATTERS,
+    ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, require("./unified-memes.cjs").PROMPT,
     require("./unified-profile-policy.cjs").STANDARD].join("\n\n") };
 }
 module.exports = { build };

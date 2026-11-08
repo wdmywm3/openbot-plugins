@@ -1,5 +1,6 @@
 "use strict";
 // Interpretation belongs to Plus; the host source stream preserves all events.
+const delivered = item => item.direction === "out" && ["sent", "ok", "success", "delivered", "completed"].includes(item.networkStatus);
 function admit(item) {
   if (item.deleted || item.routeBlocked || item.memoryExcluded || !item.content?.trim()) return false;
   if (item.source && item.source !== "chat" || item.event?.type && item.event.type !== "message") return false;
@@ -11,4 +12,4 @@ function factsAllowed(refs, materials) {
     return source && admit(source) && source.direction === "in" && !source.sender?.isBot;
   });
 }
-module.exports = { admit, factsAllowed };
+module.exports = { admit, factsAllowed, delivered };

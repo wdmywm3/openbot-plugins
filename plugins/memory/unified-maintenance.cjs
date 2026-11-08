@@ -5,6 +5,7 @@ const { nextRun, parseResult } = require("./lib/features/channels/channel-dream-
 const retention = require("./unified-retention.cjs");
 const { identity, factIdentity } = require("./unified-candidates.cjs");
 const { resolveExisting } = require("./unified-existing.cjs");
+const { CATEGORY } = require("./unified-memes.cjs");
 const PAGE = 12, MAX_CONTENT = 4000, MAX_PAGES = 4, MAX_PROMPT_BYTES = 48 * 1024;
 const cycleKey = scope => `plus:maintenance-cycle:${scope.chatId}`;
 const reviewedKey = (scope, id) => `plus:maintenance-reviewed:${scope.chatId}:${id}`;
@@ -15,6 +16,7 @@ const PROMPT = `整理已有记忆的保存价值，不再从聊天重新提取�
 逐条返回 JSON {decisions:[{id,revision,action,reason,basis,tier?,targetId?,targetRevision?}]}；action仅keep/promote/archive/merge，每条都要决定，引用本页编号与版本。reason用一句话说明，最多80字。
 明确称呼、用户纠正、稳定身份、偏好、重要边界和用户明确要求记住的内容有持续用途。普通插话、单次下载/未测试状态、暂时观感、无明确关联的第三方计划，不因有原话就值得长期保留。
 keep保留现状；promote用于有具体未来用途的候选，tier=working用于仍在发展的相关事项，tier=long_term用于稳定且持续有效的信息，basis必须是stable/ongoing/explicit/boundary。
+category=${CATEGORY} 的梗词只在原话明确支持通用含义及语境时以 stable 晋升。仅指特定群友或依赖本群故事的梗词可归档。证据不足时保留待确认。
 archive只可用basis=low_value/expired/superseded并说明具体根据，不能仅因检索少、没被采用或时间较长就归档。protected=true的记录不允许归档或合并掉；未完成事项不允许归档。
 merge只用于主体、属性、取值、条件和生效范围均相同的重复项，targetId/targetRevision来自本页；不同人的资料、相近话题、不同条件或先后变化不能合并。保留目标原文并合并来源，源记录可恢复归档。
 拿不准时keep。不得生成新事实、改写正文、永久遗忘或安排复查。`;
@@ -49,6 +51,7 @@ function decisions(value, records) {
     seen.add(item.id);
     if (item.action === "promote" && (!["stable", "ongoing", "explicit", "boundary"].includes(item.basis)
       || item.tier != null && !["working", "long_term"].includes(item.tier))) throw Error("晋升需要具体持续用途和有效层级");
+    if (item.action === "promote" && record.category === CATEGORY && item.basis !== "stable") throw Error("梗词晋升需要稳定的通用含义");
     if (item.action === "promote" && ["explicit", "boundary"].includes(item.basis) && record.attributes?.retention?.basis !== item.basis) throw Error("维护不能把普通候选改成用户明确授权或边界");
     if (item.action === "archive" && !["low_value", "expired", "superseded"].includes(item.basis)) throw Error("归档需要低价值、过期或被替代的依据");
     if (item.action === "merge") {
@@ -186,7 +189,7 @@ async function page(ctx, storage, scope, cycle) {
     // model. Oversized conditions stay untouched instead of being misrepresented.
     if (JSON.stringify(record.conditions || []).length > 2048 || JSON.stringify(record.attributes?.fact || null).length > 2048
       || (record.subjectRefs || []).length > 16 || (record.subjectRefs || []).some(value => typeof value !== "string" || value.length > 256)) { offset++; continue; }
-    const value = { id: record.id, revision: record.revision, content: record.content, kind: record.kind, tier: record.tier, status: record.status,
+    const value = { id: record.id, revision: record.revision, content: record.content, kind: record.kind, category: record.category, tier: record.tier, status: record.status,
       progress: record.progress, createdAt: record.createdAt, subjectRefs: record.subjectRefs, conditions: record.conditions,
       retention: record.attributes?.retention && { basis: record.attributes.retention.basis, reason: String(record.attributes.retention.reason || "").slice(0, 500),
         observedAt: record.attributes.retention.observedAt }, fact: record.attributes?.fact,

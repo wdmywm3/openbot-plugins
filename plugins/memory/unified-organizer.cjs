@@ -5,7 +5,7 @@ const materialPolicy = require("./unified-material-policy.cjs");
 const VERSION = 2, TOKEN_BUDGET = 12000, MAX_MESSAGES = 400, MAX_SCANNED = 1000;
 const TOOL = "plugin__memory__organize";
 const activeTools = new Set();
-const empty = () => ({ facts: [], topics: [], records: [], updates: [], revisions: [], invalidations: [], style: null });
+const empty = () => ({ facts: [], memes: [], topics: [], records: [], updates: [], revisions: [], invalidations: [], style: null });
 const batchKey = scope => `plus:organizer-batch:${scope.chatId}`;
 const sessionKey = scope => `plus:organizer-session:${scope.chatId}`;
 function estimate(text) {
@@ -23,7 +23,7 @@ function instructions(ctx, storage, scope) {
   return `持续整理当前聊天的事实、偏好、事项和用户画像。每次追加是一批新的聊天资料；此前历史只作上下文，不重做已提交操作。\n${built.system}\n` +
     `本任务使用 ${TOOL} 工具，action=start 时提供稳定 requestKey 和 input。input.ticket 取本次追加资料中的 ticket。\n` +
     `operation=search 按主题和成员查已存记忆；operation=read 按返回 id 读正文与版本；operation=material 按本批 s编号和 offset 补读原消息。不要为无价值闲聊发起检索。修订前逐条读取对应记录；提交时插件还会逐项核对当前聊天已有记录。\n` +
-    `用 operation=commit，result 包含 facts/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。每条facts必须有retention:{basis,reason}，稳定画像还可含profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配用户原话。修订的 id/revision 必须来自本批 search/read。experience 不写入。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
+    `用 operation=commit，result 包含 facts/memes/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。每条facts必须有retention:{basis,reason}，稳定画像还可含profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配用户原话。修订的 id/revision 必须来自本批 search/read。experience 不写入。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
     `工具返回 running 时按 jobId 查询 status，收到 completed/result 才判断提交成功。只有 commit 回执确认后才调用 task_result，summary 简述本批结果；不要发聊天回复，不调用其他业务工具。读取下一批由插件追加，你只处理当前 ticket。`;
 }
 function session(ctx, storage, scope) {
@@ -82,7 +82,7 @@ function normalizeResult(value, batch) {
   const map = new Map(batch.materials.map(item => [`s${item.seq}`, item.id]));
   const evidence = refs => Array.isArray(refs) ? refs.map(ref => ({ ...ref, id: map.get(ref?.id) || ref?.id })) : refs;
   const result = { ...empty(), ...value };
-  for (const key of ["facts", "topics", "records", "updates", "revisions", "invalidations"]) {
+  for (const key of ["facts", "memes", "topics", "records", "updates", "revisions", "invalidations"]) {
     if (!Array.isArray(result[key]) || result[key].length > 64) throw Error("整理提案格式无效或条目过多");
     result[key] = result[key].map(item => ({ ...item,
       ...(item.evidence ? { evidence: evidence(item.evidence) } : {}),
@@ -153,7 +153,7 @@ async function executeTool(ctx, storage, scope) {
     const result = ctx.api.memorySpace && !ownSpace ? { items: [] }
       : await ctx.api.memory({ action: "search", chatId: scope.chatId, ...(ownSpace ? { spaceId: ownSpace.id } : {}), query: input.query, limit: 15 });
     batch.searched = true; remember(result.items || []);
-    return { items: (result.items || []).map(({ id, revision, kind, subtype, preview, subjectRefs, progress }) => ({ id, revision, kind, subtype, preview, subjectRefs, progress })) };
+    return { items: (result.items || []).map(({ id, revision, kind, category, subtype, preview, subjectRefs, progress }) => ({ id, revision, kind, category, subtype, preview, subjectRefs, progress })) };
   }
   if (input.operation === "read") {
     const offset = input.offset ?? 0;

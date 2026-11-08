@@ -17,16 +17,28 @@ function active(storage, scope) {
   if (!entries.size) foreground.delete(key);
   return entries.size > 0;
 }
-async function due(ctx, storage, scope) {
+async function due(ctx, storage, scope, { forks = false } = {}) {
   let live = state(storage, scope);
-  if (!live.maintenanceNextRun) {
-    save(storage, scope, { maintenanceNextRun: live.nextRun || nextRun(live.settings, Date.now()) }); live = state(storage, scope);
+  if (!live.maintenanceNextRun || forks && !live.nextRun) {
+    const next = nextRun(live.settings, Date.now());
+    save(storage, scope, { maintenanceNextRun: live.maintenanceNextRun || live.nextRun || next,
+      ...(forks ? { nextRun: live.nextRun || next } : {}) });
+    live = state(storage, scope);
   }
-  const batch = get(storage, `plus:organizer-batch:${scope.chatId}`);
+  const batch = !forks && get(storage, `plus:organizer-batch:${scope.chatId}`);
+  const fork = forks && get(storage, `plus:fork-plan:${scope.chatId}`);
   const maintenance = get(storage, `plus:maintenance-cycle:${scope.chatId}`);
-  if (live.paused || !live.settings.enabled && (live.job?.trigger || batch?.trigger) !== "manual" && !maintenance?.manual && !live.maintenanceManual || active(storage, scope)) return "";
-  if (live.job || batch) return "continuation";
+  if (live.paused || active(storage, scope)) return "";
+  if (forks && live.forkManualRequested) return "manual";
+  if (!live.settings.enabled && ((forks ? fork?.job.trigger : live.job?.trigger || batch?.trigger) !== "manual") && !maintenance?.manual && !live.maintenanceManual) return "";
+  if (!forks && (live.job || batch)) return "continuation";
   const maintenanceReady = (live.maintenanceFailures || 0) < 5 && !(live.maintenanceRetryAt > Date.now());
+  if (forks) {
+    if (live.settings.enabled && live.nextRun <= Date.now()) return "scheduled";
+    if (fork || live.settings.enabled && (await require("./unified-fork-organizer.cjs").work(ctx, storage, scope)).length) return "boundary";
+    if (maintenanceReady && (maintenance || live.maintenanceRequested || live.maintenanceNextRun <= Date.now())) return "maintenance";
+    return "";
+  }
   if (maintenanceReady && (maintenance || live.maintenanceRequested)) return "maintenance";
   if (maintenanceReady && live.maintenanceNextRun <= Date.now()) return "scheduled";
   if (live.settings.idleMinutes) {
