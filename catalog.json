@@ -568,7 +568,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -584,6 +584,7 @@
         "model",
         "agent",
         "conversation",
+        "conversation:fork",
         "push",
         "jobs",
         "assets",
@@ -591,6 +592,7 @@
         "hook:beforeModel",
         "hook:afterModel",
         "hook:replyDelivered",
+        "hook:conversationBoundary",
         "hook:stopping",
         "prompt:system"
       ],
@@ -598,9 +600,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持持续整理会话、统一记忆和人物画像。"
+          "请先安装 OpenBot 0.1.100 或更新版本，再更新本插件。"
         ],
-        "changelog": "空闲整理增量筛选，普通事实先待确认；明确记住、稳定画像与重要边界可直接生效。定时整理复审候选和已有自动记忆，支持晋升、合并与可恢复归档。逐条按聊天和成员查重，同一事实改写不再重复新增；候选有容量和时效限制，未完成事项和手写记忆受保护。",
+        "changelog": "群聊分段和私聊压缩后自动提取记忆。定时 Dream 补扫模型读过的上下文，分别整理事实与事项、成员画像、通用梗和有送达证据的第一人称日记。",
         "components": [
           "hooks",
           "tools",
@@ -609,12 +611,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "ref": "9218ec89fcfd6ba38a8aed8989bcf9227e9aa3ab",
       "files": [
         {
           "path": "README.md",
-          "size": 11580,
-          "sha256": "5d28f2bcaae052fdb713b9d79c4e45870479132de1c796cd38ddc78975c6fe01"
+          "size": 10726,
+          "sha256": "51dcaa2a726cae8f553abef883f163b914193f74205e01a4efe1c3d9c4d8aa37"
         },
         {
           "path": "followup-runtime.cjs",
@@ -759,17 +761,17 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "09b3915fb18c8e527fd8aa5dd485b7608a028926a124c6cda32fcc3132b3f30f"
+          "sha256": "18bf32d0902504406fe51deafadaae54b8aa64a48ed1ddc3f79a281914ef7605"
         },
         {
           "path": "package.json",
           "size": 166,
-          "sha256": "6acbe35627209249eba09ff791c677f9ea3a6bb3109e1765a3493c9d4cd4346d"
+          "sha256": "72fd82196080c2f1ff1475c20b5c34824306f9bb02adebd3c9a6f537c819d3c3"
         },
         {
           "path": "plugin.json",
-          "size": 12833,
-          "sha256": "aa4aa513e5ce97875bcc14df3298f8ee49bc5d291bb6ebc74cdfc890293e066c"
+          "size": 12817,
+          "sha256": "542f77e461312ae1a6515fd3f4797f9241df10b6b4031a268f6666985c973c32"
         },
         {
           "path": "process.cjs",
@@ -813,8 +815,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 11340,
-          "sha256": "51f6f8e80637d4fa6cb338529e0683989d747f06bb3d8d1285c642f748b29213"
+          "size": 11258,
+          "sha256": "25ecfee6a40d7a31a486b21283c395663119a1580385e28ac77bd609b64b2afd"
         },
         {
           "path": "ui/details.html",
@@ -828,8 +830,8 @@
         },
         {
           "path": "ui/index.html",
-          "size": 2698,
-          "sha256": "6497ee9e85b504ac1133f847aad21b84618da5f84be3af75d66fa5df4b3e10bd"
+          "size": 2405,
+          "sha256": "c039d0cdc27a1d53e7a16c8474b85785b1e2060490a9185d0e1a0a66f84e7077"
         },
         {
           "path": "ui/style.css",
@@ -853,23 +855,23 @@
         },
         {
           "path": "unified-checkpoints.cjs",
-          "size": 4052,
-          "sha256": "935a711364bdef48910f7c22dcedd3ffe9042c1589a64affbc934c134f94e45e"
+          "size": 4397,
+          "sha256": "4730f4a3e934a02d78efeebc6f0a23f9a4c2274a60eaac0c574c74a203dc5a0d"
         },
         {
           "path": "unified-dream-prompts.cjs",
-          "size": 6460,
-          "sha256": "0a5941bd5be63d9e8189e4797173e7ab757eca5ccb9fee1528339425578f931c"
+          "size": 6499,
+          "sha256": "9c3ee32517d05840918c38ff554c79cf05d272d33dc64e1d8225224e24b4fc2a"
         },
         {
           "path": "unified-dream.cjs",
-          "size": 17282,
-          "sha256": "69e5479452e701a9707548388f6ae299a893bf343682a8eccf3ece37d2ce7b6b"
+          "size": 18333,
+          "sha256": "0d12439274a6618838c3376ed98c1fb699d55451eb8174fbbbb5bd198d6fef30"
         },
         {
           "path": "unified-existing.cjs",
-          "size": 5230,
-          "sha256": "70e4908441ebc5c01a5fd61854e9d305812beb2161ea3e4cd9f83d7d38fb6d27"
+          "size": 5411,
+          "sha256": "02b4c524b27319db6ef63ac0ed86fe7a679d1317342cad1815dbc9ad5d57f10e"
         },
         {
           "path": "unified-followup-activity.cjs",
@@ -882,19 +884,29 @@
           "sha256": "8b0426410c832a21fea21ae9936db9b33d50b99fe22d494b848e6110130d2fa3"
         },
         {
+          "path": "unified-fork-organizer.cjs",
+          "size": 13535,
+          "sha256": "f80394b309b842d4b82b4a3f4c02e9d07ae4b7b6e85932fcd98aa40be5c25e1a"
+        },
+        {
           "path": "unified-legacy-rollback.cjs",
           "size": 2952,
           "sha256": "bcf22f377980e55f895de817a35aa7beeb6326e0a335b7db93ac9742a4365086"
         },
         {
           "path": "unified-maintenance.cjs",
-          "size": 18861,
-          "sha256": "8cabeaabe2d5650dee28e31c332c3b65379cc524828435c0280b5564fc48b79a"
+          "size": 19283,
+          "sha256": "81cf745bb182fa7fe383e2cbc91ff09c64f47ae503f819607d1abd413afb0f15"
         },
         {
           "path": "unified-material-policy.cjs",
-          "size": 743,
-          "sha256": "2b65b532966bfdb7dbf954f8717274d8b5c539d1a9433160758f87e3b4e11a63"
+          "size": 890,
+          "sha256": "2ec375d8322df60420dfadcad48ecafab1fa34dace2600ac57bddffbaefed71e"
+        },
+        {
+          "path": "unified-memes.cjs",
+          "size": 3276,
+          "sha256": "b3d15acde2b6871ca03e9be7d56eb3b2fd9064e25ae0a8a85dd3511c49fd086e"
         },
         {
           "path": "unified-migration.cjs",
@@ -903,8 +915,8 @@
         },
         {
           "path": "unified-organizer.cjs",
-          "size": 17468,
-          "sha256": "218b554a6a4acdcea3ca04b208c37551c4668800e75807add645b58c4aedc410"
+          "size": 17514,
+          "sha256": "3d9f7b0d16f80991054ebd27fb8ebe9845e3ff75c108fbdcff804edddb2ea35f"
         },
         {
           "path": "unified-peer.cjs",
@@ -938,13 +950,13 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 33233,
-          "sha256": "b4d403437bc756afd0bfd3ffd79898171501616d6b21a7611c29a805da62c533"
+          "size": 36287,
+          "sha256": "9bcd27533387ebf31370fc04d5f155f6998077f9c0e7cd1b77662f80d6a11a52"
         },
         {
           "path": "unified-scheduling.cjs",
-          "size": 2302,
-          "sha256": "7638e114945c00b2154d1a1efb00a83d792dbbc45318d36103130e094ebb9935"
+          "size": 3054,
+          "sha256": "3c131dfa196060649b8279e7ebf05fd9b1f50d7fd6624513e6fcbe66710c335a"
         },
         {
           "path": "unified-state.cjs",
