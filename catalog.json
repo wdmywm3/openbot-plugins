@@ -568,7 +568,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
       "category": "assistant",
       "main": "index.js",
@@ -600,9 +600,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "请先安装 OpenBot 0.1.100 或更新版本，再更新本插件。"
+          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "群聊分段和私聊压缩后自动提取记忆。定时 Dream 补扫模型读过的上下文，分别整理事实与事项、成员画像、通用梗和有送达证据的第一人称日记。",
+        "changelog": "超出像素上限或解码失败的图片会单独跳过，同批聊天记录和正式记忆继续索引。可在插件设置中开启超大图片标记，按原消息或图片名定位原图。",
         "components": [
           "hooks",
           "tools",
@@ -611,17 +611,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9218ec89fcfd6ba38a8aed8989bcf9227e9aa3ab",
+      "ref": "8e09176c8e7fa5846b222fda2a1aaea343667159",
       "files": [
         {
           "path": "README.md",
-          "size": 10726,
-          "sha256": "51dcaa2a726cae8f553abef883f163b914193f74205e01a4efe1c3d9c4d8aa37"
+          "size": 11026,
+          "sha256": "2c9e94c96aa148f7057d4be5a56842609da289744cf8465a65295e697c9f92ba"
         },
         {
           "path": "followup-runtime.cjs",
           "size": 5826,
           "sha256": "6a096cae63251edf90ba3090e63cbdb5042bf3c43090422e8e2e93aba182a2f5"
+        },
+        {
+          "path": "image-indexing.cjs",
+          "size": 3865,
+          "sha256": "ec5eb33bae41e8cd9aefb7145f86c0ae56d8b9ffed74527932668d2dfbeaccfe"
         },
         {
           "path": "index.js",
@@ -761,17 +766,17 @@
         {
           "path": "package-lock.json",
           "size": 1241,
-          "sha256": "18bf32d0902504406fe51deafadaae54b8aa64a48ed1ddc3f79a281914ef7605"
+          "sha256": "ae525ac0dc4166c223af67526acf407dd830f1452b35e43b2997948fc4354df5"
         },
         {
           "path": "package.json",
           "size": 166,
-          "sha256": "72fd82196080c2f1ff1475c20b5c34824306f9bb02adebd3c9a6f537c819d3c3"
+          "sha256": "1daa6aa6cdb712f6c8ee0f8a29ed97e99e300357314e89a3ed561a358719fd93"
         },
         {
           "path": "plugin.json",
-          "size": 12817,
-          "sha256": "542f77e461312ae1a6515fd3f4797f9241df10b6b4031a268f6666985c973c32"
+          "size": 13217,
+          "sha256": "f5b6777ddcf923bfa4422e44aa5ac0734ed08b66fe6270b64cbfd4599d466bf3"
         },
         {
           "path": "process.cjs",
@@ -785,8 +790,8 @@
         },
         {
           "path": "retrieval.cjs",
-          "size": 10604,
-          "sha256": "ddbfc4c5b500bcbc3ace0c4952fc11f169dbc0dae64e7c6dc6df918029460935"
+          "size": 12384,
+          "sha256": "13288985c7b23acfd702a2479626359157377918dfe74501ffddf952711c4040"
         },
         {
           "path": "runtime.cjs",
@@ -795,13 +800,13 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 7011,
-          "sha256": "b06d958ed01cef94c5929411e7ab9377fa41ebea501a4d3e8786ffc2a5f433f7"
+          "size": 7241,
+          "sha256": "e427b30a00331c24b6174d75e4c63c38391ed4f52767fc9a5e450b7994ea8ac4"
         },
         {
           "path": "source-retrieval.cjs",
-          "size": 6465,
-          "sha256": "79409a4e44f3fe7e69ca332d784de6c85be14ee2cf205f965958fc42dbbe9f23"
+          "size": 8638,
+          "sha256": "77edb8a22974a2aab68dca5741d48693e927e6b1dea19554f9f6103154dd8670"
         },
         {
           "path": "sources.cjs",
@@ -810,8 +815,8 @@
         },
         {
           "path": "storage.cjs",
-          "size": 4042,
-          "sha256": "b310c8602800354bb53506073ddaf84f691a1369320cd99e5209ad65397dcf02"
+          "size": 4521,
+          "sha256": "8370448354fb17ff7fd5955fcbb89d00ce53c15db7bbcdbddf50962f3371d03c"
         },
         {
           "path": "ui/app.js",
@@ -950,8 +955,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 36287,
-          "sha256": "9bcd27533387ebf31370fc04d5f155f6998077f9c0e7cd1b77662f80d6a11a52"
+          "size": 36443,
+          "sha256": "1224ca1c6c3be1c7238a2cd5725ab35cad82fdc06c85ab75f43febf331fbac8d"
         },
         {
           "path": "unified-scheduling.cjs",
