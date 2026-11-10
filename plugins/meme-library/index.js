@@ -718,18 +718,25 @@ function lexical(query, item, score) {
   const match = indexText(item).split("\n").some(field => literalText(field).includes(query));
   return { words: match ? 0.95 : score, ocrRank: 0 };
 }
-async function rememberPublished(ctx, id, url, templateToken) {
+async function rememberPublished(ctx, id, url, ref, templateToken) {
   // Indexed by the exact scoped URL. Sending examines only the selected images,
   // rather than republishing/scanning the entire library to recognize ownership.
   for (let attempt = 0; attempt < 4; attempt++) {
     const row = (await db(ctx, "published", url)).record;
-    const ids = strings([...(row?.value.ids || []), id], 32);
-    if (row?.value.chatId === ctx.message.chatId && row.value.ids?.includes(id) && (!templateToken || row.value.templateToken === templateToken)) return;
+    const samePublication = row?.value.chatId === ctx.message.chatId && row.value.templateToken === templateToken
+      && (!row.value.ref || row.value.ref === ref);
+    const ids = strings([id, ...(samePublication ? row.value.ids || [] : [])], 32);
+    if (samePublication && row.value.ref === ref && row.value.ids?.includes(id)) return;
     try {
-      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids, ...(templateToken ? { templateToken } : {}) } });
+      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids, ref, ...(templateToken ? { templateToken } : {}) } });
       return;
     } catch (error) { if (!conflict(error) || attempt === 3) throw error; }
   }
+}
+async function issuedSticker(ctx, url) {
+  if (!/^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/.test(url || "")) return null;
+  const published = (await db(ctx, "published", url)).record?.value;
+  return published?.chatId === ctx.message.chatId ? published : null;
 }
 async function search(ctx, input) {
   const query = text(input.query, 1000);
@@ -780,7 +787,7 @@ async function search(ctx, input) {
     const ref = usableRef(v, ctx.message.chatId)?.ref;
     try {
       const published = v.textTemplate ? null : await ctx.api.assets({ action: "publish", ref, compact: true });
-      if (published) await rememberPublished(ctx, v.id, published.url);
+      if (published) await rememberPublished(ctx, v.id, published.url, ref);
       candidates.push({ id: v.id, name: v.name, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags,
         ocrText: text(v.ocrText, 300), usageExamples: strings(v.usageExamples, 3), avoidContexts: v.avoidContexts,
         roleSticker, score: Math.round(score * 1000) / 1000, ...(published ? { url: published.url } : { textTemplate: true }) });
@@ -814,7 +821,7 @@ async function renderTemplate(ctx, input) {
   const asset = await ctx.api.assets({ action: "put", data: image.data, mimeType: image.mimeType, name: current.value.name || "表情" });
   ctx.signal.throwIfAborted();
   const published = await ctx.api.assets({ action: "publish", ref: asset.ref, compact: true });
-  await rememberPublished(ctx, id, published.url, token);
+  await rememberPublished(ctx, id, published.url, asset.ref, token);
   const last = await ctx.api.getState("lastSearch", "chat");
   if (last?.key === searchId) await ctx.api.setState("lastSearch", { ...last, candidates: [...last.candidates, { id, url: published.url }] }, "chat");
   return { id, url: published.url };
@@ -851,8 +858,7 @@ module.exports.afterModel = async ctx => {
   if (images.length > 32) throw Error("单条回复图片过多");
   const own = new Set();
   for (const image of images) {
-    const row = (await db(ctx, "published", image[1])).record;
-    if (row?.value.chatId === ctx.message.chatId) own.add(image[1]);
+    if (await issuedSticker(ctx, image[1])) own.add(image[1]);
   }
   if (!own.size) return {};
   const withoutStickers = () => content.replace(/!\[[^\]\r\n]*\]\(([^()\s]+)\)/g, (markup, url) => own.has(url) ? "" : markup);
@@ -911,42 +917,49 @@ async function hasVisible(ctx) {
   } while (cursor);
   return false;
 }
-async function ownUrls(ctx, onlyVisible = false) {
-  const urls = new Set();
-  for (const row of await all(ctx, true)) {
-    if (onlyVisible && (!visible(ctx, row.value) || row.value.textTemplate)) continue;
-    const ref = usableRef(row.value, ctx.message.chatId)?.ref;
-    if (ref) try { urls.add((await ctx.api.assets({ action: "publish", ref, compact: true })).url); } catch {}
-  }
-  return urls;
-}
 module.exports.beforeSend = async ctx => {
   const content = ctx.hook?.content;
   if (!Array.isArray(content)) return {};
   const images = content.filter(part => part?.type === "image");
   if (!images.length) return {};
   if (images.length > 32) throw Error("单条回复图片过多");
-  const cfg = await settings(ctx), own = await ownUrls(ctx), allowed = await ownUrls(ctx, true);
-  for (const part of images) {
-    const url = part.data?.file || part.data?.url;
-    if (!url) continue;
-    const published = (await db(ctx, "published", url)).record?.value;
-    if (published?.chatId !== ctx.message.chatId || !published.templateToken) continue;
-    own.add(url);
-    for (const id of published.ids || []) {
+  const own = new Map();
+  for (const url of new Set(images.map(part => part.data?.file || part.data?.url))) {
+    const published = await issuedSticker(ctx, url);
+    if (published) own.set(url, published);
+  }
+  if (!own.size) return {};
+  const cfg = await settings(ctx);
+  const cooldown = Date.now() - (await ctx.api.getState("lastSent", "chat") || 0) < cfg.cooldownSeconds * 1000;
+  let selected = false, checks = 0;
+  const next = [];
+  for (const part of content) {
+    const url = part?.type === "image" ? part.data?.file || part.data?.url : "";
+    const published = own.get(url);
+    if (!published) { next.push(part); continue; }
+    if (cooldown || selected) continue;
+    for (const id of strings(published.ids, 32)) {
+      if (++checks > 64) throw Error("待发送表情需要核验的记录过多，请减少图片后重试");
       const row = await get(ctx, id);
-      if (row && visible(ctx, row.value) && row.value.textTemplate
-        && requestId(JSON.stringify(normalizeTextTemplate(row.value.textTemplate))) === published.templateToken) { allowed.add(url); break; }
+      if (!row || !visible(ctx, row.value)) continue;
+      if (published.templateToken) {
+        if (!row.value.textTemplate || requestId(JSON.stringify(normalizeTextTemplate(row.value.textTemplate))) !== published.templateToken) continue;
+      } else {
+        if (row.value.textTemplate) continue;
+        const ref = usableRef(row.value, ctx.message.chatId)?.ref;
+        // Old publication rows have no reference. Only recheck the candidate
+        // in this reply, leaving the original ticket and its grant in force.
+        if (published.ref) {
+          if (published.ref !== ref) continue;
+        } else {
+          try {
+            if ((await ctx.api.assets({ action: "publish", ref, compact: true })).url !== url) continue;
+          } catch { ctx.signal.throwIfAborted(); continue; }
+        }
+      }
+      next.push(part); selected = true; break;
     }
   }
-  const cooldown = Date.now() - (await ctx.api.getState("lastSent", "chat") || 0) < cfg.cooldownSeconds * 1000;
-  let selected = false;
-  const next = content.filter(part => {
-    const url = part?.type === "image" ? part.data?.file || part.data?.url : "";
-    if (!own.has(url)) return true;
-    if (!allowed.has(url) || cooldown || selected) return false;
-    selected = true; return true;
-  });
   return { content: next };
 };
 module.exports.afterSend = async ctx => {
@@ -954,12 +967,11 @@ module.exports.afterSend = async ctx => {
   if (!["ok", "sent", "completed", "partial"].includes(receipt?.status) && !receipt?.data?.message_id) return;
   const sent = (receipt.sentSegments || []).filter(part => part.type === "image").map(part => part.data?.file || part.data?.url);
   if (!sent.length) return;
-  const own = await ownUrls(ctx);
-  for (const url of sent.slice(0, 32)) {
-    const published = (await db(ctx, "published", url)).record?.value;
-    if (published?.chatId === ctx.message.chatId && published.templateToken) own.add(url);
+  let owned = false;
+  for (const url of new Set(sent.slice(0, 32))) {
+    if (await issuedSticker(ctx, url)) { owned = true; break; }
   }
-  if (sent.some(url => own.has(url))) {
+  if (owned) {
     await ctx.api.setState("lastSent", Date.now(), "chat");
     const search = await ctx.api.getState("lastSearch", "chat"), selected = search?.candidates?.find(item => sent.includes(item.url));
     if (selected) {

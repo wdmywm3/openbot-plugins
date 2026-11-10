@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -174,7 +174,8 @@
         {
           "type": "beforeModel",
           "export": "beforeModel",
-          "inputMode": "text"
+          "inputMode": "text",
+          "concurrency": "parallel"
         },
         {
           "type": "beforeSend",
@@ -790,7 +791,7 @@
         ]
       },
       "metadata": {
-        "changelog": "图片原话优先匹配，关键词与语义分别判断相关度。可按普通表情或可填字表情筛选，选图提示补充了具体用法。",
+        "changelog": "修复表情库较大时，图片回复发送超时的问题。",
         "requirements": [
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

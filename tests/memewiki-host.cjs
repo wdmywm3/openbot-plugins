@@ -32,9 +32,13 @@ async function main() {
   plugin.commands = plugin.commands.map(command=>({...command,prefixes:plugin.commandPrefixes,aliases:[]}));
   const channel = { id: "bot", name: "Test", enabled: true, connected: true, config: { ownerUsers: ["owner"], toolConfig: { enabledTools: ["plugin"] } } };
   const entry = { id: "dictionary", name: "Dictionary", channelId: "bot", pluginId: "memewiki", pluginServer: "dictionary", pluginOwnerKey: "test", mcpType: "stdio", enabled: true };
-  let allow = true;
+  let allow = true, slowSync;
   const service = createPluginToolService({ entries: () => [entry], allowedTools: async () => allow ? tools.map(t => mcpModelToolName(entry, t.name)) : [],
-    request: async (_id, method, params) => method === "tools/list" ? client.listTools() : client.callTool(params) });
+    request: async (_id, method, params) => {
+      if (method === "tools/list") return client.listTools();
+      if (slowSync && params.name === "memewiki_sync_step") return slowSync();
+      return client.callTool(params);
+    } });
   const data = createPluginDataStore({ rootFor: (channelId, pluginId) => path.join(root, channelId, pluginId) });
   const states = new Map(), key = (c,p,s,id,k) => JSON.stringify([c.id,p,s,id,k]);
   const store = { root, data: { channels: [channel], plugins: [] }, save() {} };
@@ -99,6 +103,19 @@ async function main() {
   assert.equal(model.messages[0].content,"Host identity");assert.match(model.messages[1].content,/不编造/);
   await runtime.runPluginAction(channel,plugin,action("sync"),{});
   assert.equal((await runtime.runPluginAction(channel,plugin,action("sync_status"),{})).active,true);
+  const started = Promise.withResolvers(), finished = Promise.withResolvers();
+  slowSync = () => { started.resolve(); return finished.promise; };
+  const poll = runtime.runPluginPoll(channel, plugin, true);
+  try {
+    await Promise.race([started.promise, poll.then(() => assert.fail("Background update ended before its MCP call"))]);
+    const concurrent = await runtime.runPluginModelHook(channel, principal.chatId, "beforeModel",
+      { requestId: "wake-during-sync", inputMessages: [{ ...wakeInput, id: "input-while-syncing" }], messages: [] }, principal);
+    assert.equal(concurrent.canceled, false, "dictionary sync must not reject a model request");
+    assert.equal(events.length, 2, "automatic lookup still runs during a background update");
+  } finally {
+    finished.resolve({ structuredContent: { done: true, offset: 1, added: 0 } });
+    await poll;
+  }
   console.log("memewiki host: real MCP/worker, 72 MiB model media without worker exhaustion, commands, PNG, chat isolation, wake-only lookup, retry deduplication, graceful failure and sync request passed");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await runtime?.stopAllPluginPolls();shutdownPluginWorkers();await client.close().catch(()=>{});

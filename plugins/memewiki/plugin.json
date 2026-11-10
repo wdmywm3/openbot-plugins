@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memewiki",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
   "extensions": {
     "com.openbot": {
@@ -71,12 +71,16 @@
         {
           "type": "beforeModel",
           "export": "beforeModel",
-          "inputMode": "text"
+          "inputMode": "text",
+          "concurrency": "parallel"
         }
       ],
       "background": {
         "export": "poll",
         "intervalSeconds": 60
+      },
+      "execution": {
+        "concurrency": "parallel"
       },
       "config": {
         "replyMode": "image",
@@ -288,7 +292,7 @@
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
         "usage": "/梗 词语；/网搜 状态",
-        "changelog": "移除自定义黑话管理页面、管理命令和查询入口，旧数据保留；继续支持本地词库查询、语义查梗、图片卡片与增量更新。"
+        "changelog": "修复词库后台更新时，新消息偶尔无法回复的问题。"
       }
     }
   }

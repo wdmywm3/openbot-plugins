@@ -154,18 +154,21 @@ module.exports.poll = async ctx => {
       }
     }
   } catch { /* Index preparation retries on a later background tick. */ }
-  const state = await ctx.api.getState("sync", "channel") || {};
+  const snapshot = await ctx.api.getStateVersion("sync", "channel");
+  const state = snapshot.value || {};
   const now = new Date(), day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
   if (!state.active && (!ctx.config.autoSync || state.day === day || now.getHours() < (ctx.config.syncHour ?? 4))) return;
   if (state.retryAfter > Date.now()) return;
   try {
     const result = (await service(ctx, "memewiki_sync_step", {}, 15000)).structuredContent;
     if (!result || typeof result.done !== "boolean") throw new Error("同步结果无效");
-    await ctx.api.setState("sync", { active: !result.done, day, checked: result.offset, added: result.added, at: Date.now() }, "channel");
+    await ctx.api.compareAndSetState("sync", snapshot.version,
+      { active: !result.done, day, checked: result.offset, added: result.added, at: Date.now() }, "channel");
     return { text: result.done ? `词库检查完成，新增 ${result.added} 条。` : `已检查 ${result.offset} 条，后台将继续更新。` };
   } catch (error) {
     failure(ctx);
-    await ctx.api.setState("sync", { ...state, active: true, retryAfter: Date.now() + 300000, error: "更新暂不可用，稍后重试" }, "channel");
+    await ctx.api.compareAndSetState("sync", snapshot.version,
+      { ...state, active: true, retryAfter: Date.now() + 300000, error: "更新暂不可用，稍后重试" }, "channel");
     return { text: "更新暂不可用，稍后重试；已有词库可继续使用。" };
   }
 };

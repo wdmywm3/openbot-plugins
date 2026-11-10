@@ -129,6 +129,20 @@ async function main() {
     "zero frequency does not disable search or proactive pure stickers");
   const pureSegments = [{ type: "image", data: { file: url } }];
   assert.equal((await plugin.beforeSend({ ...probability.ctx, hook: { content: pureSegments } })).content.length, 1);
+  const originalDb = probability.ctx.api.database, originalAssets = probability.ctx.api.assets;
+  let deliveryReads = 0;
+  probability.ctx.api.database = input => {
+    assert.equal(input.action, "get", "the send path may only read the selected sticker and settings");
+    deliveryReads++;
+    return originalDb(input);
+  };
+  probability.ctx.api.assets = () => { throw Error("sending an indexed sticker must not publish again"); };
+  const otherPhoto = { type: "image", data: { file: "https://example.invalid/photo.jpg" } };
+  assert.deepEqual(copy((await plugin.beforeSend({ ...probability.ctx, hook: { content: [...pureSegments, otherPhoto, ...pureSegments] } })).content),
+    [...pureSegments, otherPhoto], "the send check preserves unrelated media and allows one owned sticker");
+  await plugin.afterSend({ ...probability.ctx, hook: { result: { status: "sent", sentSegments: pureSegments } } });
+  assert(deliveryReads <= 5, "send and receipt verification use a fixed number of reads for one sticker");
+  probability.ctx.api.database = originalDb; probability.ctx.api.assets = originalAssets;
   const prompt = await plugin.beforeModel(probability.ctx);
   assert.match(prompt.systemPromptAppend, /每条独立回复.*必须先/);
   assert.match(prompt.contextItems[0].content, /0%/);
@@ -316,8 +330,12 @@ async function main() {
   assert.equal(plugin._test.visible({ ...f.ctx, message: { chatId: "other" } }, f.get("b").value), false, "chat collections do not leak to another chat");
   row = f.get("a"); await plugin.save({ ...f.ctx, input: { id: row.key, revision: row.revision, profileIds: ["other"] } });
   assert.equal(plugin._test.visible(f.ctx, f.get("a").value), false);
-  row = f.get("c"); await plugin.remove({ ...f.ctx, input: { id: row.key, revision: row.revision } });
-  const staleUrl = "openbot-asset://plugin-media/" + row.key + "/image";
+  row = f.get("c");
+  const staleUrl = (await plugin.stickers({ ...f.ctx, input: { action: "search", limit: 6 } })).candidates.find(item => item.id === row.key).url;
+  delete f.records.get("published:" + staleUrl).value.ref;
+  assert.equal((await plugin.beforeSend({ ...f.ctx, hook: { content: [{ type: "image", data: { file: staleUrl } }] } })).content.length, 1,
+    "publication records from earlier versions work without a stored ref");
+  await plugin.remove({ ...f.ctx, input: { id: row.key, revision: row.revision } });
   const guarded = await plugin.beforeSend({ ...f.ctx, hook: { content: [{ type: "image", data: { file: staleUrl } }, { type: "text", data: { text: "hello" } }] } });
   assert.equal(guarded.content.length, 1, "removed images are filtered even when a model reuses an old URL");
   await assert.rejects(plugin.save({ ...f.ctx, input: { id: "a".repeat(64), revision: 0, tags: [] } }), /刷新/);
