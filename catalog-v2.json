@@ -439,7 +439,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.5.1",
+      "version": "2.5.2",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -475,7 +475,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "图片原话优先匹配，关键词与语义分别判断相关度。可按普通表情或可填字表情筛选，选图提示补充了具体用法。",
+        "changelog": "修复表情库较大时，图片回复发送超时的问题。",
         "components": [
           "commands",
           "hooks",
@@ -486,7 +486,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "6530138008c4e990b7c33b1daffa0800c7c99327",
+      "ref": "2b962e8d115965e8490c3b65b866f0663b049fc7",
       "files": [
         {
           "path": "README.md",
@@ -510,8 +510,8 @@
         },
         {
           "path": "index.js",
-          "size": 71129,
-          "sha256": "aeedcb7a79956124b82b3e4f2932ef6d8c78b52e8d40f712a71a86e67087e93f"
+          "size": 71633,
+          "sha256": "9db794c5bee061100a6a46a01d5cde9b281441025a73c04ec1055c54df18ab50"
         },
         {
           "path": "mcp.json",
@@ -530,8 +530,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 21778,
-          "sha256": "848e8f002892d54ba8a01222c5462c347e6707e96738f59812f9ed510fc46192"
+          "size": 21728,
+          "sha256": "121230d070e3d494f533e68f11b10603e0faddfd2e2fddc136301f00deb0fb0d"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -568,7 +568,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -591,7 +591,7 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "changelog": "移除自定义黑话管理页面、管理命令和查询入口，旧数据保留；继续支持本地词库查询、语义查梗、图片卡片与增量更新。",
+        "changelog": "修复词库后台更新时，新消息偶尔无法回复的问题。",
         "components": [
           "commands",
           "hooks",
@@ -601,7 +601,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "75fcfbd7984d1e53afe63ab68e8a218cdc333715",
+      "ref": "2b962e8d115965e8490c3b65b866f0663b049fc7",
       "files": [
         {
           "path": "LICENSE",
@@ -625,8 +625,8 @@
         },
         {
           "path": "index.js",
-          "size": 12314,
-          "sha256": "ac860256b61b1bf7f8b85b1f16ca83f1e1d71e037400a400c47d252287919e4e"
+          "size": 12424,
+          "sha256": "f543a6387da34b6418f0d49f4c2f90f9951d751eabfe68ec2e336e77194ef188"
         },
         {
           "path": "mcp.json",
@@ -635,8 +635,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 7938,
-          "sha256": "b9d13e892a2f5ab3be031eac55dddbbae549f44196f2d55efd62b0773ccdd724"
+          "size": 7946,
+          "sha256": "fedf3acd6e812e0ffb132d94dc01f43dd4a1e550cab52f1db5e6bb7d402535ef"
         },
         {
           "path": "requirements.lock",
