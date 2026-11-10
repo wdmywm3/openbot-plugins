@@ -352,7 +352,8 @@ async function memory(ctx) {
   if (id && !id.startsWith("mem-")) id = get(storage, `unified-map:${scope.chatId}:fact:${id}`)?.id || get(storage, `unified-map:${scope.chatId}:record:${id}`)?.id || get(storage, `unified-map:${scope.chatId}:document:${id}`)?.id || id;
   const requestKey = input.requestKey || `compat:${hash(JSON.stringify([ctx.message?.id, input]))}`;
   if (["recall", "search"].includes(input.action)) {
-    if (input.searchIn !== undefined && !["memories", "chat_history"].includes(input.searchIn)) throw Error("请选择记忆库或聊天记录");
+    if (input.searchIn !== undefined && !["memories", "chat_history", "skipped_images"].includes(input.searchIn)) throw Error("请选择记忆库、聊天记录或已跳过的超大图片");
+    if (input.searchIn === "skipped_images") return sourceRetrieval.searchSkipped(ctx, storage, scope, input);
     if (input.searchIn === "chat_history") {
       if (!String(input.query || "").trim() && !input.imageMessageId) throw Error("请提供检索词或聊天图片编号");
       const result = await sourceRetrieval.search(ctx, scope, input.query || "相关图片", { limit: Math.max(1, Math.min(20, Number(input.limit) || 8)),

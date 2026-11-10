@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
   "extensions": {
     "com.openbot": {
@@ -114,6 +114,12 @@
             "default": 0.45,
             "minimum": 0,
             "maximum": 1
+          },
+          "skipOversizedSourceImages": {
+            "type": "boolean",
+            "title": "标记跳过的超大图片",
+            "description": "标记像素数超过索引上限的图片，方便按原消息查找。",
+            "default": false
           }
         }
       },
@@ -124,7 +130,7 @@
           "scope": "all",
           "permission": "member",
           "mutating": false,
-          "description": "默认按含义查找当前聊天有权访问的正式记忆，支持文字、图片和图文联合查询。需要查原始聊天或图片历史时设置 searchIn=chat_history，返回匹配的消息片段及编号；历史聊天资料不等于已确认记忆。按编号读记忆全文、修改或遗忘使用宿主 memory。",
+          "description": "默认按含义查找当前聊天的正式记忆，支持文字、图片和图文联合查询。查原始聊天使用 chat_history，查已跳过的超大图片使用 skipped_images。后者按消息文字、图片名称或消息编号查找，也可直接列出最近的标记。按编号读记忆全文、修改或遗忘使用宿主 memory。",
           "inputSchema": {
             "type": "object",
             "properties": {
@@ -132,9 +138,10 @@
                 "type": "string",
                 "enum": [
                   "memories",
-                  "chat_history"
+                  "chat_history",
+                  "skipped_images"
                 ],
-                "description": "memories 查正式记忆（默认）；chat_history 按需查原始聊天和图片历史。"
+                "description": "memories 查正式记忆（默认），chat_history 查聊天记录，skipped_images 查超大图片的标记。"
               },
               "query": {
                 "type": "string",
@@ -149,7 +156,7 @@
               "imageMessageId": {
                 "type": "string",
                 "maxLength": 200,
-                "description": "可选，使用当前聊天中这条消息的图片参与检索。"
+                "description": "可选。查超大图片标记时按消息编号筛选；其他范围使用该消息的图片参与检索。"
               },
               "imageIndex": {
                 "type": "integer",
@@ -441,9 +448,9 @@
       },
       "metadata": {
         "requirements": [
-          "请先安装 OpenBot 0.1.100 或更新版本，再更新本插件。"
+          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "群聊分段和私聊压缩后自动提取记忆。定时 Dream 补扫模型读过的上下文，分别整理事实与事项、成员画像、通用梗和有送达证据的第一人称日记。"
+        "changelog": "超出像素上限或解码失败的图片会单独跳过，同批聊天记录和正式记忆继续索引。可在插件设置中开启超大图片标记，按原消息或图片名定位原图。"
       }
     }
   }

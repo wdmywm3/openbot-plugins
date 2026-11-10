@@ -13,6 +13,10 @@ function open(root) {
     CREATE TABLE IF NOT EXISTS source_cursors(chat_id TEXT PRIMARY KEY,cursor INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS source_buffers(chat_id TEXT,source_id TEXT,seq INTEGER,value_json TEXT,PRIMARY KEY(chat_id,source_id));
     CREATE TABLE IF NOT EXISTS embedding_receipts(chat_id TEXT,collection TEXT,id TEXT,revision INTEGER,version TEXT,PRIMARY KEY(chat_id,collection,id));
+    CREATE TABLE IF NOT EXISTS source_image_failures(chat_id TEXT NOT NULL,source_id TEXT NOT NULL,image_index INTEGER NOT NULL,
+      source_version TEXT NOT NULL,model_version TEXT NOT NULL,code TEXT NOT NULL,marked INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,search_text TEXT NOT NULL,PRIMARY KEY(chat_id,source_id,image_index));
+    CREATE INDEX IF NOT EXISTS source_image_failures_recent ON source_image_failures(chat_id,code,created_at DESC,source_id,image_index);
     CREATE TABLE IF NOT EXISTS plugin_answers(chat_id TEXT,id TEXT,content TEXT,PRIMARY KEY(chat_id,id));
     CREATE TABLE IF NOT EXISTS plugin_followups(id TEXT PRIMARY KEY,value_json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS plugin_meta(key TEXT PRIMARY KEY,value_json TEXT NOT NULL);`);

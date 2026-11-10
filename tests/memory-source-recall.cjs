@@ -2,10 +2,11 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), os = require("node:os");
 const host = require("node:module").createRequire(path.join(path.resolve(process.env.OPENBOT_HOST_ROOT || "../openbot"), "package.json"));
 const { createSharedModels } = host("./electron/lib/features/retrieval/shared-models.cjs"), { createVectorCollections } = host("./electron/lib/features/retrieval/vector-collections.cjs");
-const { createLocalEmbeddingIndex } = host("./electron/lib/features/retrieval/local-embedding-index.cjs"), { createPluginRetrieval } = host("./electron/lib/plugins/plugin-retrieval.cjs");
+const { createPluginRetrieval } = host("./electron/lib/plugins/plugin-retrieval.cjs");
 const { createPluginSources } = host("./electron/lib/plugins/plugin-sources.cjs"), { createChannelStorageRepository } = host("./electron/lib/context/channel-storage-repository.cjs");
 const { createContextPaths } = host("./electron/lib/context/context-paths.cjs"), { applyPluginPrompt } = host("./electron/lib/plugins/plugin-prompt.cjs");
 const { open, close } = require("../plugins/memory/storage.cjs"), sources = require("../plugins/memory/source-retrieval.cjs"), plus = require("../plugins/memory/unified-runtime.cjs");
+const { get } = require("../plugins/memory/unified-state.cjs");
 const unified = require("../plugins/memory/unified-retrieval.cjs");
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-source-recall-")), scope = { channelId: "bot", chatId: "onebot:group:one" };
@@ -13,9 +14,11 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
   try {
     const embeddings = [], assets = new Map(), excluded = new Set(); let failBlue = true, imports = 0;
     models = createSharedModels({ root, getDefault: () => "fixture", providers: { fixture: { name: "joint", dimension: 768, version: "joint-v1", modalities: ["text", "image", "joint"], ready: () => true,
-      create: () => createLocalEmbeddingIndex(root, { embed: async input => {
-        embeddings.push({ query: input.query, image: input.image?.toString(), text: input.text });
+      create: () => ({ close() {}, async vector(input, { query }) {
+        embeddings.push({ query, image: input.image?.toString(), text: input.text });
         const value = input.image?.toString() || input.text, axis = /blue|蓝色/.test(value) ? 2 : /red|红色/.test(value) ? 1 : 0;
+        if (input.image && value.startsWith("oversized")) throw Object.assign(Error("Input image exceeds pixel limit"), { code: "EMBEDDING_IMAGE_PIXEL_LIMIT" });
+        if (input.image && value === "damaged") throw Object.assign(Error("Invalid image"), { code: "EMBEDDING_IMAGE_DECODE" });
         if (/会议地点的补充说明/.test(value)) return Array.from({ length: 768 }, (_, index) => index === 0 ? 0.8 : index === 3 ? 0.6 : 0);
         return Array.from({ length: 768 }, (_, index) => Number(index === axis)); } }) } } });
     vectors = createVectorCollections({ root, models });
@@ -42,7 +45,9 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
           if (input.action !== "fromMessage") return { ref: input.ref };
           imports++; if (input.messageId === "blue" && failBlue) throw Error("transient download");
           const source = sourceApi(scope, { action: "read", id: input.messageId, version: input.sourceVersion }).item; assert(source && !source.deleted);
-          const ref = `${source.id}:${source.version}:${input.index}`; assets.set(ref, Buffer.from(source.id)); return { ref };
+          const ref = `${source.id}:${source.version}:${input.index}`;
+          assets.set(ref, Buffer.from(source.id === "mixed" ? (input.index === 0 ? "oversized-mixed" : "blue") : source.id));
+          return { ref };
         },
       } };
     const first = await sources.index(ctx, storage, scope); assert.equal(first.pending, false);
@@ -82,7 +87,7 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     assert(imageHistory.chatHistory.some(item => item.id === "blue"), "explicit tools still search the requested second image");
     assert(embeddings.some(value => value.query && value.image === "blue"));
     await assert.rejects(plus.recall({ ...ctx, input: { searchIn: "chat_history" } }), /检索词/);
-    await assert.rejects(plus.recall({ ...ctx, input: { searchIn: "unknown", query: "会议" } }), /记忆库或聊天记录/);
+    await assert.rejects(plus.recall({ ...ctx, input: { searchIn: "unknown", query: "会议" } }), /请选择记忆库、聊天记录/);
     const payload = structuredClone(ctx.hook);
     applyPluginPrompt(payload, result, { id: "memory", permissions: ["prompt:system"] }, { scope, resolveResource: item => ({ readable: true, current: true,
       value: item.resource ? repo.unifiedMemoryRepository.memory(actor, { action: "read", id: item.resource.id, revision: item.resource.revision }).item : undefined }) });
@@ -99,6 +104,49 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     assert.equal((await sources.search(ctx, scope, "", { imageOnly: true, queryImage: { messageId: "q1", index: 0 } })).records.length, 0, "forgotten source is excluded immediately");
     record("blue", "", [], 100); await sources.index(ctx, storage, scope);
     assert.equal((await sources.search(ctx, scope, "", { imageOnly: true, queryImage: { messageId: "q1", index: 1 } })).records.length, 0, "removed images leave no usable stale hit");
-    console.log("Recall boundary: memory-only automatic top-k, focused targets, empty-library fast path, short deadline, explicit historical text/images, retry and source revocation passed.");
+    const recallSkipped = input => plus.recall({ ...ctx, input: { searchIn: "skipped_images", ...input } });
+    const receiptFor = id => storage.db.prepare("SELECT ids_json,retry_at FROM source_embedding_receipts WHERE id=?").get(id);
+    record("oversized-untagged", "开关关闭时的长截图", [{ type: "image", name: "long.jpg" }], 180);
+    await sources.index(ctx, storage, scope);
+    assert.deepEqual(JSON.parse(receiptFor("oversized-untagged").ids_json), ["oversized-untagged:text"]);
+    assert.equal(receiptFor("oversized-untagged").retry_at, 0);
+    assert.equal((await recallSkipped({})).count, 0, "isolation is active while marking is off");
+
+    ctx.config.skipOversizedSourceImages = true;
+    record("mixed", "蓝色海报讨论", [{ type: "image", name: "ＰＡＮＯＲＡＭＡ.JPG" }, { type: "image", name: "blue.jpg" }], 210);
+    record("damaged", "", [{ type: "image", name: "damaged.jpg" }], 211);
+    record("later", "同页稍后的可检索消息", [], 212);
+    const cursor = get(storage, sources.cursorKey(scope)).after;
+    await sources.index(ctx, storage, scope);
+    assert(get(storage, sources.cursorKey(scope)).after > cursor, "a page with deterministic image failures advances the cursor");
+    assert.deepEqual(JSON.parse(receiptFor("mixed").ids_json), ["mixed:text", "mixed:image:1"]);
+    assert.deepEqual(JSON.parse(receiptFor("later").ids_json), ["later:text"]);
+    assert.deepEqual(JSON.parse(receiptFor("damaged").ids_json), []);
+    assert.equal(receiptFor("damaged").retry_at, 0, "deterministic decode failures are not retried");
+    const beforeLookup = embeddings.length;
+    assert.equal((await recallSkipped({})).count, 2, "enabling marking makes known oversized originals findable");
+    const { skippedImages: [mark] } = await recallSkipped({ query: "panorama.jpg" });
+    assert.equal(mark.messageId, "mixed"); assert.equal(mark.imageIndex, 0);
+    assert.equal(mark.version, original.get(scope, "mixed").version);
+    assert.equal((await recallSkipped({ query: "蓝色海报" })).count, 1);
+    assert.equal((await recallSkipped({ imageMessageId: "mixed", imageIndex: 1 })).count, 0);
+    assert.equal(embeddings.length, beforeLookup, "looking up a mark does not load or embed the oversized original");
+    await sources.index(ctx, storage, scope);
+    assert.equal(embeddings.length, beforeLookup, "an unchanged failed attachment is not re-embedded");
+    ctx.config.skipOversizedSourceImages = false;
+    assert.equal((await recallSkipped({ imageMessageId: "mixed" })).count, 1, "a saved mark survives turning the setting off");
+    excluded.add("mixed");
+    assert.equal((await recallSkipped({ imageMessageId: "mixed" })).count, 0, "a mark cannot expose excluded source material");
+    excluded.delete("mixed");
+    record("mixed", "消息已编辑", [], 210);
+    assert.equal((await recallSkipped({ imageMessageId: "mixed" })).count, 0, "a mark is bound to the original message version");
+
+    const beforeFailure = get(storage, sources.cursorKey(scope)).after;
+    const failedService = { ...ctx, api: { ...ctx.api, vectorIndex: async () => { throw Error("vector service unavailable"); } } };
+    await assert.rejects(sources.index(failedService, storage, scope), /vector service unavailable/);
+    assert.equal(get(storage, sources.cursorKey(scope)).after, beforeFailure, "infrastructure failures remain retryable");
+    await sources.index(ctx, storage, scope);
+    assert.equal(storage.db.prepare("SELECT 1 FROM source_image_failures WHERE source_id='mixed'").get(), undefined);
+    console.log("Recall boundary: focused automatic recall, explicit text/image history, oversized-image marks, failure isolation, retry and source revocation passed.");
   } finally { close(); repo?.close(); await vectors?.pause(); await models?.pause(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-source-recall-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

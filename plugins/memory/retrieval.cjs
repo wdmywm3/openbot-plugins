@@ -1,6 +1,7 @@
 "use strict";
 const { hash } = require("./storage.cjs");
 const { lexicalRanks, memoryApplicability, memoryChunks } = require("./lib/features/channels/channel-memory-retrieval.cjs");
+const { sourceImage, imageFailureStore, writeImageBatch } = require("./image-indexing.cjs");
 const revision = entry => Number.isSafeInteger(entry.revision) ? entry.revision : parseInt(hash(JSON.stringify(entry)).slice(0, 12), 16);
 const inputText = entry => String(entry.title || "") + "\n" + String(entry.content || "");
 // Immutable passage IDs also support rollback and external Markdown edits,
@@ -14,7 +15,7 @@ function createRetrieval(ctx, storage, scope) {
   const MAX_WRITES = 32;
   const write = input => { if (calls >= MAX_WRITES) return null; calls++; return ctx.api.vectorIndex({ ...input, chatId: scope.chatId }); };
   const model = () => selected ||= ctx.api.embeddings({ action: "status", ...(ctx.config.retrievalModelId ? { modelId: ctx.config.retrievalModelId } : {}) });
-  async function mediaChunks(entry, current, collection) {
+  async function mediaChunks(entry, current, collection, images, failures) {
     if (!current.modalities?.includes("image") || !ctx.api.assets || !ctx.api.sources) return [];
     const chunks = [], references = [], seen = new Set(); let failed = false;
     const save = () => { storage.db.prepare("INSERT INTO embedding_media VALUES(?,?,?,?,?) ON CONFLICT(chat_id,collection,id) DO UPDATE SET revision=excluded.revision,assets_json=excluded.assets_json")
@@ -24,18 +25,25 @@ function createRetrieval(ctx, storage, scope) {
       return chunks; };
     for (const source of (entry.sources || []).slice(0, 8)) {
       if (source.chatId && source.chatId !== scope.chatId) continue;
-      try {
-        const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, id: source.id, version: source.version })).item;
-        if (!item || item.deleted || item.routeBlocked || item.memoryExcluded) continue;
-        for (const attachment of (item.attachments || []).filter(item => item.type === "image").slice(0, 4)) {
-          const asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: source.id, sourceVersion: item.version, index: attachment.index, kind: "image" });
-          if (!asset.ref || seen.has(asset.ref)) continue; seen.add(asset.ref);
-          chunks.push({ id: `${entry.id}@${revision(entry)}:image:${hash(asset.ref).slice(0, 24)}`, revision: revision(entry),
-            input: { assetRef: asset.ref, ...(current.modalities.includes("joint") ? { text: inputText(entry).slice(0, 4000) } : {}) } });
-          references.push({ assetRef: asset.ref, sourceId: source.id, sourceVersion: item.version, index: attachment.index });
-          if (chunks.length >= 4) return save();
-        }
-      } catch { ctx.signal?.throwIfAborted(); failed = true; /* Preserve text indexing and retry transient image failures separately. */ }
+      let item;
+      try { ({ item } = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: source.id, version: source.version })); }
+      catch { ctx.signal?.throwIfAborted(); failed = true; continue; }
+      if (!item || item.deleted || item.routeBlocked || item.memoryExcluded) continue;
+      for (const attachment of (item.attachments || []).filter(item => item.type === "image").slice(0, 4)) {
+        let asset;
+        try { asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: source.id, sourceVersion: item.version, index: attachment.index, kind: "image" }); }
+        catch { ctx.signal?.throwIfAborted(); failed = true; continue; }
+        if (!asset.ref || seen.has(asset.ref)) continue;
+        seen.add(asset.ref);
+        const id = `${entry.id}@${revision(entry)}:image:${hash(asset.ref).slice(0, 24)}`;
+        const photo = sourceImage(item, attachment), known = failures.known(photo, current.version);
+        images.set(id, { photo, entryId: entry.id, assetRef: asset.ref, known });
+        // Keep the slot so an existing partial receipt still points to the same record.
+        chunks.push({ id, revision: revision(entry),
+          input: { assetRef: asset.ref, ...(current.modalities.includes("joint") ? { text: inputText(entry).slice(0, 4000) } : {}) } });
+        if (!known) references.push({ assetRef: asset.ref, sourceId: source.id, sourceVersion: item.version, index: attachment.index });
+        if (chunks.length >= 4) return save();
+      }
     }
     return save();
   }
@@ -58,20 +66,44 @@ function createRetrieval(ctx, storage, scope) {
       storage.db.prepare("DELETE FROM embedding_media_retry WHERE chat_id=? AND collection=? AND id=?").run(scope.chatId, collection, receipt.id);
     }
     const changed = entries.filter(entry => { const old = lookup.get(scope.chatId, collection, entry.id); return old?.revision !== revision(entry) || old.version !== current.version || !old.complete; });
-    const prepared = new Map();
-    for (const entry of changed) prepared.set(entry.id, [...ids(entry), ...await mediaChunks(entry, current, collection)]);
-    const completed = new Set();
+    const failures = imageFailureStore(storage, scope, ctx.config.skipOversizedSourceImages === true);
+    const prepared = new Map(), images = new Map();
+    for (const entry of changed) prepared.set(entry.id, [...ids(entry), ...await mediaChunks(entry, current, collection, images, failures)]);
+    const skipped = new Set([...images].filter(([, image]) => image.known).map(([id]) => id));
+    const completed = new Set(skipped);
     const chunks = changed.flatMap(entry => {
       const old = lookup.get(scope.chatId, collection, entry.id), records = prepared.get(entry.id);
       const cursor = old?.revision === revision(entry) && old.version === current.version && !old.complete ? old.cursor : 0;
-      records.slice(0, cursor).forEach(record => completed.add(record.id)); return records.slice(cursor);
+      records.slice(0, cursor).forEach(record => completed.add(record.id));
+      return records.slice(cursor).filter(record => !skipped.has(record.id));
     });
+    const batch = {
+      signal: ctx.signal, isImage: record => images.has(record.id),
+      write(records) {
+        const operation = write({ action: "upsert", collection, modelId: current.id, records });
+        return operation?.then(result => {
+          if (result.version !== current.version || result.records.some(record => !record.accepted)) throw Error("索引资料已变化，请重试");
+        });
+      },
+      onIndexed(records) {
+        for (const record of records) {
+          completed.add(record.id);
+          if (images.has(record.id)) failures.indexed(images.get(record.id).photo);
+        }
+      },
+      onFailure(record, code) {
+        const { photo, entryId, assetRef } = images.get(record.id);
+        const key = [scope.chatId, collection, entryId, record.revision];
+        const row = storage.db.prepare("SELECT assets_json FROM embedding_media WHERE chat_id=? AND collection=? AND id=? AND revision=?").get(...key);
+        const refs = JSON.parse(row?.assets_json || "[]").filter(ref => ref.assetRef !== assetRef);
+        storage.db.prepare("UPDATE embedding_media SET assets_json=? WHERE chat_id=? AND collection=? AND id=? AND revision=?").run(JSON.stringify(refs), ...key);
+        failures.record(photo, current.version, code);
+        skipped.add(record.id);
+        completed.add(record.id);
+      },
+    };
     for (let offset = 0; offset < chunks.length; offset += 32) {
-      const records = chunks.slice(offset, offset + 32), operation = write({ action: "upsert", collection, modelId: current.id, records });
-      if (!operation) { pending = true; break; }
-      const result = await operation;
-      if (result.version !== current.version || result.records.some(record => !record.accepted)) throw Error("索引资料已变化，请重试");
-      records.forEach(record => completed.add(record.id));
+      if (!await writeImageBatch(chunks.slice(offset, offset + 32), batch)) { pending = true; break; }
     }
     for (const entry of changed) {
       const previous = lookup.get(scope.chatId, collection, entry.id);
@@ -83,7 +115,7 @@ function createRetrieval(ctx, storage, scope) {
           .run(scope.chatId, collection, entry.id, revision(entry), current.version, JSON.stringify([...new Set([...JSON.parse(previous?.chunk_ids || "[]"), ...records.map(record => record.id)])]), cursor);
         continue;
       }
-      const keep = new Set(records.map(record => record.id)), stale = JSON.parse(previous?.chunk_ids || "[]").filter(id => !keep.has(id));
+      const keep = new Set(records.map(record => record.id).filter(id => !skipped.has(id))), stale = JSON.parse(previous?.chunk_ids || "[]").filter(id => !keep.has(id));
       for (let offset = 0; offset < stale.length; offset += 256) {
         const operation = write({ action: "delete", collection, ids: stale.slice(offset, offset + 256) });
         if (!operation) return { indexed: count, pending: true, version: current.version }; await operation;

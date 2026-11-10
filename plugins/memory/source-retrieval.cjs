@@ -1,5 +1,6 @@
 "use strict";
 const { get, put, hash } = require("./unified-state.cjs");
+const { sourceImage, imageFailureStore, findSkippedImages, writeImageBatch } = require("./image-indexing.cjs");
 const COLLECTION = "chat-sources-v1";
 const cursorKey = scope => `plus:source-index:${scope.chatId}`;
 const readable = item => item && !item.deleted && !item.routeBlocked && !item.memoryExcluded && item.direction === "in"
@@ -19,36 +20,64 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
   const sweepKey = `plus:source-sweep:${scope.chatId}`, sweepAfter = get(storage, sweepKey, "");
   const sweep = storage.db.prepare("SELECT id FROM source_embedding_receipts WHERE chat_id=? AND id>? ORDER BY id LIMIT 4").all(scope.chatId, sweepAfter);
   const ids = [...new Set([...page.items.map(item => item.id), ...retry.map(item => item.id), ...sweep.map(item => item.id)])];
-  const synchronized = [], completed = [];
+  const failures = imageFailureStore(storage, scope, ctx.config.skipOversizedSourceImages === true);
+  const synchronized = [], completed = [], images = new Map(), skipped = new Set();
   for (const id of ids) {
     ctx.signal.throwIfAborted();
     const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, id, limit: 32000 })).item;
     const old = storage.db.prepare("SELECT * FROM source_embedding_receipts WHERE chat_id=? AND id=?").get(scope.chatId, id);
     if (readable(item) && old?.version === item.version && old.model === model.version && !old.retry_at) continue;
     const records = [], revision = parseInt(hash(item?.version || `removed:${id}`).slice(0, 12), 16);
+    const available = readable(item);
     let retryAt = 0;
-    if (readable(item)) {
+    if (available) {
       const metadata = { sourceId: id, sourceVersion: item.version, senderId: String(item.sender?.id || ""), at: item.createdAt || 0 };
       if (item.content?.trim()) records.push({ id: `${id}:text`, revision, text: item.content, metadata });
       for (const image of model.modalities?.includes("image") ? (item.attachments || []).filter(value => value.type === "image") : []) {
+        const photo = sourceImage(item, image), imageId = `${id}:image:${image.index}`;
+        if (failures.known(photo, model.version)) continue;
         try {
           const asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: id, sourceVersion: item.version, index: image.index, kind: "image" });
-          records.push({ id: `${id}:image:${image.index}`, revision, text: model.modalities.includes("joint") ? String(item.content || "").slice(0, 768) : "",
+          records.push({ id: imageId, revision, text: model.modalities.includes("joint") ? String(item.content || "").slice(0, 768) : "",
             assetRef: asset.ref, metadata: { ...metadata, imageIndex: image.index } });
+          images.set(imageId, photo);
         } catch { ctx.signal.throwIfAborted(); retryAt = Date.now() + 300000; }
       }
     }
     const live = new Set(records.map(record => record.id));
     for (const stale of JSON.parse(old?.ids_json || "[]")) if (!live.has(stale)) records.push({ id: stale, revision, text: "", metadata: { unavailable: true } });
     synchronized.push(...records);
-    completed.push([scope.chatId, id, item?.version || "", model.version, JSON.stringify([...live]), retryAt]);
+    completed.push({ id, version: item?.version || "", available, live, retryAt });
   }
-  // Submit one bounded page together so the host can batch short messages too.
-  // Commit receipts/cursors only after every corresponding index write succeeds.
-  if (synchronized.length) await ctx.api.vectorIndex({ action: "sync", collection: COLLECTION, chatId: scope.chatId, modelId: model.id, records: synchronized, complete: false });
-  for (const values of completed) storage.db.prepare("INSERT OR REPLACE INTO source_embedding_receipts VALUES(?,?,?,?,?,?)").run(...values);
-  put(storage, cursorKey(scope), { after: page.items.at(-1)?.seq || Math.max(after, page.upper || 0), model: model.version });
-  put(storage, sweepKey, sweep.length === 4 ? sweep.at(-1).id : "");
+  const sync = records => ctx.api.vectorIndex({ action: "sync", collection: COLLECTION, chatId: scope.chatId, modelId: model.id, records, complete: false });
+  const tombstones = [];
+  await writeImageBatch(synchronized, {
+    write: sync, signal: ctx.signal, isImage: record => images.has(record.id),
+    onIndexed(records) {
+      for (const record of records) if (images.has(record.id)) failures.indexed(images.get(record.id));
+    },
+    onFailure(record, code) {
+      failures.record(images.get(record.id), model.version, code);
+      skipped.add(record.id);
+      tombstones.push({ id: record.id, revision: record.revision, text: "", metadata: { unavailable: true } });
+    },
+  });
+  if (tombstones.length) await sync(tombstones);
+  ctx.signal.throwIfAborted();
+  const saveReceipt = storage.db.prepare("INSERT OR REPLACE INTO source_embedding_receipts VALUES(?,?,?,?,?,?)");
+  storage.db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const { id, version, available, live, retryAt } of completed) {
+      saveReceipt.run(scope.chatId, id, version, model.version, JSON.stringify([...live].filter(id => !skipped.has(id))), retryAt);
+      failures.prune(id, available ? version : "");
+    }
+    put(storage, cursorKey(scope), { after: page.items.at(-1)?.seq || Math.max(after, page.upper || 0), model: model.version });
+    put(storage, sweepKey, sweep.length === 4 ? sweep.at(-1).id : "");
+    storage.db.exec("COMMIT");
+  } catch (error) {
+    storage.db.exec("ROLLBACK");
+    throw error;
+  }
   return { pending: page.nextCursor != null, indexed: ids.length };
 }
 async function search(ctx, scope, query, options = {}) {
@@ -74,4 +103,17 @@ async function search(ctx, scope, query, options = {}) {
     return { records, mode: hits.mode };
   } catch (error) { ctx.signal.throwIfAborted(); return { records: [], fallbackReason: String(error.message || error) }; }
 }
-module.exports = { COLLECTION, cursorKey, index, search, readable };
+async function searchSkipped(ctx, storage, scope, input) {
+  const skippedImages = [];
+  for (const row of findSkippedImages(storage, scope, input, ctx.config.skipOversizedSourceImages === true)) {
+    ctx.signal.throwIfAborted();
+    const { item } = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: row.source_id, version: row.source_version, limit: 768 });
+    if (!readable(item) || item.version !== row.source_version) continue;
+    const image = item.attachments?.find(attachment => attachment.type === "image" && attachment.index === row.image_index);
+    if (!image) continue;
+    skippedImages.push({ messageId: item.id, version: item.version, imageIndex: image.index, name: image.name || "",
+      content: item.content, createdAt: item.createdAt, reason: "超过图片索引的像素上限" });
+  }
+  return { searchIn: "skipped_images", skippedImages, count: skippedImages.length };
+}
+module.exports = { COLLECTION, cursorKey, index, search, searchSkipped, readable };
