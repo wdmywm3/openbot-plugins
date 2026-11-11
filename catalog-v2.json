@@ -324,7 +324,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -350,14 +350,14 @@
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.3.3：修复 OpenAI 密钥格式处理，从服务返回的模型列表中选择模型，新增允许非主人画图的实例开关。0.3.2：自拍优先使用当前角色的人设图。",
+        "changelog": "0.3.4：修正通过通用插件工具查询画图结果时的参数说明。0.3.3：修复 OpenAI 密钥格式处理，支持从模型列表选择模型，新增允许非主人画图的开关。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a2d2f82db22d5f652768b420e28ea2bdcdef59a8",
+      "ref": "5d833428504f6f5ed39d3537b352aeabe69b0c42",
       "files": [
         {
           "path": "README.md",
@@ -371,8 +371,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 22122,
-          "sha256": "c1d6fbb355118f6e37d9b43f02cb1f4b4be700cd797feb10f713842d8eb0f667"
+          "size": 22128,
+          "sha256": "aecf52243ee6010d3974571519c195397be5cd41b6d61dd1dc02c04a6dcd20ce"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -401,8 +401,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5351,
-          "sha256": "65956be5e134bd57ec3e08f598c465dc3a69b1825bf28b2a4fd1b8d132f99786"
+          "size": 5777,
+          "sha256": "869659250faabc9fc5c41dde22602931b8d54c37728b27539c286aff2c8d8d9c"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
