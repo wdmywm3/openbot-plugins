@@ -56,7 +56,12 @@ description: 用户要求生图、GIF 动图、绘画、改图、角色自拍、
 
 用户要 GIF 动图时传 `format:"gif"`，提示词写清主体、动作及是否循环；如用户指定帧数或每帧时长，可传 `frameCount`（2–16）和 `frameDurationMs`（20–2000 毫秒）。未指定尺寸时使用自动尺寸。插件通过所选服务请求支持动图的模型；若账号或服务拒绝，说明当前服务不可用，不自动切换到其他计费服务。自拍动图同样沿用固定形象和自拍开关。
 
-工具以 `action:"start"`、`input` 和稳定 `requestKey` 启动；`running` 时以原 `jobId` 查询 `action:"status"`，取消以 `action:"cancel"` 执行。`phase:"queued"` 表示正在排队，可以告知用户并继续查询原任务，不要重复提交。失败、超时或取消后先核对原任务，不自动再次扣费。
+用 `action:"start"`、`input` 和稳定的 `requestKey` 启动。返回 `running` 时，用启动回执的 `id` 填写 `jobId`，继续用启动任务的工具查询。
+
+- 直接用 `draw_image` 启动时，传 `{"action":"status","jobId":"启动回执的 id"}`。
+- 用通用 `plugin` 工具启动时，传 `{"action":"status","pluginId":"image-studio","jobId":"启动回执的 id"}`。查询或取消都带上 `pluginId:"image-studio"`。如果查询提示插件未启用，先检查是否漏传了 `pluginId`，补齐后查询原任务。
+
+`phase:"queued"` 表示正在排队，可以告知用户并继续查询原任务。取消时用 `action:"cancel"` 并保留原任务标识。失败、超时或取消后先核对原任务，避免重复提交和计费。
 
 ## 核对与交付
 
