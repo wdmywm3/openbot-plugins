@@ -24,7 +24,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     decidePluginAuthorization(saved, pluginAuthorization(saved).fingerprint, true);
     saved.globalSecrets = { openaiKey: { encrypted: "fixture" }, compatibleKey: { encrypted: "fixture" } };
     const binding = channel.config.botPlugins.find(p => p.id === "image-studio");
-    const plugin = { ...binding, authorization: pluginAuthorization(saved), config: { ...binding.config, provider: "openai-images", instanceHourlyDefault: 1000, instanceDailyDefault: 1000, globalHourly: 1000, globalDaily: 1000 } };
+    const plugin = { ...binding, authorization: pluginAuthorization(saved), config: { ...binding.config, provider: "openai-images",
+      openaiImageModel: "gpt-image-2.6-flare", instanceHourlyDefault: 1000, instanceDailyDefault: 1000, globalHourly: 1000, globalDaily: 1000 } };
     pluginData = fromHost("plugins/plugin-data-store.cjs").createPluginDataStore({ rootFor: (channelId, pluginId) => path.join(root, "data", channelId, pluginId) }).background;
     const png = await hostRequire("sharp")({ create: { width: 16, height: 16, channels: 3, background: "blue" } }).png().toBuffer();
     const smallGif = Buffer.from("R0lGODlhAgABAIEAAExpcQD/AP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAACAlQKACH5BAUPAAAALAAAAAACAAEAgUxpcf//AAAA/wAAAAICVAoAOw==", "base64");
@@ -41,7 +42,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       pluginData: { database: (...args) => pluginData.database(...args) },
       isNapCatOneBotChannel: () => false, getPluginState: registry.getPluginState, setPluginState: registry.setPluginState, pluginStateScopeId: registry.pluginStateScopeId,
       channelEventByReference: (_channel, chat, id) => chat === "chat" && id === "reference" ? message : null,
-      secretStore: { isSecretEnvelope: value => value?.encrypted === "fixture", decryptSecret: () => "fixture-key" },
+      secretStore: { isSecretEnvelope: value => value?.encrypted === "fixture", decryptSecret: () => "\ufeff Bearer fixture-key\r\n" },
       requestPluginModel: async ({ request, signal, assertActive }) => {
         assertActive(); signal.throwIfAborted(); nativeCalls.push(request);
         assert(!("token" in request)); assert(!("headers" in request)); assert(!("model" in request));
@@ -85,20 +86,28 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.deepEqual(models.models.map(item => item.id), ["gpt-image-2.6-flare"]);
     const context = { requestId: "draw", purpose: "chat", channelPrincipal: { source: "channel", channelId: channel.id, chatId: "chat", senderId: "member", messageType: "group" } };
     const tool = "plugin__image-studio__draw_image";
-    async function finish(input, requestKey) {
-      let job = await runtime.runNativePluginTool(tool, { action: "start", requestKey, input }, context);
-      for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, context); }
-      assert.equal(job.status, "completed", job.error); return job;
+    async function finish(input, requestKey, expectedStatus = "completed", actor = context) {
+      let job = await runtime.runNativePluginTool(tool, { action: "start", requestKey, input }, actor);
+      for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, actor); }
+      assert.equal(job.status, expectedStatus, job.error); return job;
     }
+    assert.equal(plugin.config.allowNonOwnerDrawing, false);
+    for (const mode of ["image", "selfie"]) {
+      const blocked = await finish({ mode, prompt: "blocked" }, `blocked-${mode}`, "failed");
+      assert.match(blocked.error, /只允许主人画图/);
+    }
+    assert.equal(requests.length, 0);
+    const owner = { ...context, channelPrincipal: { ...context.channelPrincipal, senderId: "owner" } };
     assert(runtime.pluginToolSchemas(context).some(t => t.function.name === tool));
     let last = Date.now(), maxGap = 0;
     const heartbeat = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 5);
     let drawn;
     try {
-      drawn = await finish({ prompt: "large" }, "single");
+      drawn = await finish({ prompt: "large" }, "single", "completed", owner);
       assert.equal(drawn.result.images[0].mimeType, "image/png"); assert(!JSON.stringify(drawn.result).includes(encoded));
       assert(drawn.result.images[0].url.startsWith("openbot-"), "host publishes its opaque media URL");
-      const again = await finish({ prompt: "large" }, "single"); assert.equal(again.id, drawn.id); assert.equal(requests.length, 1, "same request key never resubmits chargeable API");
+      const again = await finish({ prompt: "large" }, "single", "completed", owner); assert.equal(again.id, drawn.id); assert.equal(requests.length, 1, "same request key never resubmits chargeable API");
+      plugin.config.allowNonOwnerDrawing = true;
       await finish({ prompt: "edit", references: [{ messageId: "reference" }] }, "edit");
       assert.equal(requests.at(-1).url, "https://api.openai.com/v1/images/edits");
       const animated = await finish({ prompt: "animated", format: "gif", frameCount: 2 }, "animated");

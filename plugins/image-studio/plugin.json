@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
   "extensions": {
     "com.openbot": {
@@ -38,9 +38,10 @@
       "config": {
         "imageEnabled": true,
         "selfieEnabled": false,
+        "allowNonOwnerDrawing": false,
         "provider": "openai-images",
-        "openaiImageModel": "gpt-image-2.6-flare",
-        "openaiTextModel": "gpt-6-sol",
+        "openaiImageModel": "",
+        "openaiTextModel": "",
         "compatibleBaseUrl": "",
         "compatibleImageModel": "",
         "compatibleTextModel": "",
@@ -76,6 +77,12 @@
             "title": "自拍",
             "default": false
           },
+          "allowNonOwnerDrawing": {
+            "type": "boolean",
+            "title": "允许非主人画图",
+            "default": false,
+            "scope": "instance"
+          },
           "provider": {
             "type": "string",
             "title": "接入方式",
@@ -103,14 +110,14 @@
           "openaiImageModel": {
             "type": "string",
             "title": "OpenAI 画图模型",
-            "default": "gpt-image-2.6-flare",
+            "default": "",
             "maxLength": 200,
             "scope": "global"
           },
           "openaiTextModel": {
             "type": "string",
             "title": "OpenAI 对话模型",
-            "default": "gpt-6-sol",
+            "default": "",
             "maxLength": 200,
             "scope": "global"
           },
@@ -522,7 +529,8 @@
             "title": "设置",
             "fields": [
               "imageEnabled",
-              "selfieEnabled"
+              "selfieEnabled",
+              "allowNonOwnerDrawing"
             ]
           },
           {
@@ -726,7 +734,7 @@
           "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.3.2：自我形象优先使用当前角色的人设图，支持选择正面、背面、侧面和 Q 版等参考。0.3.1：按接入方式显示设置，修复模型列表查询和选择。"
+        "changelog": "0.3.3：修复 OpenAI 密钥格式处理，从服务返回的模型列表中选择模型，新增允许非主人画图的实例开关。0.3.2：自拍优先使用当前角色的人设图。"
       }
     }
   }

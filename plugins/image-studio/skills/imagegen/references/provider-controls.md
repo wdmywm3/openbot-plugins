@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 自动选择 | 优先复用当前聊天已绑定的 OpenBot Codex 登录；否则使用已配置的 API Key | 取决于最终服务 |
 | Codex 登录 | 复用 OpenBot 已登录模型的连接；图片默认由服务选模型，GIF 默认请求 `gpt-image-2.6-flare` | 使用 Responses `input_image` |
-| OpenAI 图片 | 使用配置的 OpenAI API Key 和 Images 接口；默认图片模型 `gpt-image-2.6-flare`，也可配置 `gpt-image-2.6-sunburst` | 使用编辑接口 |
+| OpenAI 图片 | 使用配置的 OpenAI API Key 和从模型列表选定的画图模型 | 使用编辑接口 |
 | OpenAI 对话绘图 | 使用 OpenAI API Key 和 Responses 的 `image_generation` | 使用 Responses `input_image` |
 | 兼容服务 | 按插件设置的 HTTPS 根地址、模型和协议调用 | 仅在对应服务确实支持时使用 |
 

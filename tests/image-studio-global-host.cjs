@@ -17,7 +17,7 @@ const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plu
     const requests = [];
     const guardedFetch = async (url, options) => {
       requests.push({ url: String(url), authorization: options.headers.authorization });
-      return Response.json({ data: [{ id: "gpt-image-2.6-flare" }] });
+      return Response.json({ data: [{ id: "gpt-image-2.6-flare" }, { id: "gpt-image-2.6-sunburst" }] });
     };
     let commands = {};
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, secretStore, guardedFetch,
@@ -36,18 +36,25 @@ const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plu
     assert.equal(saved.enabled, false);
     const config = commands.getPluginGlobalSettings({ pluginId: saved.id }).config;
     assert.equal(config.provider, "openai-images", "new installations use the explicit OpenAI Images provider");
+    assert.equal(config.openaiImageModel, ""); assert.equal(config.openaiTextModel, "");
     assert.equal(config.globalConcurrency, 2); assert.equal(config.instanceConcurrencyDefault, 1);
     await commands.savePluginGlobalSettings({ pluginId: saved.id, config: { provider: "openai-images", globalHourly: 7 } });
     await assert.rejects(commands.savePluginGlobalSettings({ pluginId: saved.id, config: { instanceConcurrency: 4 } }), /未声明/);
     await assert.rejects(commands.setPluginGlobalSecret({ pluginId: saved.id, key: "undeclared", value: "x" }), /未声明/);
-    await commands.setPluginGlobalSecret({ pluginId: saved.id, key: "openaiKey", value: "fixture-secret" });
+    await commands.setPluginGlobalSecret({ pluginId: saved.id, key: "openaiKey", value: "fixture\u200b-secret" });
+    await assert.rejects(commands.runPluginGlobalAction({ pluginId: saved.id, actionId: "model_catalog", input: { source: "openai", target: "image" } }), /API Key 格式无效/);
+    assert.equal(requests.length, 0);
+    await commands.setPluginGlobalSecret({ pluginId: saved.id, key: "openaiKey", value: "\ufeff Bearer fixture-secret\r\n" });
     assert.equal(commands.getPluginGlobalSecretStatus({ pluginId: saved.id, key: "openaiKey" }).configured, true);
     assert(!JSON.stringify(commands.listInstalledPlugins()).includes("fixture-secret"));
     const models = await commands.runPluginGlobalAction({ pluginId: saved.id, actionId: "model_catalog", input: { source: "openai", target: "image" } });
-    assert.equal(models.models[0].id, "gpt-image-2.6-flare");
+    assert.deepEqual(models.models.map(model => model.id), ["gpt-image-2.6-flare", "gpt-image-2.6-sunburst"]);
     assert.equal(requests[0].url, "https://api.openai.com/v1/models");
     assert.equal(requests[0].authorization, "Bearer fixture-secret");
     assert(!JSON.stringify(models).includes("fixture-secret"));
+    await assert.rejects(commands.togglePlugin({ pluginId: saved.id, enabled: true }), /选择画图模型/);
+    const chosenModel = models.models[1].id;
+    await commands.savePluginGlobalSettings({ pluginId: saved.id, config: { openaiImageModel: chosenModel } });
     await commands.togglePlugin({ pluginId: saved.id, enabled: true });
     assert.equal(saved.enabled, true);
     store.persistConfigRow = async () => { throw Error("fixture disk conflict"); };
@@ -71,6 +78,7 @@ const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plu
     assert.equal(store.data.pluginRetainedSettings.length, 1);
     await commands.importPluginFromPath({ pluginPath: path.resolve(__dirname, "../plugins/image-studio") });
     assert.equal(commands.getPluginGlobalSettings({ pluginId: saved.id }).config.globalHourly, 7);
+    assert.equal(commands.getPluginGlobalSettings({ pluginId: saved.id }).config.openaiImageModel, chosenModel);
     assert.equal(commands.getPluginGlobalSecretStatus({ pluginId: saved.id, key: "openaiKey" }).configured, true);
     assert(!JSON.stringify(commands.listInstalledPlugins()).includes("fixture-secret"));
     console.log("Image studio global host: no instance, encrypted credentials, model catalog, startup gating, revocation and uninstall/reinstall retention passed");

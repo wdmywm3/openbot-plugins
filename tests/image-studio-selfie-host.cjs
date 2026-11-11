@@ -26,7 +26,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     const registry = createChannelPluginRegistryService({ store, ensureStoreArray: arrays, scheduleSave() {} });
     const binding = channel.config.botPlugins.find(value => value.id === "image-studio");
     const plugin = { ...binding, authorization: pluginAuthorization(saved),
-      config: { ...binding.config, provider: "codex", imageEnabled: true, selfieEnabled: true, globalConcurrency: 4, instanceConcurrency: 4,
+      config: { ...binding.config, provider: "codex", imageEnabled: true, selfieEnabled: true, allowNonOwnerDrawing: true, globalConcurrency: 4, instanceConcurrency: 4,
         instanceHourlyDefault: 1000, instanceDailyDefault: 1000, globalHourly: 1000, globalDaily: 1000 } };
     pluginData = fromHost("plugins/plugin-data-store.cjs").createPluginDataStore({ rootFor: (channelId, pluginId) => path.join(root, "data", channelId, pluginId) }).background;
     const action = plugin.actions.find(value => value.id === "selfie_reference"); assert(action, "reference management must be a declared native desktop action");
@@ -175,6 +175,13 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     job = await finish(await start(chatB, "other-chat-still-enabled"), chatB); assert.equal(job.status, "completed", job.error);
     const blocked = calls.length; job = await finish(await start(chatA, "off-no-charge")); assert.equal(job.status, "failed"); assert.equal(calls.length, blocked);
     overrides.clear();
+
+    running = await waitGate(chatA, "non-owner-toggle-off");
+    plugin.config.allowNonOwnerDrawing = false;
+    job = await finish(running.job);
+    assert.equal(job.status, "failed"); assert.match(job.error, /只允许主人画图/); assert.equal(job.result, undefined);
+    assert.equal(running.pending.aborted, true, "turning off non-owner drawing cancels their waiting provider request");
+    plugin.config.allowNonOwnerDrawing = true; gate = null;
 
     running = await waitGate(chatA, "cancel-selfie");
     const canceled = await runtime.runPluginTool({ action: "cancel", pluginId: plugin.id, jobId: running.job.id }, context(chatA));

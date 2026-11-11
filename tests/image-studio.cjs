@@ -10,7 +10,9 @@ const plain = value => JSON.parse(JSON.stringify(value));
 function fixture(config = {}, input = {}) {
   const controller = new AbortController(), requests = [], closes = [], stored = [], streams = new Map(); let serial = 0;
   const fx = { controller, requests, closes, stored, payload: { data: [{ b64_json: png }] }, chunks: null, status: 200 };
-  const ctx = { config: { ...defaults, ...config }, input: { prompt: "雨中的猫", ...input }, principal: { channelId: "fixture" }, signal: controller.signal, deadlineAt: Date.now() + 60000, api: {
+  const ctx = { config: { ...defaults, openaiImageModel: "gpt-image-2.6-sunburst", openaiTextModel: "fixture-chat", ...config },
+    input: { prompt: "雨中的猫", ...input }, principal: { source: "channel", role: "owner", senderId: "owner", channelId: "fixture" },
+    signal: controller.signal, deadlineAt: Date.now() + 60000, api: {
     async getConfig() { return plain(ctx.config); },
     async listModels() { return config.provider === "codex" ? [{ id: config.codexModelId || "signed-in", provider: "codex", primary: !config.codexModelId, loginConfigured: true }] : []; },
     database: mockDatabase(),
@@ -39,16 +41,26 @@ function fixture(config = {}, input = {}) {
 (async () => {
   let fx = fixture(); let result = await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/generations");
+  assert.equal(fx.requests[0].options.body.model, "gpt-image-2.6-sunburst");
   assert.equal(fx.requests[0].options.body.n, 1); assert.equal(fx.requests[0].options.body.stream, true);
   assert.equal(fx.stored[0].data, png); assert.equal(result.images[0].mimeType, "image/png");
   assert(!JSON.stringify(result).includes(png)); assert(!JSON.stringify(result).includes("fixture-secret")); assert.equal(fx.closes.length, 1);
   fx = fixture({}, { references: [{ messageId: "reference", index: 0 }] }); await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits");
   assert.equal(fx.requests[0].options.body.images[0].image_url, "data:image/png;base64," + png);
+  fx = fixture({ openaiImageModel: "" });
+  await assert.rejects(draw(fx.ctx), /选择画图模型/); assert.equal(fx.requests.length, 0);
+  fx = fixture({ provider: "openai-responses", openaiTextModel: "" });
+  await assert.rejects(draw(fx.ctx), /选择对话模型/); assert.equal(fx.requests.length, 0);
+  fx = fixture(); fx.ctx.api.getSecret = async () => "fixture\u200b-secret";
+  fx.ctx.api.database = async () => { throw Error("invalid key must not use drawing quota"); };
+  await assert.rejects(draw(fx.ctx), /OpenAI API Key 格式无效/); assert.equal(fx.requests.length, 0);
+  fx = fixture(); fx.ctx.principal.interactionOrigin = { requesterIds: ["owner", "member"] };
+  await assert.rejects(draw(fx.ctx), /只允许主人画图/); assert.equal(fx.requests.length, 0);
   fx = fixture({ provider: "openai-images" }, { format: "gif", frameCount: 2, frameDurationMs: 150 });
   fx.state.payload = { data: [{ b64_json: gif }] }; result = await draw(fx.ctx);
   let body = fx.requests[0].options.body;
-  assert.equal(body.model, "gpt-image-2.6-flare"); assert.equal(body.output_format, "gif");
+  assert.equal(body.model, "gpt-image-2.6-sunburst"); assert.equal(body.output_format, "gif");
   assert.equal(body.size, "auto"); assert.equal(body.frame_count, 2); assert.equal(body.frame_duration_ms, 150);
   assert(!("stream" in body)); assert(!("partial_images" in body));
   assert.equal(fx.stored[0].mimeType, "image/gif"); assert.equal(fx.stored[0].data, gif); assert.equal(result.images[0].mimeType, "image/gif");
@@ -73,7 +85,7 @@ function fixture(config = {}, input = {}) {
   fx = fixture({ provider: "openai-responses" }, { format: "gif", frameCount: 2 });
   fx.state.payload = { status: "completed", output: [{ type: "image_generation_call", status: "completed", result: gif }] };
   await draw(fx.ctx); body = fx.requests[0].options.body;
-  assert.equal(body.stream, true); assert.equal(body.tools[0].model, "gpt-image-2.6-flare");
+  assert.equal(body.stream, true); assert.equal(body.tools[0].model, "gpt-image-2.6-sunburst");
   assert.equal(body.tools[0].output_format, "gif"); assert.equal(body.tools[0].frame_count, 2); assert(!("partial_images" in body.tools[0]));
   fx = fixture({ provider: "openai-images" }, { format: "gif" }); fx.state.payload = { data: [{ b64_json: png }] };
   await assert.rejects(draw(fx.ctx), /没有返回所请求的 GIF/); assert.equal(fx.stored.length, 0);

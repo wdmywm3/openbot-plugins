@@ -38,9 +38,11 @@ let step = "启动";
     await page.getByRole("tab", { name: "OpenAI", exact: true }).click();
     step = "验证凭据和启动";
     await page.getByLabel("OpenAI API Key", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("画图模型", { exact: true }).inputValue(), "");
     await page.getByRole("tab", { name: "设置", exact: true }).click();
     await invoke("setPluginGlobalSecret", { pluginId: "image-studio", key: "openaiKey", value: "fixture-not-a-real-key" });
     assert.equal((await invoke("getPluginGlobalSecretStatus", { pluginId: "image-studio", key: "openaiKey" })).configured, true);
+    await invoke("savePluginGlobalSettings", { pluginId: "image-studio", config: { openaiImageModel: "gpt-image-2.6-sunburst" } });
     await invoke("togglePlugin", { pluginId: "image-studio", enabled: true });
     const channel = await invoke("addChannel", { config: { name: "离线测试实例", platform: "qq", provider: "napcat-onebot", enabled: false,
       napcatMode: "external", onebotTransport: "forward-ws", wsUrl: "ws://127.0.0.1:1", token: "fixture", selfId: "10001" } });
@@ -48,6 +50,13 @@ let step = "启动";
     step = "打开实例设置";
     await page.locator(".settings-page-back").click();
     await page.getByRole("button", { name: "离线测试实例", exact: true }).click();
+    const access = page.getByRole("switch", { name: "允许非主人画图", exact: true });
+    assert.equal(await access.getAttribute("aria-checked"), "false");
+    await access.click();
+    await page.waitForFunction(async channelId => {
+      const config = await window.openbot.invokeAction("getChannelConfig", { channelId });
+      return config.botPlugins?.find(plugin => plugin.id === "image-studio")?.config?.allowNonOwnerDrawing === true;
+    }, channel.id);
     await page.locator(".channel-plugin-detail").getByRole("tab", { name: "用量", exact: true }).click();
     await page.getByLabel("并发数", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("并发数", { exact: true }).inputValue(), "0");

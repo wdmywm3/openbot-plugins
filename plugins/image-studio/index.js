@@ -113,6 +113,13 @@ function endpoint(config, suffix) {
   if (/[?#]/.test(base)) throw Error("服务根地址不能包含查询参数");
   return base.replace(/\/+$/, "") + suffix;
 }
+function normalizeApiKey(value, compatible) {
+  const service = compatible ? "兼容服务" : "OpenAI";
+  const key = typeof value === "string" ? value.trim().replace(/^Bearer[ \t]+/i, "") : "";
+  if (!key) throw Error(`请先配置${service} API Key。`);
+  if (!/^[!-~]+$/.test(key)) throw Error(`${service} API Key 格式无效，请在画图设置中重新粘贴完整的密钥。`);
+  return key;
+}
 function statusError(status) {
   if (status === 401 || status === 403) return Error("画图服务拒绝访问，请检查登录或 API Key。");
   if (status === 429) return Error("画图服务额度不足或请求过于频繁，请稍后再试。");
@@ -120,7 +127,7 @@ function statusError(status) {
 }
 async function readHttp(ctx, url, options, binary = false, mode = "image") {
   check(ctx);
-  await assertModeCurrent(ctx, mode);
+  await currentDrawConfig(ctx, mode);
   const stream = await ctx.api.openStream(https(url), { ...options, encoding: binary ? "base64" : "text", redirect: "error", timeoutMs: 120000 });
   if (!(stream.status >= 200 && stream.status < 300)) {
     await ctx.api.closeStream({ id: stream.id }); throw statusError(stream.status);
@@ -129,7 +136,7 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
   try {
     while (true) {
       check(ctx);
-      await assertModeCurrent(ctx, mode);
+      await currentDrawConfig(ctx, mode);
       if (++reads > 1200) throw Error("画图服务返回过多数据片段");
       const value = await ctx.api.readStream({ id: stream.id, maxBytes: 65535, waitMs: 10000 });
       if (value.data) {
@@ -330,23 +337,26 @@ async function selectProvider(ctx, input, config) {
   }
   throw Error("请先在画图设置中配置可用的画图服务。");
 }
-async function validateService(ctx, selected, config) {
-  const provider = selected.provider;
+function configuredModel(value, label) {
+  if (typeof value !== "string" || !value.trim()) throw Error(`请先在画图设置中选择${label}。`);
+  return string(value, 200, label);
+}
+async function resolveService(ctx, input, config) {
+  const selected = await selectProvider(ctx, input, config), { provider } = selected;
   if (!PROVIDERS.includes(provider)) throw Error("未配置所选画图服务");
-  if (provider === "codex") return;
+  if (provider === "codex") return selected;
   const compatible = provider.startsWith("compatible");
   if (compatible) endpoint(config, "/models");
-  const key = selected.key || await ctx.api.getSecret(compatible ? "compatibleKey" : "openaiKey");
-  if (!key || /[\r\n]/.test(key)) throw Error(`请先配置${compatible ? "兼容画图服务" : "OpenAI"} API Key`);
-  string(compatible ? config.compatibleImageModel : config.openaiImageModel || "gpt-image-2.6-flare", 200, "画图模型");
-  if (provider.endsWith("responses")) string(compatible ? config.compatibleTextModel : config.openaiTextModel || "gpt-6-sol", 200, "对话模型");
-  selected.key = key;
+  const key = normalizeApiKey(selected.key || await ctx.api.getSecret(compatible ? "compatibleKey" : "openaiKey"), compatible);
+  const model = configuredModel(compatible ? config.compatibleImageModel : config.openaiImageModel, "画图模型");
+  const textModel = provider.endsWith("responses")
+    ? configuredModel(compatible ? config.compatibleTextModel : config.openaiTextModel, "对话模型") : undefined;
+  return { provider, key, model, textModel };
 }
 module.exports.readiness = async ctx => {
   if (ctx.principal?.source !== "desktop" || ctx.principal?.role !== "owner") throw Error("请在画图设置中检查服务");
   try {
-    const selected = await selectProvider(ctx, {}, ctx.config || {});
-    await validateService(ctx, selected, ctx.config || {});
+    await resolveService(ctx, {}, ctx.config || {});
     return { ready: true };
   } catch (error) { return { ready: false, message: String(error?.message || "请先配置画图服务").slice(0, 300) }; }
 };
@@ -386,19 +396,28 @@ async function consumeQuota(ctx, config) {
   }
   throw Error("画图请求较多，请稍后再试。");
 }
-async function assertModeCurrent(ctx, mode) {
+function isOwnerRequest(principal) {
+  if (principal?.source !== "channel" || principal.role !== "owner" || !principal.senderId) return false;
+  const origin = principal.interactionOrigin;
+  // Delegated or batched calls can have requesters other than the acting principal.
+  return !origin || (!origin.unknown && !origin.autonomous && Array.isArray(origin.requesterIds) && origin.requesterIds.length === 1
+    && origin.requesterIds[0] === principal.senderId);
+}
+async function currentDrawConfig(ctx, mode) {
   check(ctx);
   if (typeof ctx.api.getConfig !== "function") throw Error("当前 OpenBot 不支持实时绘图设置，请更新宿主");
-  const config = await ctx.api.getConfig();
+  const config = await ctx.api.getConfig() || {};
   check(ctx);
-  if (!enabledMode(config || {}, mode)) throw Error(mode === "selfie" ? "自拍已关闭，本次结果未发送" : "普通生图已关闭，本次结果未发送");
+  if (config.allowNonOwnerDrawing !== true && !isOwnerRequest(ctx.principal)) throw Error("当前实例只允许主人画图。");
+  if (!enabledMode(config, mode)) throw Error(mode === "selfie" ? "自拍已关闭，本次结果未发送" : "普通生图已关闭，本次结果未发送");
+  return config;
 }
-async function watchMode(ctx, mode, operation) {
+async function watchDrawing(ctx, mode, operation) {
   let stopped = false;
   const watch = (async () => {
     while (!stopped) {
       await ctx.api.sleep(500);
-      if (!stopped) await assertModeCurrent(ctx, mode);
+      if (!stopped) await currentDrawConfig(ctx, mode);
     }
   })();
   const working = Promise.resolve().then(operation);
@@ -450,10 +469,9 @@ async function drawImage(ctx, mode) {
     }
     await assertSelfieCurrent(ctx, snapshot);
   } else images = await references(ctx, input);
-  const selected = await selectProvider(ctx, input, config), provider = selected.provider;
-  await validateService(ctx, selected, config);
+  const service = await resolveService(ctx, input, config), { provider } = service;
   const responses = provider.endsWith("responses") || provider === "codex";
-  await assertModeCurrent(ctx, mode);
+  await currentDrawConfig(ctx, mode);
   let result;
   if (provider === "codex") {
     const capabilities = await ctx.api.getCapabilities();
@@ -471,19 +489,15 @@ async function drawImage(ctx, mode) {
       tools: [tool], timeoutMs: 180000 };
     const responseModel = String(config.codexResponseModel || "").trim();
     if (responseModel) request.responseModel = string(responseModel, 128, "绘图执行模型");
-    if (selected.modelId || config.codexModelId) request.modelId = string(selected.modelId || config.codexModelId, 200, "登录模型");
-    await assertModeCurrent(ctx, mode);
-    await consumeQuota(ctx, await ctx.api.getConfig());
+    if (service.modelId || config.codexModelId) request.modelId = string(service.modelId || config.codexModelId, 200, "登录模型");
+    await consumeQuota(ctx, await currentDrawConfig(ctx, mode));
+    await currentDrawConfig(ctx, mode);
     result = await ctx.api.modelRequest(request);
   } else {
-    const compatible = provider.startsWith("compatible"), key = selected.key || await ctx.api.getSecret(compatible ? "compatibleKey" : "openaiKey");
-    if (!key) throw Error(`请先配置${compatible ? "兼容画图服务" : "OpenAI"} API Key`);
-    if (/[\r\n]/.test(key)) throw Error("API Key 格式无效");
+    const compatible = provider.startsWith("compatible"), { key, model, textModel } = service;
     const headers = { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "text/event-stream, application/json" };
-    const model = string(compatible ? config.compatibleImageModel : config.openaiImageModel || "gpt-image-2.6-flare", 200, "画图模型");
     let body, suffix;
     if (responses) {
-      const textModel = string(compatible ? config.compatibleTextModel : config.openaiTextModel || "gpt-6-sol", 200, "对话模型");
       body = { model: textModel, stream: true, store: false,
         input: [{ role: "user", content: [{ type: "input_text", text: prompt }, ...images.map(image => ({ type: "input_image", ...image }))] }],
         tools: [{ type: "image_generation", model, ...settings, action: images.length ? "edit" : "generate" }], tool_choice: { type: "image_generation" } };
@@ -495,14 +509,13 @@ async function drawImage(ctx, mode) {
       suffix = images.length ? "/images/edits" : "/images/generations";
       if (settings.output_format === "gif" || compatible && config.compatibleStream === false) { delete body.stream; delete body.partial_images; }
     }
-    check(ctx);
-    await consumeQuota(ctx, await ctx.api.getConfig());
+    await consumeQuota(ctx, await currentDrawConfig(ctx, mode));
     const raw = await readHttp(ctx, compatible ? endpoint(config, suffix) : `https://api.openai.com/v1${suffix}`,
       { method: "POST", headers, body, maxBodyBytes: 2 * 1024 * 1024 }, false, mode);
     result = parsePayload(raw.body);
   }
   check(ctx);
-  await assertModeCurrent(ctx, mode);
+  await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   const picture = extract(result, responses);
   if (!picture.data && picture.url) picture.data = (await readHttp(ctx, picture.url, { method: "GET" }, true, mode)).body;
@@ -512,10 +525,10 @@ async function drawImage(ctx, mode) {
   check(ctx);
   const stored = await ctx.api.assets({ action: "put", data, mimeType, name: `drawing.${extension}`, kind: "image" });
   check(ctx);
-  await assertModeCurrent(ctx, mode);
+  await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   const published = await ctx.api.assets({ action: "publish", ref: stored.ref });
-  await assertModeCurrent(ctx, mode);
+  await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   return { mode, provider, ...(snapshot?.manual ? { selfieReferenceRevision: snapshot.manual.revision } : {}), images: [{ assetRef: stored.ref, url: published.url, mimeType }],
     attachments: [{ assetRef: stored.ref, caption: "本次生成的图片" }], ...(picture.revisedPrompt ? { revisedPrompt: picture.revisedPrompt } : {}) };
@@ -523,8 +536,8 @@ async function drawImage(ctx, mode) {
 module.exports.draw_image = async ctx => {
   const mode = ctx.input?.mode === undefined ? "image" : ctx.input.mode;
   if (!["image", "selfie"].includes(mode)) throw Error("绘图方式无效");
-  await assertModeCurrent(ctx, mode);
-  return watchMode(ctx, mode, () => drawImage(ctx, mode));
+  await currentDrawConfig(ctx, mode);
+  return watchDrawing(ctx, mode, () => drawImage(ctx, mode));
 };
 
 module.exports.model_catalog = async ctx => {
@@ -561,13 +574,13 @@ module.exports.model_catalog = async ctx => {
     const models = normalize(catalog.models);
     return { models: bounded(target === "image" ? models.filter(model => /(?:image|imagen|dall[.-]?e|flux)/i.test(model.id)) : models) };
   }
-  const compatible = source === "compatible", key = await ctx.api.getSecret(compatible ? "compatibleKey" : "openaiKey");
-  if (!key) throw Error(`请先配置${compatible ? "兼容服务" : "OpenAI"} API Key。`);
-  if (/[\r\n]/.test(key)) throw Error("API Key 格式无效");
+  const compatible = source === "compatible";
+  const key = normalizeApiKey(await ctx.api.getSecret(compatible ? "compatibleKey" : "openaiKey"), compatible);
   const url = compatible ? endpoint(config, "/models") : "https://api.openai.com/v1/models";
   const stream = await ctx.api.openStream(url, { method: "GET", headers: { authorization: `Bearer ${key}`, accept: "application/json" },
     encoding: "text", redirect: "error", timeoutMs: 15000 });
   try {
+    if (stream.status === 401 || stream.status === 403) throw Error(`读取模型列表失败（HTTP ${stream.status}），请检查 API Key 和访问权限。`);
     if (!stream.ok) throw Error(`读取模型列表失败（HTTP ${stream.status}）。`);
     const parts = []; let size = 0, reads = 0;
     while (true) {

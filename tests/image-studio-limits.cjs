@@ -17,6 +17,8 @@ function context(channelId, database, overrides = {}) {
   const desktop = { principal: { source: "desktop", role: "owner" }, config, api };
   assert.equal((await readiness(desktop)).ready, false);
   api.getSecret = async () => "configured-key";
+  assert.match((await readiness(desktop)).message, /选择画图模型/);
+  desktop.config = { ...config, openaiImageModel: "gpt-image-2.6-sunburst" };
   assert.equal((await readiness(desktop)).ready, true);
   desktop.config = { ...config, provider: "codex" };
   assert.equal((await readiness(desktop)).ready, false);

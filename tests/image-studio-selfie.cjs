@@ -65,10 +65,11 @@ function fixture(pictures, config = {}) {
     },
     readMessageAttachment: async () => { throw Error("selfies must not substitute a caller's chat attachment for fixed identity"); },
   };
-  fx.ctx = { api, config: { ...defaults, provider: "openai-images", imageEnabled: true, selfieEnabled: false, compatibleBaseUrl: "https://images.example/v1",
+  fx.ctx = { api, config: { ...defaults, provider: "openai-images", imageEnabled: true, selfieEnabled: false, allowNonOwnerDrawing: true,
+    openaiImageModel: "gpt-image-2.6-sunburst", openaiTextModel: "fixture-chat", compatibleBaseUrl: "https://images.example/v1",
     compatibleImageModel: "fixture-image", compatibleTextModel: "fixture-text", compatibleJsonEdits: true, ...config },
     input: { mode: "selfie", prompt: "在樱花树下拍张照片" }, signal: controller.signal, deadlineAt: Date.now() + 60000,
-    principal: { source: "channel", role: "member", channelId: "fixture", messageType: "group", chatId: "chat-a" }, message: { chatId: "chat-a" } };
+    principal: { source: "channel", role: "member", senderId: "member", channelId: "fixture", messageType: "group", chatId: "chat-a" }, message: { chatId: "chat-a" } };
   fx.manage = input => handlers.selfie_reference({ ...fx.ctx, input, principal: { source: "desktop", role: "owner" }, message: { chatId: "" } });
   fx.draw = input => handlers.draw_image({ ...fx.ctx, input: { ...fx.ctx.input, ...input } });
   fx.set = (assetRef = "shape-a", expectedRevision = state.get(STATE_KEY)?.revision || 0) => fx.manage({ action: "set", assetRef, expectedRevision });
