@@ -1291,24 +1291,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.21",
+      "version": "1.1.22",
       "name": "嘻嘻",
       "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 27 张 Q 版专属角色表情。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 602423,
-      "sha256": "80b2cfc0697ec740e0cf57ef661a433cc44df6fb42dc52a50f7a61abbf75a622",
+      "size": 602942,
+      "sha256": "b5250b82d6a78854541dce05b02b3573ed77cb7943f2b76bfca84bcddfe908ab",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19647978,
-        "sha256": "adb84e2ce7cdea5af8316997f1a4ff1e081c90e99604e9893f8e87d5da008524",
+        "size": 19648497,
+        "sha256": "5a2574f1488193759f3296d34fbb51e2eb25411b17e453c6e9d9a36eaf8509e7",
         "count": 27
       },
-      "ref": "dc606f920c52fd1d7589f0c3022f480e1fa9ecb7",
+      "ref": "13c533699cd0c191ea62f112571fccf669ac56fe",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 2662967,
-        "sha256": "9a2c47ef778b3acf11551fdcbf99e128d177244ccaf71addff742d85637f2913"
+        "size": 2663486,
+        "sha256": "a6cd0f14d536d83b94f66d7f0b992061d3d9e6ac37eea0d4bdcf6869c15601d0"
       },
       "referenceCount": 3
     }
