@@ -239,14 +239,14 @@
     {
       "id": "dice-maiden",
       "name": "骰娘",
-      "version": "1.3.2",
+      "version": "1.3.3",
       "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
       "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
         "state",
-        "napcat:send_private_msg"
+        "qq:send_private_msg"
       ],
       "metadata": {
         "usage": "/roll 通用掷骰，例如 .d50、.rd50、.rd 50、/r2d6+1 攻击或 .r3#d20\n/ra CoC 7 版检定，例如 .ra 侦查 60 或 .ra b1 侦查\n/rh 暗骰；群聊中将结果私聊发送给掷骰者\n/rav CoC 对抗检定，例如 .rav 侦查 60 潜行 45\n/coc 兼容的 CoC 百分骰检定，例如 /coc 60 b1\n/sc 理智检定，例如 .sc 1/1d6 60\n/st 设置或查看本群角色卡，例如 .st 侦查 60 SAN 70\n/en CoC 技能成长检定，例如 .en 侦查\n/ti 抽取临时疯狂症状\n/li 抽取总结性疯狂症状\n/cocchar 生成 CoC 7 版角色属性\n/d20 D20 优势或劣势检定，例如 /d20 adv +3；直接 .d20 会返回基础骰点\n/dset 设置当前群或私聊的默认骰式\n/dicestats 查看当前群或私聊的掷骰统计\n/dicehelp 查看骰娘命令",
@@ -255,30 +255,30 @@
           "qqbot"
         ],
         "requirements": [
-          "统计需要支持 api.updateState 的 OpenBot 版本；从群聊发送私聊暗骰仅支持 NapCat"
+          "群聊暗骰需要能向群成员发起私聊的 QQ 实例。"
         ],
-        "changelog": "更新插件市场分类。",
+        "changelog": "群聊暗骰使用统一 QQ 网关发送。",
         "components": [
           "commands"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "239f0320d89402ee779491b57e464894329d526d",
       "files": [
         {
           "path": "README.md",
-          "size": 4486,
-          "sha256": "4788f9f39cf9bdbe097fd3b48b9949433efc40990066b7d567bc4b60c8e58627"
+          "size": 4442,
+          "sha256": "34f6644ce0342ca7fee5e10101cdbd560c6afab1e9c6c8fa7e8454c0097a265c"
         },
         {
           "path": "index.js",
-          "size": 38986,
-          "sha256": "e98ab6651843588d45c3ef11d677eeaa34b1c82ca6a2eaff6ec4ad4f83ee0f69"
+          "size": 39356,
+          "sha256": "d4ae0084aae8235f1fa3f86700e4681317b0b479fa12857013797ade5c0d0983"
         },
         {
           "path": "plugin.json",
-          "size": 6087,
-          "sha256": "c35393ccba042dc17bde066205f974a158237608f19b932868030fe1b8aa7b44"
+          "size": 6098,
+          "sha256": "cd0d5cd194d85abe95d9b8b3452b3dbdec058246f7a0868f6b405f610b6f608e"
         }
       ]
     },
@@ -439,7 +439,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.5.2",
+      "version": "2.5.3",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -454,7 +454,7 @@
         "retrieval",
         "mcp",
         "network",
-        "napcat:fetch_custom_face",
+        "qq:fetch_custom_face",
         "hook:loaded",
         "hook:beforeModel",
         "hook:beforeSend",
@@ -475,7 +475,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "修复表情库较大时，图片回复发送超时的问题。",
+        "changelog": "根据当前实例的 QQ 网关能力提供收藏同步。",
         "components": [
           "commands",
           "hooks",
@@ -486,7 +486,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2b962e8d115965e8490c3b65b866f0663b049fc7",
+      "ref": "239f0320d89402ee779491b57e464894329d526d",
       "files": [
         {
           "path": "README.md",
@@ -510,8 +510,8 @@
         },
         {
           "path": "index.js",
-          "size": 71633,
-          "sha256": "9db794c5bee061100a6a46a01d5cde9b281441025a73c04ec1055c54df18ab50"
+          "size": 71447,
+          "sha256": "242d43bc2248e6626a25ce466f4640e4a55c7cf4a26f906e4973e67e4a6f64a4"
         },
         {
           "path": "mcp.json",
@@ -530,8 +530,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 21728,
-          "sha256": "121230d070e3d494f533e68f11b10603e0faddfd2e2fddc136301f00deb0fb0d"
+          "size": 21740,
+          "sha256": "11137002d0ec5e2360840eda46a1f4d6e7696a2f7940388d913e162359325383"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -540,8 +540,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 10222,
-          "sha256": "f4c84e1d0ec47d383bc99ff579ab2656cbc3d716288a66a47c467c6d2da84b1a"
+          "size": 10207,
+          "sha256": "37dd6da40ee502dea7ad5ea1705ab7db2475c86ef3f174b024e84b5e6e48927a"
         },
         {
           "path": "ui/index.html",
@@ -658,8 +658,8 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.1",
-      "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
+      "version": "2.6.2",
+      "description": "为统一记忆提供自动召回、人物画像、闲时整理和 Dream，并兼容已有复查。",
       "category": "assistant",
       "main": "index.js",
       "permissions": [
@@ -692,7 +692,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "超出像素上限或解码失败的图片会单独跳过，同批聊天记录和正式记忆继续索引。可在插件设置中开启超大图片标记，按原消息或图片名定位原图。",
+        "changelog": "支持把尚未执行的单次复查移交给私人管家，已有周期复查沿用原设置。",
         "components": [
           "hooks",
           "tools",
@@ -701,12 +701,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "8e09176c8e7fa5846b222fda2a1aaea343667159",
+      "ref": "239f0320d89402ee779491b57e464894329d526d",
       "files": [
         {
           "path": "README.md",
-          "size": 11026,
-          "sha256": "2c9e94c96aa148f7057d4be5a56842609da289744cf8465a65295e697c9f92ba"
+          "size": 11408,
+          "sha256": "e255054dcd32f5e9182e7b169c5688d7557238ee32a17972a409975e51c00799"
         },
         {
           "path": "followup-runtime.cjs",
@@ -865,8 +865,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 13217,
-          "sha256": "f5b6777ddcf923bfa4422e44aa5ac0734ed08b66fe6270b64cbfd4599d466bf3"
+          "size": 14074,
+          "sha256": "f269458fb2b676aaf22e74e1757284686cc9409c7cbe38c7cf3973ef697ad9b5"
         },
         {
           "path": "process.cjs",
@@ -975,8 +975,8 @@
         },
         {
           "path": "unified-followup.cjs",
-          "size": 10925,
-          "sha256": "8b0426410c832a21fea21ae9936db9b33d50b99fe22d494b848e6110130d2fa3"
+          "size": 14704,
+          "sha256": "3ed1086d14ed4864110f54103c5982dd53778237d0ad4f107ffc145045a03523"
         },
         {
           "path": "unified-fork-organizer.cjs",
@@ -1035,8 +1035,8 @@
         },
         {
           "path": "unified-retrieval.cjs",
-          "size": 11012,
-          "sha256": "282d75040139f030325a200bc43ce92817429c267deb4569dbe1beac532d072c"
+          "size": 11114,
+          "sha256": "b1f75bfaad0a60e18effbc390c19b906bd31b20b63f9ec22e021c8e1f5d6516b"
         },
         {
           "path": "unified-review-policy.cjs",
@@ -1045,8 +1045,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 36443,
-          "sha256": "1224ca1c6c3be1c7238a2cd5725ab35cad82fdc06c85ab75f43febf331fbac8d"
+          "size": 37611,
+          "sha256": "4e2b3593ebc70b9236aedffecd06f4fe3a0dc2bfdf680f162f9d834322e25f69"
         },
         {
           "path": "unified-scheduling.cjs",
@@ -1066,15 +1066,74 @@
       ]
     },
     {
+      "id": "personal-butler",
+      "name": "私人管家",
+      "version": "0.5.0",
+      "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "state",
+        "jobs",
+        "agent",
+        "model",
+        "network",
+        "sources",
+        "history",
+        "conversation",
+        "conversation:notify",
+        "memory:read",
+        "memory:write",
+        "hook:messageReceived",
+        "hook:replyDelivered",
+        "hook:taskFinished"
+      ],
+      "metadata": {
+        "usage": "",
+        "platforms": [
+          "QQ",
+          "微信"
+        ],
+        "requirements": [
+          "QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"
+        ],
+        "changelog": "在 QQ 和微信的授权聊天中主动整理线索、继续查证和跟进事项，接收记忆 Plus 的单次复查移交。",
+        "components": [
+          "hooks",
+          "tools",
+          "background"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3771,
+          "sha256": "427848daa32802a5f70ad4a9bcffe142f710b710ad68567f5fd6ba5aea5a745d"
+        },
+        {
+          "path": "index.js",
+          "size": 102345,
+          "sha256": "33e90cdf5fda4399d0dba932502099cd4888e85d26f0ff4001ed2960dfbc27ed"
+        },
+        {
+          "path": "plugin.json",
+          "size": 4935,
+          "sha256": "e2b86df9f75df9bbdf8e66844c8d765c9ac435287187e417e045e20e351d66c0"
+        }
+      ]
+    },
+    {
       "id": "random-toolbox",
       "name": "随机工具箱",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "抛硬币、随机数、选项抽取和群成员抽取",
       "category": "entertainment",
       "main": "index.js",
       "permissions": [
         "reply",
-        "napcat:get_group_member_list"
+        "qq:get_group_member_list"
       ],
       "metadata": {
         "usage": "/coin 抛硬币\n/random 生成范围内的随机整数\n/choose 从多个选项中抽取一个\n/pickmember 随机抽取一名群成员",
@@ -1083,25 +1142,25 @@
           "qqbot"
         ],
         "requirements": [
-          "群成员抽取仅支持 NapCat；其他随机命令支持两种实例"
+          "群成员抽取需要当前 QQ 实例有权限读取群成员列表。"
         ],
-        "changelog": "更新插件市场分类。",
+        "changelog": "通过统一 QQ 网关读取群成员，支持读取分多页返回的列表。",
         "components": [
           "commands"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "239f0320d89402ee779491b57e464894329d526d",
       "files": [
         {
           "path": "index.js",
-          "size": 2817,
-          "sha256": "eaf0ffd486f7de7c10089f00f4d3ab8656f51914ad1e03c04e63b1bf95e751fe"
+          "size": 3021,
+          "sha256": "da2a61555283a6c6b7acc0f15f2d83fc5db28cba33bfe211490dc7abc0d49dd7"
         },
         {
           "path": "plugin.json",
-          "size": 2186,
-          "sha256": "101896b2369257a7b15460f17f7a406f65a48df7d9d6f6ffb13bf146d9c51aa9"
+          "size": 2271,
+          "sha256": "8d672ad43114522ee4a1c21d3b1e999d711d400d673cf76f949e8de16d88ad6f"
         }
       ]
     },
