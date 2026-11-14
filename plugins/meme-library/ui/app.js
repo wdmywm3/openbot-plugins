@@ -55,7 +55,7 @@ function jobs(){
 }
 async function refresh(){const current=++serial;refreshing++;try{const result=await call("list",{...filters(),offset});if(current!==serial)return;snapshot=result;
  options($("profile-filter"),snapshot.contexts.profiles,"全部角色");options($("chat-filter"),snapshot.contexts.chats,"全部聊天");
- $("sync").hidden=snapshot.capabilities.platform!=="napcat";$("summary").textContent=`${snapshot.total} 张表情`;
+ $("sync").hidden=!snapshot.canSyncFavorites;$("summary").textContent=`${snapshot.total} 张表情`;
  $("previous").disabled=offset===0;$("next").disabled=snapshot.nextOffset==null;$("paging").hidden=snapshot.total<=48;$("page").textContent=`${Math.floor(offset/48)+1} / ${Math.max(1,Math.ceil(snapshot.total/48))}`;grid();jobs();
  if(exportJob){const job=await call("job",{action:"status",id:exportJob});if(current!==serial)return;if(job.status==="completed"){$("progress").hidden=false;$("progress").append(button("保存导出文件",async()=>{const result=await api.saveFiles(job.result.files.map(file=>file.ref));if(!result.canceled)exportJob="";await refresh();}));}}
  }catch(cause){if(current===serial)throw cause;}finally{refreshing--;}

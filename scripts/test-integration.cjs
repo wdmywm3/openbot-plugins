@@ -10,7 +10,8 @@ const env = { ...process.env, OPENBOT_HOST_ROOT: host, OPENBOT_SOURCE: host, OPE
 const runs = [
   [watchPython, ["-c", "import PIL, filelock"]], [wikiPython, ["-c", "import PIL"]],
   ...["memory-retention-behavior.cjs", "memory-dedup.cjs", "memory-maintenance.cjs", "memory-organizer-policy.cjs", "memory-organizer.cjs", "memory-management.cjs", "memory-catalog-cache.cjs", "memory-usage-sync.cjs", "memory-unified.cjs", "memory-plus.cjs", "memory-index.cjs", "memory-multimodal.cjs", "memory-host.cjs", "memory-lifecycle.cjs", "memory-context.cjs", "memory-dream-host.cjs",
-    "meme-host.cjs", "memewiki-host.cjs", "search-host.cjs", "image-studio-host.cjs", "image-studio-selfie-host.cjs", "tool-workshop.cjs", "watch-host.cjs"].map(name => [process.execPath, [path.join(root, "tests", name), host]]),
+    "meme-host.cjs", "memewiki-host.cjs", "search-host.cjs", "image-studio-host.cjs", "image-studio-selfie-host.cjs", "tool-workshop.cjs", "watch-host.cjs", "personal-butler-host.cjs"].map(name => [process.execPath, [path.join(root, "tests", name), host]]),
+  [process.execPath, [path.join(root, "tests", "personal-butler-host.cjs"), host, "--wechat"]],
   [watchPython, ["-B", "-m", "unittest", "discover", "-s", "tests", "-p", "watch*_test.py", "-v"]],
   [wikiPython, ["-B", "-m", "unittest", "discover", "-s", "tests", "-p", "memewiki_test.py", "-v"]],
 ];

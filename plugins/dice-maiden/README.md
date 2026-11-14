@@ -1,6 +1,6 @@
 # 骰娘
 
-OpenBot 的内置骰娘 JS 插件。它设置 `responseMode: "direct"`，计算和回复都在受限 VM 中完成，不会调用 Agent；申请 `reply`、`state` 和仅供暗骰私聊结果使用的 `napcat:send_private_msg`，不访问本机文件或网络。
+骰娘在插件内计算结果，通过 `reply` 回复、通过 `state` 记录统计，并通过 `qq:send_private_msg` 私发群聊暗骰结果。群聊暗骰取决于当前 QQ 实例能否向群成员发起私聊。
 
 ## 命令
 

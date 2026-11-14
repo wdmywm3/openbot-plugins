@@ -2,7 +2,10 @@
 const { get, put, state, readMemory, hash } = require("./unified-state.cjs");
 const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-settings.cjs");
 const activities = require("./unified-followup-activity.cjs");
+const transferLocks = new Set();
 const identity = (record, cycle = 0) => hash(JSON.stringify([record.id, record.revision, record.attributes?.nextReviewAt, ...(cycle ? [cycle] : [])]));
+const scopeKey = (storage, scope, id) => JSON.stringify([storage.root, scope.chatId, id]);
+const handedOff = record => record.attributes?.followupHandler === "personal-butler";
 function currentAttempt(storage, key, fingerprint, attempt, allowPaused = false) {
   const saved = get(storage, key);
   return saved?.fingerprint === fingerprint && saved.attempt === attempt && (allowPaused || !saved.paused) ? saved : null;
@@ -11,7 +14,8 @@ function eligible(storage, scope, record) {
   const live = state(storage, scope);
   return isPrivateDreamScope(scope) && live.settings.enabled && !live.paused && record?.kind === "matter"
     && record.subtype === "followup" && ["active", "waiting"].includes(record.progress)
-    && Number(record.attributes?.nextReviewAt) > 0 && record.attributes.nextReviewAt <= Date.now();
+    && Number(record.attributes?.nextReviewAt) > 0 && record.attributes.nextReviewAt <= Date.now()
+    && !handedOff(record) && !transferLocks.has(scopeKey(storage, scope, record.id));
 }
 async function admit(ctx, storage, scope, record) {
   if (!eligible(storage, scope, record)) return;
@@ -66,6 +70,7 @@ async function execute(ctx, storage, scope) {
   const { id, fingerprint, attempt = 0 } = ctx.input, key = `plus:followup:${id}`;
   const live = (allowPaused = false) => {
     const policy = state(storage, scope);
+    if (transferLocks.has(scopeKey(storage, scope, id))) return null;
     return allowPaused || policy.settings.enabled && !policy.paused ? currentAttempt(storage, key, fingerprint, attempt, allowPaused) : null;
   };
   const write = (patch, allowPaused = false) => { const latest = live(allowPaused); if (!latest) return false; saved = put(storage, key, { ...latest, ...patch }); return true; };
@@ -116,4 +121,47 @@ async function execute(ctx, storage, scope) {
   if (!write({ completed: true, finishedAt: Date.now(), sourceCursor: changes.sourceCursor, activityCursor: changes.activityCursor }, true)) return { skipped: true };
   return { completed: true, notified: !!saved.notified, eventId: saved.eventId || null, memoryId: saved.receipt.id };
 }
-module.exports = { admit, execute, eligible, pausePolicy, sweep };
+
+async function handoff(ctx, storage, scope, { id, revision }) {
+  if (!isPrivateDreamScope(scope)) throw Error("请在原私聊选择要移交的复查。");
+  const caps = await ctx.api.getCapabilities();
+  if (!caps.conversationBinding?.privateOwner || !caps.conversationBinding.account) throw Error("当前私聊没有主人授权。");
+  const binding = { account: caps.conversationBinding.account, restoreId: caps.dataRestoreId || "" };
+  const lock = scopeKey(storage, scope, id);
+  if (transferLocks.has(lock)) throw Error("这项复查正在移交。");
+  transferLocks.add(lock);
+  try {
+    const record = await readMemory(ctx, scope, id, { complete: false });
+    if (record && handedOff(record)) return { transferred: true, id, revision: record.revision };
+    if (!record || record.revision !== revision || record.kind !== "matter" || record.subtype !== "followup"
+      || record.status !== "active" || !["active", "waiting"].includes(record.progress)) throw Error("事项已变化，请重新读取。");
+    const at = record.attributes?.nextReviewAt;
+    if (!Number.isSafeInteger(at) || at <= Date.now() || record.attributes.reviewOnChange || record.attributes.reviewIntervalMinutes
+      || record.attributes.watchActivityId) throw Error("可移交尚未到期且只运行一次的复查。");
+    if (!record.sources?.length || record.sources.length > 8 || record.sources.some(ref => ref.chatId !== scope.chatId))
+      throw Error("此复查需要原私聊中可核对的交办消息。");
+    const sources = await Promise.all(record.sources.map(async ref => {
+      const { item } = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: ref.id, version: ref.version, limit: 1 });
+      return !!item && !item.deleted && !item.routeBlocked && !item.memoryExcluded && item.direction === "in"
+        && item.sender?.id === scope.chatId.split(":private:").at(-1);
+    }));
+    if (sources.includes(false)) throw Error("此复查的原交办消息已变化。");
+    const attempt = get(storage, `plus:followup:${id}`, {});
+    const link = get(storage, `plus:followup-link:${id}`);
+    // Any existing execution or uncertain publication remains with its original
+    // owner. A future unstarted review can be handed off without losing work.
+    if (attempt.jobId || attempt.result || attempt.completed || attempt.notified || attempt.receipt || link?.activityId)
+      throw Error("此复查已有运行或通知记录，请保留原复查记录。");
+    const saved = await ctx.api.memory({ action: "batch", chatId: scope.chatId, requestKey: `followup-handoff:${id}:${revision}`, operations: [
+      { action: "revise", id, expectedRevision: revision, changeType: "edit",
+        patch: { attributes: { ...record.attributes, followupHandler: "personal-butler" } } },
+      { action: "create", record: { kind: "matter", category: "followup_handoff", status: "active", progress: "waiting", tier: "working",
+        content: `复查移交 ${id}`, sources: record.sources, attributes: { handoff: { ...binding, id, revision: revision + 1, at } } },
+        relations: [{ targetId: id, kind: "derived_from", expectedRevision: revision + 1 }] },
+    ] });
+    const receipt = saved.items?.[1];
+    if (!receipt?.ok) throw Error("复查移交未保存，可以重试。");
+    return { id: receipt.id, revision: receipt.revision };
+  } finally { transferLocks.delete(lock); }
+}
+module.exports = { admit, execute, eligible, pausePolicy, sweep, handoff };

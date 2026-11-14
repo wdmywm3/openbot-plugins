@@ -83,8 +83,8 @@ function fixture() {
         return { structuredContent: out };
       },
       async sleep() {}, async getState(key) { return state.get(key); }, async setState(key, value) { state.set(key, value); },
-      async getCapabilities() { return { platform: "napcat", features: { persistentContextItems: true } }; },
-      async callNapCat(action) { assert.equal(action, "fetch_custom_face"); return { data: [{ url: "https://qpic.cn/image", id: "face" }] }; },
+      async getCapabilities() { return { qqActions: ["fetch_custom_face"], features: { persistentContextItems: true } }; },
+      async callQq(action) { assert.equal(action, "fetch_custom_face"); return { data: [{ url: "https://qpic.cn/image", id: "face" }] }; },
       async request() { return { ok: true, headers: { "content-type": "image/png" }, body: "aGk=" }; },
       async listContexts() { return { profiles: [{ id: "p", name: "当前角色" }, { id: "other", name: "其他角色" }], chats: [{ id: "group", name: "当前聊天" }, { id: "other", name: "其他聊天" }] }; }, async listModels() { return []; },
     } };
@@ -319,6 +319,7 @@ async function main() {
   assert.equal(f.get("b").value.caption, "人工描述"); assert.equal(f.get("b").value.indexStatus, "pending");
   f.onGenerate(null); await plugin._test.processItem(f.ctx, "b".repeat(64), {}); assert.equal(f.get("b").value.indexStatus, "ready");
   await plugin.sync(f.ctx); assert.equal(f.get("c").value.indexStatus, "ready", "QQ sync runs the same complete pipeline");
+  await assert.rejects(plugin.sync({ ...f.ctx, api: { ...f.ctx.api, getCapabilities: async () => ({ qqActions: [] }), callQq: () => assert.fail("unavailable QQ action") } }), /无法同步/);
   assert.equal(f.calls.filter(x => x === "recognize").length, recognized + 2);
   const found = await plugin.stickers({ ...f.ctx, input: { action: "search", query: "没钱", limit: 4 } });
   assert(found.candidates.length); assert(found.attachments.length); assert.equal(found.retrieval, "semantic");

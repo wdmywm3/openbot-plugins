@@ -68,6 +68,24 @@ require("./helpers/organizer-model.cjs").organizerModel(ctx);
     assert.equal(completed.completed, true); assert.equal(agentRuns, 1, "notification retry does not repeat the completed research");
     assert.equal(published, 2); assert.equal(completed.eventId, "event-1");
     await followups.execute(ctx, storage, scope); assert.equal(published, 2);
+    const future = repo.memory(actor, { action: "create", requestKey: "future-transfer",
+      record: { content: "复查服务开放进展", kind: "matter", subtype: "followup", progress: "active", status: "active",
+        sources: [{ chatId, id: source.id, version: source.version }], attributes: { nextReviewAt: Date.now() + 60000 } } });
+    const transferContext = { ...ctx, api: { ...ctx.api,
+      getCapabilities: async () => ({ conversationBinding: { privateOwner: true, account: "bound-account" }, dataRestoreId: "restore-fixture" }) } };
+    const markerReceipt = await followups.handoff(transferContext, storage, scope, future);
+    const transferred = repo.memory(actor, { action: "read", id: future.id }).item;
+    const marker = repo.memory(actor, { action: "read", id: markerReceipt.id }).item;
+    assert.equal(transferred.attributes.followupHandler, "personal-butler");
+    assert.equal(marker.category, "followup_handoff");
+    assert.equal(marker.attributes.handoff.revision, transferred.revision);
+    assert.equal(marker.attributes.handoff.account, "bound-account");
+    assert(marker.relations.some(link => link.kind === "derived_from" && link.id === future.id));
+    assert.equal(followups.eligible(storage, scope, { ...transferred,
+      attributes: { ...transferred.attributes, nextReviewAt: Date.now() - 1 } }), false);
+    assert.deepEqual(await followups.handoff(transferContext, storage, scope, future), { transferred: true, id: future.id, revision: transferred.revision });
+    assert.equal(repo.memory(actor, { action: "search", category: "followup_handoff" }).items.length, 1);
+    await assert.rejects(followups.handoff(transferContext, storage, scope, item), /尚未到期/);
     const quick = repo.memory(actor, { action: "create", requestKey: "quick-followup", record: { content: "快速复查", kind: "matter", subtype: "followup", progress: "active", status: "active", attributes: { nextReviewAt: Date.now() - 1000 } } });
     let starts = 0;
     ctx.api.jobs = async input => {
@@ -148,7 +166,8 @@ require("./helpers/organizer-model.cjs").organizerModel(ctx);
       if (input.action === "read" && input.id === longBody.id) throw Object.assign(Error("source access revoked"), { code: "MEMORY_NOT_FOUND" });
       return readableMemory(input);
     };
-    assert.equal((await require("../plugins/memory/unified-retrieval.cjs").search(ctx, storage, scope, "HX-73")).records.length, 0, "revocation between search and reading never falls back to the matching preview");
+    const afterRevocation = await require("../plugins/memory/unified-retrieval.cjs").search(ctx, storage, scope, "HX-73");
+    assert(!afterRevocation.records.some(item => item.id === longBody.id), "revocation between search and reading never falls back to the matching preview");
     ctx.api.memory = readableMemory;
     save(storage, scope, { paused: false });
     const stopped = repo.memory(actor, { action: "create", requestKey: "stop-running-review", record: { content: "运行中停止的复查", kind: "matter", subtype: "followup", progress: "active", status: "active", attributes: { nextReviewAt: Date.now() - 1000 } } });

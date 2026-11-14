@@ -1,16 +1,17 @@
 {
   "id": "dice-maiden",
   "name": "骰娘",
-  "version": "1.3.2",
+  "version": "1.3.3",
+  "requiredFeatures": ["qqGateway"],
   "metadata": {
     "platforms": [
       "napcat",
       "qqbot"
     ],
     "requirements": [
-      "统计需要支持 api.updateState 的 OpenBot 版本；从群聊发送私聊暗骰仅支持 NapCat"
+      "群聊暗骰需要能向群成员发起私聊的 QQ 实例。"
     ],
-    "changelog": "更新插件市场分类。"
+    "changelog": "群聊暗骰使用统一 QQ 网关发送。"
   },
   "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
   "main": "index.js",
@@ -24,7 +25,7 @@
   "permissions": [
     "reply",
     "state",
-    "napcat:send_private_msg"
+    "qq:send_private_msg"
   ],
   "commands": [
     {

@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.1",
-  "description": "为宿主统一记忆提供自动召回、梦境整理和持续事项复查。",
+  "version": "2.6.2",
+  "description": "为统一记忆提供自动召回、人物画像、闲时整理和 Dream，并兼容已有复查。",
   "extensions": {
     "com.openbot": {
       "displayName": "记忆 Plus",
@@ -259,6 +259,25 @@
           }
         },
         {
+          "name": "handoff_followup",
+          "export": "handoffFollowup",
+          "scope": "private",
+          "permission": "owner",
+          "mutating": true,
+          "description": "主人明确要求在原私聊把一项尚未运行的单次复查移交给私人管家时使用。以读取到的记忆编号和修订版本移交，并引用本轮主人原话。先确认原聊天已启用私人管家。",
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "revision", "sourceMessageId", "sourceQuote"],
+            "properties": {
+              "id": { "type": "string", "maxLength": 96 },
+              "revision": { "type": "integer", "minimum": 1 },
+              "sourceMessageId": { "type": "string", "maxLength": 512 },
+              "sourceQuote": { "type": "string", "maxLength": 240 }
+            }
+          }
+        },
+        {
           "name": "organize",
           "export": "organize",
           "scope": "all",
@@ -450,7 +469,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "超出像素上限或解码失败的图片会单独跳过，同批聊天记录和正式记忆继续索引。可在插件设置中开启超大图片标记，按原消息或图片名定位原图。"
+        "changelog": "支持把尚未执行的单次复查移交给私人管家，已有周期复查沿用原设置。"
       }
     }
   }

@@ -3,10 +3,6 @@ function integer(value, fallback, minimum, maximum) {
   return Number.isInteger(parsed) ? Math.max(minimum, Math.min(maximum, parsed)) : fallback;
 }
 
-function resultData(result) {
-  return result?.result?.data ?? result?.data ?? result?.result ?? result;
-}
-
 module.exports.handle = async function handle({ command, args, principal, api, config = {} }) {
   if (command.name === "coin") return { text: Math.random() < 0.5 ? "正面" : "反面" };
   if (command.name === "random") {
@@ -29,16 +25,24 @@ module.exports.handle = async function handle({ command, args, principal, api, c
     return { text: `选择：${options[Math.floor(Math.random() * options.length)]}` };
   }
   if (config.allowPickMember === false) return { text: "当前机器人已关闭群成员抽取" };
-  if (api.getCapabilities && !(await api.getCapabilities()).groupMemberList) return { text: "当前实例不支持读取群成员；抛硬币、随机数和选项抽取仍可使用。" };
   const groupId = String(principal.groupId || "");
   if (!groupId) return { text: "该命令只能在群聊中使用" };
-  const data = resultData(await api.callNapCat("get_group_member_list", { group_id: groupId }));
-  const candidates = (Array.isArray(data) ? data : (data?.items || data?.members || data?.member_list || []))
-    .filter((item) => item && String(item.user_id ?? item.userId ?? item.qq ?? ""));
-  if (!candidates.length) return { text: "没有读取到群成员" };
-  const selected = candidates[Math.floor(Math.random() * candidates.length)];
-  const userId = String(selected.user_id ?? selected.userId ?? selected.qq);
-  const name = String(selected.card || selected.nickname || selected.name || userId);
+  if (!(await api.getCapabilities()).qqActions?.includes("get_group_member_list")) return { text: "当前实例无法读取群成员。" };
+  const candidates = new Map();
+  let cursor = "";
+  for (let page = 0; page < 64; page++) {
+    const result = await api.callQq("get_group_member_list", { group_id: groupId, limit: 5000, ...(cursor ? { cursor } : {}) });
+    if (!Array.isArray(result.data) || result.truncated) return { text: "未能读取完整群成员列表，请稍后重试。" };
+    for (const member of result.data) if (member.user_id) candidates.set(member.user_id, member);
+    if (candidates.size > 5000) return { text: "未能读取完整群成员列表，请稍后重试。" };
+    cursor = result.next_cursor;
+    if (!cursor) break;
+  }
+  if (cursor) return { text: "未能读取完整群成员列表，请稍后重试。" };
+  if (!candidates.size) return { text: "没有读取到群成员" };
+  const selected = [...candidates.values()][Math.floor(Math.random() * candidates.size)];
+  const userId = selected.user_id;
+  const name = selected.card || selected.nickname || userId;
   return { segments: [
     { type: "at", data: { qq: userId } },
     { type: "text", data: { text: ` 抽中了 ${name}` } },

@@ -332,6 +332,8 @@ async function manage(ctx) {
   }
   if (input.action === "resumeFollowup") {
     const record = await readMemory(ctx, scope, input.id); if (!record || record.revision !== input.revision) throw Error("事项已变化，请刷新");
+    if (record.attributes?.followupHandler === "personal-butler")
+      throw Error("此复查已移交，请在私人管家中跟进。");
     const link = get(storage, `plus:followup-link:${record.id}`);
     if (link?.activityId) {
       const { activity } = await ctx.api.activities({ action: "read", chatId: scope.chatId, id: link.activityId });
@@ -345,6 +347,18 @@ async function manage(ctx) {
     return { saved: true };
   }
   throw Error("记忆正文请在实例的记忆入口管理；记忆 Plus 只管理整理策略和运行记录。");
+}
+async function handoffFollowup(ctx) {
+  const p = ctx.principal || {}, input = ctx.input || {};
+  if (p.source !== "channel" || p.role !== "owner" || !ctx.tool || !/移交|转给|交给|\b(?:hand off|transfer)\b/i.test(input.sourceQuote || "")
+    || !/管家|butler/i.test(input.sourceQuote || "") || ![p.messageId, p.primaryMessageId].includes(input.sourceMessageId)
+    || /不要|别|如果|假设|是否|能不能|能否|[?？]|\b(?:don't|do not|if|could|can you)\b/i.test(input.sourceQuote || ""))
+    throw Error("请在本轮明确要求将此复查交给私人管家。");
+  const { item } = await ctx.api.sources({ action: "read", id: input.sourceMessageId });
+  if (!item || item.deleted || item.routeBlocked || item.memoryExcluded || item.direction !== "in"
+    || item.sender?.id !== p.senderId || !item.content.includes(input.sourceQuote)) throw Error("请引用主人移交复查的原话。");
+  const { storage, scope } = current(ctx);
+  return followups.handoff(ctx, storage, scope, input);
 }
 async function memory(ctx) {
   const { storage, scope } = current(ctx), input = { ...ctx.input };
@@ -412,7 +426,7 @@ module.exports = { initialize, beforeModel, afterModel: async ctx => { const { s
     const { storage, scope } = current(ctx);
     return require("./unified-organizer.cjs").tool(ctx, storage, scope);
   },
-  process: processScope, recover, recall: ctx => memory({ ...ctx, input: { ...ctx.input, action: "recall" } }), followup: async ctx => { const { storage, scope } = current(ctx); return followups.execute(ctx, storage, scope); }, list, manage, memory,
+  process: processScope, recover, recall: ctx => memory({ ...ctx, input: { ...ctx.input, action: "recall" } }), followup: async ctx => { const { storage, scope } = current(ctx); return followups.execute(ctx, storage, scope); }, list, manage, memory, handoffFollowup,
   importBundle: async ctx => { const legacy = require("./runtime.cjs"); await legacy.importBundle(ctx); const { storage, scope } = current(ctx);
     for (const row of storage.db.prepare("SELECT DISTINCT chat_id FROM channel_memories UNION SELECT chat_id FROM channel_documents").all()) await migrate(ctx, storage, { ...scope, chatId: row.chat_id });
     return { migrated: true, dreamPaused: true }; },

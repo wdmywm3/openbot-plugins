@@ -855,8 +855,11 @@ module.exports.handle = async function handle(ctx) {
 
     if (command === "rh") {
       const isGroup = String(ctx.message?.chatId || "").startsWith("onebot:group:");
-      if (isGroup && ctx.api.getCapabilities && !(await ctx.api.getCapabilities()).groupMemberPrivateMessage) {
-        return response(config, "当前实例无法从群聊向成员发起私聊，请在与机器人的私聊中使用暗骰。");
+      if (isGroup) {
+        const capabilities = await ctx.api.getCapabilities();
+        if (!capabilities.groupMemberPrivateMessage || !capabilities.qqActions?.includes("send_private_msg")) {
+          return response(config, "当前实例无法从群聊向成员发起私聊，请在与机器人的私聊中使用暗骰。");
+        }
       }
       const result = await generalRoll(ctx.api, config, args, ctx.command);
       if (result.help) return response(config, result.text);
@@ -864,8 +867,13 @@ module.exports.handle = async function handle(ctx) {
       const senderId = String(ctx.principal?.senderId || ctx.message?.sender?.id || "");
       if (isGroup) {
         if (!senderId) throw new Error("无法识别暗骰用户");
-        await ctx.api.callNapCat("send_private_msg", { user_id: senderId, message: [{ type: "text", data: { text: `暗骰结果：${result.text}` } }] });
-        return response(config, "暗骰结果已私聊发送");
+        try {
+          const delivery = await ctx.api.callQq("send_private_msg", { user_id: senderId, message: [{ type: "text", data: { text: `暗骰结果：${result.text}` } }] });
+          if (delivery?.data?.message_id) return response(config, "暗骰结果已私聊发送");
+        } catch {
+          // Provider errors can include the original message, which is private.
+        }
+        return response(config, "未确认暗骰结果已送达，请查看与机器人的私聊。");
       }
       return response(config, `暗骰结果：${result.text}`);
     }

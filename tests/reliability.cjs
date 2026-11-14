@@ -27,12 +27,32 @@ function stateApi(initial = {}) {
   const dice = load("dice-maiden"), rolls = stateApi();
   await Promise.all(Array.from({ length: 40 }, () => dice.handle({ command: { name: "roll" }, args: "1d6", config: {}, api: rolls.api })));
   assert.equal(rolls.state.get("stats").commands, 40); assert.equal(rolls.state.get("stats").dice, 40);
-  let external = 0;
-  const official = { ...rolls.api, getCapabilities: async () => ({ platform: "qqbot", groupMemberPrivateMessage: false, groupMemberList: false }), callNapCat: async () => { external++; } };
-  assert.match(JSON.stringify(await dice.handle({ command: { name: "rh" }, args: "1d6", message: { chatId: "onebot:group:OPEN_ID-a_b" }, config: {}, api: official })), /私聊中/);
+  const noGroupActions = { ...rolls.api, getCapabilities: async () => ({ qqActions: [], groupMemberPrivateMessage: false }), callQq: () => assert.fail("unavailable QQ action") };
+  const hiddenRoll = { command: { name: "rh" }, args: "1d6", message: { chatId: "onebot:group:123" }, principal: { senderId: "456" }, config: {} };
+  assert.match(JSON.stringify(await dice.handle({ ...hiddenRoll, api: noGroupActions })), /私聊中/);
+  const privateApi = { ...rolls.api, getCapabilities: async () => ({ qqActions: ["send_private_msg"], groupMemberPrivateMessage: true }),
+    callQq: async (action, params) => {
+      assert.equal(action, "send_private_msg"); assert.equal(params.user_id, "456");
+      assert.match(params.message[0].data.text, /^暗骰结果：/);
+      return { status: "ok", data: { message_id: "private-receipt" } };
+    } };
+  assert.match(JSON.stringify(await dice.handle({ ...hiddenRoll, api: privateApi })), /暗骰结果已私聊发送/);
+  assert.match(JSON.stringify(await dice.handle({ ...hiddenRoll, api: { ...privateApi, callQq: async () => ({ status: "canceled" }) } })), /未确认暗骰结果已送达/);
+  const failed = await dice.handle({ ...hiddenRoll, api: { ...privateApi, callQq: async () => { throw Error("私发失败，暗骰 1d6 = 3"); } } });
+  assert.match(JSON.stringify(failed), /未确认暗骰结果已送达/);
+  assert.doesNotMatch(JSON.stringify(failed), /1d6 = 3/);
   const random = load("random-toolbox");
-  assert.match((await random.handle({ command: { name: "pickmember" }, principal: { groupId: "OPEN_ID" }, api: official })).text, /不支持/);
-  assert.ok((await random.handle({ command: { name: "coin" }, api: official })).text); assert.equal(external, 0);
+  const pick = { command: { name: "pickmember" }, principal: { groupId: "OPEN_ID" } };
+  assert.match((await random.handle({ ...pick, api: noGroupActions })).text, /无法读取/);
+  assert.ok((await random.handle({ command: { name: "coin" }, api: noGroupActions })).text);
+  const cursors = [];
+  const selected = await random.handle({ ...pick, api: { getCapabilities: async () => ({ qqActions: ["get_group_member_list"] }), callQq: async (action, params) => {
+    assert.equal(action, "get_group_member_list"); assert.equal(params.group_id, "OPEN_ID"); assert.equal(params.limit, 5000);
+    cursors.push(params.cursor);
+    return params.cursor ? { data: [{ user_id: "U_456", nickname: "Alice" }] } : { data: [], next_cursor: "page-two" };
+  } } });
+  assert.deepEqual(cursors, [undefined, "page-two"]);
+  assert.equal(selected.segments[0].data.qq, "U_456");
 
   const monitor = load("content-monitor");
   function monitoring(result) {

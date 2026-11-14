@@ -1,16 +1,17 @@
 {
   "id": "random-toolbox",
   "name": "随机工具箱",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "requiredFeatures": ["qqGateway"],
   "metadata": {
     "platforms": [
       "napcat",
       "qqbot"
     ],
     "requirements": [
-      "群成员抽取仅支持 NapCat；其他随机命令支持两种实例"
+      "群成员抽取需要当前 QQ 实例有权限读取群成员列表。"
     ],
-    "changelog": "更新插件市场分类。"
+    "changelog": "通过统一 QQ 网关读取群成员，支持读取分多页返回的列表。"
   },
   "description": "抛硬币、随机数、选项抽取和群成员抽取",
   "main": "index.js",
@@ -20,7 +21,7 @@
   ],
   "permissions": [
     "reply",
-    "napcat:get_group_member_list"
+    "qq:get_group_member_list"
   ],
   "commands": [
     {

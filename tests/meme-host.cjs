@@ -4,6 +4,8 @@ const host = path.resolve(process.env.OPENBOT_SOURCE || path.join(__dirname, "..
 const hostRequire = require("node:module").createRequire(path.join(host, "package.json"));
 const { readPluginPackage } = hostRequire("./electron/lib/plugins/plugin-package.cjs");
 const { createChannelPluginRuntimeService } = hostRequire("./electron/lib/features/channels/channel-plugin-runtime-service.cjs");
+const { createChannelOneBotApiSupport } = hostRequire("./electron/lib/features/channels/channel-onebot-api-support.cjs");
+const qqActions = hostRequire("./electron/lib/features/channels/onebot-action-catalog.cjs");
 const { createChannelGroupNames } = hostRequire("./electron/lib/features/channels/channel-group-names.cjs");
 const { createPluginDataStore } = hostRequire("./electron/lib/plugins/plugin-data-store.cjs");
 const { createPluginAssets } = hostRequire("./electron/lib/plugins/plugin-assets.cjs");
@@ -55,7 +57,9 @@ async function main() {
     } } });
     retrieval = { models, vectors: createVectorCollections({ root, models }) };
     const picker = { release: null };
+    const { normalizeOneBotAction, napcatActionRisk } = createChannelOneBotApiSupport(qqActions);
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, groupNames, ensureStoreArray: key => store.data[key] || [],
+      normalizeOneBotAction, napcatActionRisk,
       selectPluginFiles: () => new Promise(resolve => { picker.release = resolve; }),
       resolveChannel: () => channel, botPluginsFor: () => [plugin], makeId: () => Math.random().toString(), safeError: String,
       getPluginState: (_channel, _plugin, scope, scopeId, key) => state.get(JSON.stringify([scope, scopeId, key])),
@@ -81,6 +85,10 @@ async function main() {
     }
     page = await runtime.runPluginAction(channel, plugin, action("list"), {});
     assert.equal(page.items[0]?.indexStatus, "ready", JSON.stringify(page.jobs)); assert.equal(generated, 1);
+    assert.equal(page.canSyncFavorites, true, "a read-only management action sees the QQ operation available to its sync job");
+    plugin.permissions = plugin.permissions.filter(permission => permission !== "qq:fetch_custom_face");
+    assert.equal((await runtime.runPluginAction(channel, plugin, action("list"), {})).canSyncFavorites, false);
+    plugin.permissions = loaded.manifest.permissions;
     assert.equal(page.models[0].id, "vision"); assert(page.contexts.profiles.length);
     assert.deepEqual(page.contexts.chats, [{ id: "onebot:group:123456", name: "表情交流群（123456）" },
       { id: "onebot:group:876543", name: "表情交流群（876543）" }], "management labels include both group names and numbers, even for duplicate names");

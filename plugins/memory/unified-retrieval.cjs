@@ -4,6 +4,7 @@ const { createRetrieval } = require("./retrieval.cjs");
 const { lexicalRanks, memoryApplicability } = require("./lib/features/channels/channel-memory-retrieval.cjs");
 const { searchTokens } = require("./lib/features/channels/channel-memory-policy.cjs");
 function applicable(record, options) {
+  if (record.category === "followup_handoff") return false;
   const subjects = (record.subjectRefs || []).filter(value => typeof value === "string");
   if (subjects.length && options.subjectIds?.length && !subjects.some(id => options.subjectIds.includes(id))) return false;
   const content = record.content || record.preview || "";
@@ -35,7 +36,7 @@ async function index(ctx, storage, scope) {
     let record;
     try { record = await readMemory(ctx, scope, change.id); }
     catch (error) { if (error.code !== "MEMORY_NOT_FOUND") throw error; }
-    if (record) {
+    if (record && record.category !== "followup_handoff") {
       const result = await createRetrieval(ctx, storage, scope).index(COLLECTION, [record], { completeSet: false });
       if (result.pending || result.pendingModel) return { pending: true, version: model.version };
     } else await remove(ctx, storage, scope, change.id);

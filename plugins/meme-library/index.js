@@ -603,7 +603,8 @@ module.exports.list = async ctx => {
     preferences: { ...await settings(ctx, input.settingsChatId ?? input.chatId ?? ""), revision: pref?.revision || 0 },
     contexts: { ...contexts, chats: contexts.chats.map(chat => ({ ...chat, name: contextChatLabel(chat) })) },
     models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,
-    capabilities: await ctx.api.getCapabilities(), jobs: (await ctx.api.jobs({ action: "list" })).jobs || [] };
+    canSyncFavorites: (await ctx.api.getCapabilities()).qqActions?.includes("fetch_custom_face") === true,
+    jobs: (await ctx.api.jobs({ action: "list" })).jobs || [] };
 };
 module.exports.selection = async ctx => {
   const rows = (await all(ctx)).filter(row => matchesFilter(row, ctx.input));
@@ -687,22 +688,21 @@ module.exports.exportBundle = async ctx => {
   return { files, exported: items.length };
 };
 module.exports.sync = async ctx => {
-  if ((await ctx.api.getCapabilities()).platform !== "napcat") throw Error("当前实例不支持 QQ 收藏同步");
-  const response = await ctx.api.callNapCat("fetch_custom_face", {}), source = response?.data ?? response;
-  const rows = Array.isArray(source) ? source : source?.faces || source?.custom_faces || source?.items;
+  if (!(await ctx.api.getCapabilities()).qqActions?.includes("fetch_custom_face")) throw Error("当前实例无法同步 QQ 收藏");
+  const { data: rows } = await ctx.api.callQq("fetch_custom_face");
   if (!Array.isArray(rows)) throw Error("QQ 收藏列表返回格式无效");
   const ids = [], errors = [];
-  for (const entry of rows.slice(0, 10000)) {
+  for (const row of rows.slice(0, 10000)) {
     ctx.signal.throwIfAborted();
-    const row = typeof entry === "string" ? { url: entry } : entry, url = text(row?.url || row?.file || row?.file_url, 4000);
+    const url = text(row?.url, 4000);
     try {
       if (!/^https:\/\//i.test(url)) throw Error("收藏条目没有可下载的图片地址");
       const response = await ctx.api.request(url, { responseType: "base64", maxBodyBytes: 10485760, timeoutMs: 30000 });
       if (!response.ok) throw Error(`图片下载失败：${response.status}`);
       let mimeType = String(response.headers["content-type"] || "").split(";")[0];
       if (!mimeType.startsWith("image/")) mimeType = response.body.startsWith("R0lG") ? "image/gif" : response.body.startsWith("/9j/") ? "image/jpeg" : response.body.startsWith("UklGR") ? "image/webp" : "image/png";
-      const asset = await ctx.api.assets({ action: "put", mimeType, data: response.body, name: text(row.summary || row.name, 200) });
-      ids.push((await ingest(ctx, asset.ref, { type: "qq", providerId: text(row.id || row.face_id), url }, null, false)).key);
+      const asset = await ctx.api.assets({ action: "put", mimeType, data: response.body, name: text(row.name, 200) });
+      ids.push((await ingest(ctx, asset.ref, { type: "qq", providerId: text(row.id), url }, null, false)).key);
     } catch (error) { errors.push(String(error.message).slice(0, 200)); }
     await ctx.api.jobs({ action: "checkpoint", progress: { phase: "sync", completed: ids.length + errors.length, total: rows.length, failed: errors.length } });
   }
