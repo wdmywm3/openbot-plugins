@@ -33,3 +33,11 @@ GIF 动图使用 `format:gif`，默认自动尺寸，可指定 2–16 帧及每�
 未发布的新包可通过 `npm run prepare:candidates -- <新目录>` 打包，并在配套宿主中导入；正式市场条目必须在真实提交后由 `npm run catalog -- <提交SHA>` 生成，不写虚假的远端提交。插件版本号与 OpenBot 宿主版本号分别管理。
 
 协议参考：[OpenAI Image API 编辑](https://developers.openai.com/api/reference/resources/images/methods/edit)、[Responses 绘图](https://developers.openai.com/api/docs/guides/tools-image-generation)。
+
+## 产物交接与表情收藏
+
+生成图片通过宿主的 mediaHandoff 能力发布，images[].url 同时用于发送与当前聊天内的插件交接。其他插件用 assets.fromPublished 接收原件；绘图参考图也可传 references[].url。原 assetRef 保留为本插件内部兼容引用，不能直接跨插件读取。
+
+制作可复用聊天表情时传 purpose=sticker，普通图片默认 image。draft=true 标记改稿中间版。插件只发布用途和成品状态，不调用具体收藏插件；成功发送后的收藏由接收插件按设置处理。静态和 GIF 成品一视同仁，交接保留原始字节。
+
+用途由会话模型根据本次请求及相关前文声明。仅要求画动图、自拍或可爱动作时仍按普通图片处理；明确用于聊天表情或反应才声明 sticker，已有表情制作任务的后续改图沿用该用途。当前没有额外的出图后自动分类器，GIF 格式本身不触发收藏。用途不明确时正常交付普通图片，不为收藏额外追问。

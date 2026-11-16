@@ -36,6 +36,7 @@ async function main() {
     const loaded = readPluginPackage(path.join(__dirname, "../plugins/meme-library"));
     const plugin = { ...loaded.manifest, id: "meme-library", enabled: true, runtimeEnabled: true, type: "js-plugin", basePath: loaded.basePath || path.join(__dirname, "../plugins/meme-library"),
       scriptPath: path.join(__dirname, "../plugins/meme-library/index.js"), config: {}, permissions: loaded.manifest.permissions };
+    const producer = { id: "generic-image-producer", enabled: true, runtimeEnabled: true, permissions: ["assets"], hooks: [] };
     const channel = { id: "test", enabled: true, config: { agentId: "test-profile", provider: "napcat-onebot", selfId: "10000" },
       chatSessions: { "onebot:group:123456": "session", "onebot:group:876543": "other-session" } };
     const store = { root, data: { channels: [channel], models: [{ id: "vision", name: "Vision", imageEnabled: true }],
@@ -61,7 +62,7 @@ async function main() {
     runtime = createChannelPluginRuntimeService({ fs, path, store, retrieval, groupNames, ensureStoreArray: key => store.data[key] || [],
       normalizeOneBotAction, napcatActionRisk,
       selectPluginFiles: () => new Promise(resolve => { picker.release = resolve; }),
-      resolveChannel: () => channel, botPluginsFor: () => [plugin], makeId: () => Math.random().toString(), safeError: String,
+      resolveChannel: () => channel, botPluginsFor: () => [plugin, producer], makeId: () => Math.random().toString(), safeError: String,
       getPluginState: (_channel, _plugin, scope, scopeId, key) => state.get(JSON.stringify([scope, scopeId, key])),
       setPluginState: (_channel, _plugin, scope, scopeId, key, value) => state.set(JSON.stringify([scope, scopeId, key]), value),
       pluginStateScopeId: (_channel, scope, msg) => scope === "chat" ? msg.chatId : "shared", isNapCatOneBotChannel: () => true,
@@ -93,11 +94,11 @@ async function main() {
     assert.deepEqual(page.contexts.chats, [{ id: "onebot:group:123456", name: "表情交流群（123456）" },
       { id: "onebot:group:876543", name: "表情交流群（876543）" }], "management labels include both group names and numbers, even for duplicate names");
     assert.equal(groupListCalls, 1, "plugin list refreshes reuse cached group names");
-    const context = { channelPrincipal: { source: "channel", channelId: channel.id, chatId: "onebot:group:123456", messageType: "group", senderId: "user" } };
+    const context = { requestId: "turn", channelPrincipal: { source: "channel", channelId: channel.id, chatId: "onebot:group:123456", messageType: "group", senderId: "user" } };
     const originalMessages = [{ role: "system", content: "host protocol" }, { role: "user", content: "hello" }];
     const prompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages, requestId: "turn" }, context.channelPrincipal);
     assert.equal(prompt.messages[1].role, "system"); assert.match(prompt.messages[1].content, /stickers/);
-    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /图文混合中的表情/);
+    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /随手配图/);
     assert.equal(prompt.contextRecords.length, 1, "availability is a durable context record");
     const repeated = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: prompt.messages, requestId: "next-turn" }, context.channelPrincipal);
     assert.equal(repeated.contextRecords?.length || 0, 0, "the same availability is not appended twice");
@@ -109,7 +110,7 @@ async function main() {
     const mediaPrompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel",
       { messages: [...originalMessages, mediaMessage], requestId: "large-media-turn" }, context.channelPrincipal);
     assert.match(mediaPrompt.messages[1].content, /stickers/);
-    assert.match(mediaPrompt.messages.at(-1).content, /图文混合中的表情/);
+    assert.match(mediaPrompt.messages.at(-1).content, /随手配图/);
     const retained = mediaPrompt.messages.find(message => Array.isArray(message.content));
     assert.deepEqual(retained, mediaMessage, "the model retains all 72 MiB of image input while the plugin prepares availability");
     let found = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
@@ -127,7 +128,9 @@ async function main() {
     const template = { version: 1, rect: { x: .1, y: .1, width: .8, height: .8 }, color: "#ff0000", align: "center", maxFontSize: .15 };
     await runtime.runPluginAction(channel, plugin, action("save"), { id: asset.sha256, revision: beforeTemplate.revision, textTemplate: template,
       enabled: true, roleProfileId: "", profileIds: [], chatMode: "all", chatIds: [] });
+    let toolSerial = 0;
     const waitTool = async (input, principal = context) => {
+      principal = { ...principal, toolCallId: `tool-${++toolSerial}` };
       let result = await runtime.runNativePluginTool("qqSticker", input, principal);
       for (let n = 0; n < 500 && result.status === "running"; n++) { await wait(20); result = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: result.id }, principal); }
       assert.equal(result.status, "completed", result.error); return result.result;
@@ -150,7 +153,7 @@ async function main() {
     await runtime.runPluginAction(channel, plugin, action("settings"), { revision: settingsPage.preferences.revision, frequency: 0, cooldownSeconds: 0 });
     const mixedContent = `先冷静一下。然后再说。![表情](${url})`;
     const modelHook = (replyId, content) => runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "afterModel",
-      { replyId, content, purpose: "chat", messageIds: ["source"] }, context.channelPrincipal);
+      { requestId: "turn", replyId, content, purpose: "chat", messageIds: ["source"] }, context.channelPrincipal);
     assert.equal((await modelHook("mixed-zero", mixedContent)).content, "先冷静一下。然后再说。");
     assert.equal((await modelHook("pure-zero", `![表情](${url})`)).content, `![表情](${url})`);
     assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, segments)).content.length, 1,
@@ -159,6 +162,16 @@ async function main() {
     await runtime.runPluginAction(channel, plugin, action("settings"), { revision: changedSettings.preferences.revision, frequency: 100, cooldownSeconds: 0 });
     assert.equal((await modelHook("mixed-zero", mixedContent)).content, "先冷静一下。然后再说。", "same submission reuses its decision after settings change");
     assert.equal((await modelHook("mixed-hundred", mixedContent)).content, mixedContent);
+    const necessaryPage = await runtime.runPluginAction(channel, plugin, action("list"), {});
+    await runtime.runPluginAction(channel, plugin, action("settings"), { revision: necessaryPage.preferences.revision, frequency: 0, cooldownSeconds: 3600 });
+    await runtime.notifyPluginHook(channel, context.channelPrincipal.chatId, "afterSend", { result: { status: "sent", sentSegments: segments } }, context.channelPrincipal);
+    const needed = await waitTool({ action: "search", query: "冷静", usage: "required" });
+    const neededUrl = needed.candidates[0].url, neededContent = `就是这个![表情](${neededUrl})`;
+    assert.equal((await modelHook("needed", neededContent)).content, neededContent);
+    const neededSegments = [{ type: "text", data: { text: "就是这个" } }, { type: "image", data: { file: neededUrl } }];
+    assert.deepEqual((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, neededSegments,
+      { replySubmissionId: "needed", replyRequestId: "turn" })).content, neededSegments, "real hooks preserve necessary mixed replies during cooldown");
+    assert.equal((await modelHook("later", neededContent)).content, "就是这个");
     // Exercise the actual outbox: filtering must run once before it splits text
     // and images into separate sends, with no extra model/draft exchange.
     const { createChannelReplyOutbox } = hostRequire("./electron/lib/commands/chat/channel-reply-outbox.cjs");
@@ -220,7 +233,7 @@ async function main() {
       assert.deepEqual((await runtime.runPluginAction(channel, plugin, action("detail"), { id: templateRoleId })).textTemplate, template,
         "template metadata survives real role-media synchronization");
       assert(maxGap < 500, `role synchronization blocked the host for ${maxGap} ms`);
-      let own = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
+      let own = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, { ...context, toolCallId: "role-search" });
       for (let n = 0; n < 100 && own.status === "running"; n++) { await wait(20); own = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: own.id }, context); }
       assert.equal(own.status, "completed", own.error);
       assert(own.result.candidates.some(item => item.roleSticker), "retrieved role stickers are identified to the model");
@@ -273,6 +286,32 @@ async function main() {
     assert.equal(fallback.retrieval, "bm25", "slow semantic lookup falls back to keyword retrieval");
     assert(Date.now() - slowStart < 2800, "interactive search does not wait for a slow embedding");
     slowEmbedding = false;
+    const producerActor = { channelId: channel.id, pluginId: producer.id, chatId: context.channelPrincipal.chatId };
+    const gif = Buffer.from("R0lGODlhAgABAIEAAExpcQD/AP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAACAlQKACH5BAUPAAAALAAAAAACAAEAgUxpcf//AAAA/wAAAAICVAoAOw==", "base64");
+    const original = await media.background.put(producerActor, gif, { mimeType: "image/gif", name: "自制动图" });
+    const published = await media.background.call(producerActor, { action: "publish", ref: original.ref, shareable: true,
+      metadata: { generated: true, purpose: "sticker", reusable: true } });
+    await runtime.notifyPluginHook(channel, context.channelPrincipal.chatId, "afterSend", { result: {
+      status: "sent", sentSegments: [{ type: "image", data: { file: published.url } }],
+    } }, context.channelPrincipal);
+    let collected;
+    for (let n = 0; n < 200; n++) {
+      const generatedPage = await runtime.runPluginAction(channel, plugin, action("list"), { source: "generated" });
+      collected = generatedPage.items.find(item => item.id === original.sha256);
+      if (collected) break;
+      await wait(20);
+    }
+    assert(collected, "a successful send queues and completes collection through the real generic host API");
+    const collectedRecord = await runtime.runPluginAction(channel, plugin, action("detail"), { id: original.sha256 });
+    assert.equal(collectedRecord.source.pluginId, producer.id);
+    assert.deepEqual(collectedRecord.chatIds, [context.channelPrincipal.chatId]);
+    const adoptedRef = collectedRecord.refs[0].ref;
+    assert.deepEqual((await media.background.read({ ...producerActor, pluginId: plugin.id }, adoptedRef)).data, gif);
+    producer.enabled = false;
+    const failedTransfer = await runtime.runNativePluginTool("qqSticker", { action: "collect", url: published.url }, { ...context, toolCallId: "disabled-transfer" });
+    let transfer = failedTransfer;
+    for (let n = 0; n < 100 && transfer.status === "running"; n++) { await wait(20); transfer = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: transfer.id }, context); }
+    assert.equal(transfer.status, "failed", "disabling a producer revokes new transfers");
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");

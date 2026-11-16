@@ -9,9 +9,9 @@ const copy = v => v === undefined ? v : JSON.parse(JSON.stringify(v));
 const VERSION = "embeddinggemma-2-daa72c512439-q8-768-joint-v1";
 const vector = Array(768).fill(0); vector[0] = 1;
 function fixture() {
-  const records = new Map(), assets = new Map(), jobs = [], state = new Map(), calls = [], events = new Map(), indices = new Map();
+  const records = new Map(), assets = new Map(), publications = new Map(), jobs = [], state = new Map(), calls = [], events = new Map(), indices = new Map();
   let serial = 0, checkpoint = null, jobId = "fixture", beforeGenerate, beforeEmbed, modelReady = true;
-  const ctx = { plugin: { id: "meme-library" }, profile: { id: "p" }, config: {}, message: { id: "message", chatId: "group", sender: { id: "u" } },
+  const ctx = { plugin: { id: "meme-library" }, requestId: "turn", profile: { id: "p" }, config: {}, message: { id: "message", chatId: "group", sender: { id: "u" } },
     signal: new AbortController().signal, api: {
       async embeddings(input) {
         const model = { id: "embeddinggemma-2", name: "Gemma", version: VERSION, dimension: 768, modalities: ["text", "image", "joint"], ready: modelReady };
@@ -53,12 +53,21 @@ function fixture() {
         throw Error("unexpected database action");
       },
       async assets(input) {
+        if (["inspectPublished", "fromPublished"].includes(input.action)) {
+          const publication = publications.get(input.url); if (!publication) throw Error("missing publication");
+          return input.action === "inspectPublished" ? copy(publication) : { ...copy(assets.get(publication.ref)), publication: copy(publication) };
+        }
         if (input.action === "fromMessage") { assert.equal(input.messageId, "message"); return copy(assets.get("chat")); }
         if (input.action === "put") return copy(assets.get("qq"));
         const a = assets.get(input.ref); if (!a) throw Error("missing asset");
         if (input.action === "info") return copy(a);
         if (input.action === "read") return { ...copy(a), data: "aGk=", done: true };
-        if (input.action === "publish") return { url: "openbot-asset://plugin-media/" + a.sha256 + "/image" };
+        if (input.action === "publish") {
+          const token = input.publicationKey ? require("node:crypto").createHash("sha256").update(a.sha256 + input.publicationKey).digest("hex") : a.sha256;
+          const url = "openbot-asset://plugin-media/" + token + "/image";
+          publications.set(url, { ref: input.ref, metadata: input.metadata || {}, pluginId: ctx.plugin.id });
+          return { url };
+        }
         if (input.action === "grant") { Object.assign(a, { shared: input.shared, chats: input.chats, revision: String(++serial) }); return copy(a); }
         throw Error("unexpected asset action");
       },
@@ -90,7 +99,7 @@ function fixture() {
     } };
   const asset = (ref, id, shared = true) => assets.set(ref, { ref, sha256: id.repeat(64), mimeType: "image/png", bytes: 2, revision: "1", shared, chatId: shared ? "" : "group", chats: [] });
   asset("import", "a"); asset("chat", "b", false); asset("qq", "c");
-  return { ctx, records, assets, calls, jobs, state, events, get: id => copy(records.get("items:" + id.repeat(64))),
+  return { ctx, records, assets, publications, calls, jobs, state, events, get: id => copy(records.get("items:" + id.repeat(64))),
     async syncProfiles() { checkpoint = null; jobId = "fixture-" + ++serial; let result;
       do { result = await plugin.syncProfiles(ctx); } while (result.continuing);
       return result; },
@@ -103,7 +112,7 @@ async function main() {
   const picked = await plugin.stickers({ ...probability.ctx, input: { action: "search", query: "钱包" } });
   const url = picked.candidates[0].url, picture = `![钱包](${url})`, mixed = `钱包空了${picture}`;
   probability.records.set("settings:default", { value: { frequency: 90, cooldownSeconds: 0 } });
-  const after = (replyId, content = mixed) => plugin.afterModel({ ...probability.ctx, hook: { type: "afterModel", replyId, content } });
+  const after = (replyId, content = mixed) => plugin.afterModel({ ...probability.ctx, hook: { type: "afterModel", replyId, requestId: "turn", content } });
   drawValue = 0.95;
   assert.equal((await after("miss")).content, "钱包空了");
   drawValue = 0.05;
@@ -123,7 +132,7 @@ async function main() {
   probability.records.get("settings:default").value.frequency = 0;
   assert.equal(Object.keys(await after("pure", picture)).length, 0, "pure stickers bypass even a zero-percent frequency");
   assert.equal(Object.keys(await after("pure-at", `[at:123] ${picture}`)).length, 0, "addressing a person does not turn a pure sticker into prose");
-  assert.equal(probability.events.has("send:pure"), false, "pure replies never draw");
+  assert.equal(probability.events.get("send:pure").value.data.draw, undefined, "pure replies never draw");
   assert.equal((await after("zero-mixed")).content, "钱包空了");
   assert((await plugin.stickers({ ...probability.ctx, input: { action: "search", query: "钱包" } })).candidates.length,
     "zero frequency does not disable search or proactive pure stickers");
@@ -147,7 +156,66 @@ async function main() {
   assert.match(prompt.systemPromptAppend, /每条独立回复.*必须先/);
   assert.match(prompt.contextItems[0].content, /0%/);
   assert.doesNotMatch(prompt.systemPromptAppend, /needs_review|preparationId/);
+  probability.records.get("settings:default").value.cooldownSeconds = 3600;
+  probability.state.set("lastSent", Date.now());
+  const necessary = await plugin.stickers({ ...probability.ctx, input: { action: "search", query: "钱包", usage: "required" } });
+  const necessaryUrl = necessary.candidates[0].url, necessaryText = `就是这张![图](${necessaryUrl})`;
+  assert.notEqual(necessaryUrl, url, "independent selections of identical bytes have separate publications");
+  assert.equal((await after("required", necessaryText)).content, undefined);
+  assert.equal(probability.events.get("send:required").value.data.draw, undefined, "required images never draw");
+  const requiredSegments = [{ type: "text", data: { text: "就是这张" } }, { type: "image", data: { file: necessaryUrl } }];
+  assert.deepEqual(copy((await plugin.beforeSend({ ...probability.ctx, hook: { replyId: "required", content: requiredSegments } })).content), requiredSegments,
+    "necessary mixed replies bypass cooldown as well as probability");
+  assert.equal((await after("required", necessaryText)).content, undefined, "a retry keeps the same requirement");
+  assert.equal((await after("next-reply", necessaryText)).content, "就是这张", "the next independent reply cannot inherit required usage");
+  assert.equal((await plugin.afterModel({ ...probability.ctx, hook: { replyId: "next-turn", requestId: "other-turn", content: necessaryText } })).content,
+    "就是这张", "required usage cannot escape its original turn");
+  assert.equal((await plugin.beforeSend({ ...probability.ctx, hook: { replyId: "pure", content: pureSegments } })).content.length, 1,
+    "a complete pure reply survives cooldown after segmentation");
+  assert.equal((await plugin.beforeSend({ ...probability.ctx, hook: { replyId: "zero-mixed", content: pureSegments } })).content.length, 0,
+    "an optional image segment does not become necessary just because it was split from text");
+  const anotherRequired = await plugin.stickers({ ...probability.ctx, input: { action: "search", query: "钱包", usage: "required" } });
+  const anotherRequiredText = `就是这张![图](${anotherRequired.candidates[0].url})`;
+  assert.equal((await after("required-priority", picture + anotherRequiredText)).content, anotherRequiredText,
+    "an earlier optional sticker cannot displace the required image");
+  const requiredRow = probability.get("a");
+  await plugin.save({ ...probability.ctx, input: { id: requiredRow.key, revision: requiredRow.revision, enabled: false } });
+  await assert.rejects(plugin.beforeSend({ ...probability.ctx, hook: { replyId: "required", content: requiredSegments } }), /已不可用/,
+    "revocation still applies and does not silently leave a dependent text behind");
   drawValue = undefined;
+  const collection = fixture(), generatedUrl = "openbot-asset://plugin-media/" + "d".repeat(64) + "/image";
+  collection.publications.set(generatedUrl, { ref: "chat", pluginId: "any-producer", metadata: {
+    generated: true, purpose: "sticker", reusable: true, roleProfileId: "p",
+  } });
+  collection.assets.get("chat").mimeType = "image/gif";
+  const sentGenerated = { status: "sent", sentSegments: [{ type: "image", data: { file: generatedUrl } }] };
+  await plugin.afterSend({ ...collection.ctx, hook: { result: { ...sentGenerated, status: "failed" } } });
+  assert.equal(collection.jobs.length, 0, "failed sends do not collect generated media");
+  await plugin.afterSend({ ...collection.ctx, hook: { result: sentGenerated } });
+  assert.equal(collection.jobs[0].actionId, "collectPublished");
+  assert.equal(collection.calls.includes("recognize"), false, "delivery only queues collection, never performs recognition");
+  await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } });
+  assert.equal(collection.get("b").value.source.pluginId, "any-producer", "collection uses metadata, not a producer ID");
+  assert.equal(collection.get("b").value.roleProfileId, "p");
+  assert.equal(collection.get("b").value.chatMode, "include");
+  assert.equal(collection.get("b").value.analysisStatus, "pending");
+  await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } });
+  assert.equal([...collection.records.keys()].filter(key => key.startsWith("items:")).length, 1, "repeat receipts deduplicate originals");
+  for (const metadata of [{ generated: true, purpose: "image", reusable: true }, { generated: true, purpose: "sticker", reusable: false }]) {
+    collection.publications.get(generatedUrl).metadata = metadata;
+    const before = collection.jobs.length;
+    await plugin.afterSend({ ...collection.ctx, hook: { result: sentGenerated } });
+    assert.equal(collection.jobs.length, before, "ordinary images and drafts do not auto-collect");
+  }
+  collection.records.set("settings:default", { value: { collectGenerated: false } });
+  assert.equal((await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } })).skipped, true);
+  assert.equal((await plugin.collect({ ...collection.ctx, input: { url: generatedUrl } })).collected, true, "explicit collection remains available");
+  await assert.rejects(plugin.collect({ ...collection.ctx, input: { messageId: "message", url: generatedUrl } }), /请选择/);
+  const deleting = collection.get("b"); await plugin.remove({ ...collection.ctx, input: { id: deleting.key, revision: deleting.revision } });
+  collection.records.get("settings:default").value.collectGenerated = true;
+  collection.publications.get(generatedUrl).metadata = { generated: true, purpose: "sticker", reusable: true };
+  assert.equal((await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } })).collected, false,
+    "automatic receipts never resurrect a manually deleted sticker");
   const templated = fixture(), templateId = "a".repeat(64);
   await plugin.importFiles({ ...templated.ctx, input: { refs: ["import"] } });
   const template = { version: 1, rect: { x: .1, y: .1, width: .7, height: .3 }, color: "#192550", align: "center", maxFontSize: .075 };
@@ -167,7 +235,7 @@ async function main() {
   const renderInput = { action: "render", searchId: templates.searchId, id: templateId, text: "白痴" };
   await assert.rejects(plugin.stickers({ ...templated.ctx, message: { chatId: "other" }, input: renderInput }), /当前聊天/);
   const rendered = await plugin.stickers({ ...templated.ctx, input: renderInput });
-  assert(rendered.url.includes("e".repeat(64)));
+  assert.match(rendered.url, /^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/);
   const renderedSegments = [{ type: "image", data: { file: rendered.url } }];
   assert.equal((await plugin.beforeSend({ ...templated.ctx, hook: { content: renderedSegments } })).content.length, 1);
   templated.records.set("settings:default", { value: { frequency: 0, cooldownSeconds: 0 } });
@@ -295,12 +363,12 @@ async function main() {
   await plugin.saveSettings({ ...f.ctx, input: { revision: 0, frequency: 0 } });
   const disabledPrompt = await plugin.beforeModel(promptContext);
   assert.equal(disabledPrompt.systemPromptAppend, firstPrompt.systemPromptAppend, "changing state preserves stable instructions");
-  assert.match(disabledPrompt.contextItems[0].content, /图文混合中的表情按 0%/);
+  assert.match(disabledPrompt.contextItems[0].content, /随手配图按 0%/);
   await plugin.saveSettings({ ...f.ctx, input: { revision: f.records.get("settings:default").revision, frequency: 100, cooldownSeconds: 60 } });
   f.state.set("lastSent", Date.now());
   assert.match((await plugin.beforeModel(promptContext)).contextItems[0].content, /冷却至/);
   f.state.delete("lastSent");
-  assert.match((await plugin.beforeModel(promptContext)).contextItems[0].content, /图文混合中的表情按 100%/);
+  assert.match((await plugin.beforeModel(promptContext)).contextItems[0].content, /随手配图按 100%/);
   assert(f.calls.indexOf("recognize") < f.calls.indexOf("embed"), "recognition completes before indexing");
   let row = f.get("a");
   await plugin.save({ ...f.ctx, input: { id: row.key, revision: row.revision, tags: ["破产"] } });
@@ -332,8 +400,9 @@ async function main() {
   row = f.get("a"); await plugin.save({ ...f.ctx, input: { id: row.key, revision: row.revision, profileIds: ["other"] } });
   assert.equal(plugin._test.visible(f.ctx, f.get("a").value), false);
   row = f.get("c");
-  const staleUrl = (await plugin.stickers({ ...f.ctx, input: { action: "search", limit: 6 } })).candidates.find(item => item.id === row.key).url;
-  delete f.records.get("published:" + staleUrl).value.ref;
+  const selectedUrl = (await plugin.stickers({ ...f.ctx, input: { action: "search", limit: 6 } })).candidates.find(item => item.id === row.key).url;
+  const staleUrl = (await f.ctx.api.assets({ action: "publish", ref: "qq", compact: true })).url;
+  f.records.set("published:" + staleUrl, { ...copy(f.records.get("published:" + selectedUrl)), value: { chatId: "group", ids: [row.key] } });
   assert.equal((await plugin.beforeSend({ ...f.ctx, hook: { content: [{ type: "image", data: { file: staleUrl } }] } })).content.length, 1,
     "publication records from earlier versions work without a stored ref");
   await plugin.remove({ ...f.ctx, input: { id: row.key, revision: row.revision } });

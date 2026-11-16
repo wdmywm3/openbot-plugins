@@ -19,7 +19,7 @@ function compactDescriptions(value) {
   };
 }
 const legacyDescriptions = () => Object.fromEntries(FIELDS.filter(key => !ANALYSIS_FIELDS.includes(key)).map(key => [key, SCALARS.has(key) ? "" : []]));
-const DEFAULTS = { frequency: 50, cooldownSeconds: 60, autoCollect: false, visionModelId: "", retrievalModelId: "" };
+const DEFAULTS = { frequency: 50, cooldownSeconds: 60, autoCollect: false, collectGenerated: true, visionModelId: "", retrievalModelId: "" };
 const text = (v, n = 1000) => typeof v === "string" ? v.trim().slice(0, n) : "";
 const strings = (v, n = 30) => [...new Set((Array.isArray(v) ? v : []).map(x => text(x, 256)).filter(Boolean))].slice(0, n);
 // Request IDs are names, not authentication tokens. Host job fingerprints still
@@ -28,8 +28,9 @@ function requestId(id) { let a = 2166136261, b = 5381; for (const c of id) { a =
 const db = (ctx, collection, key, action = "get", extra = {}) => ctx.api.database({ name: "library", scope: "channel", collection, key, action, ...extra });
 const get = async (ctx, id) => (await db(ctx, "items", id)).record;
 const journal = (ctx, input) => ctx.api.journal({ name: "library", scope: "channel", ...input });
+let eventSequence = 0;
 async function recordEvent(ctx, kind, subject, status, summary, data = {}) {
-  const at = Date.now(), key = `${at}:${requestId(subject)}:${Math.random().toString(36).slice(2)}`;
+  const at = Date.now(), key = `${at}:${requestId(subject)}:${++eventSequence}:${Math.random().toString(36).slice(2)}`;
   return (await journal(ctx, { action: "put", key, expectedRevision: 0, value: {
     at, stream: kind, kind, subject, status, summary: text(summary, 600), data,
   } })).record;
@@ -185,7 +186,7 @@ async function ingest(ctx, ref, source = {}, annotation = null, schedule = true)
       analysisStatus: annotation.analysisStatus === "ready" ? "ready" : "pending", descriptionVersion: 1, ...annotation.scope,
       scopeEdited: !!annotation.scope });
     let saved;
-    if (old?.value.deleted && ["qq", "profile"].includes(source.type)) return old;
+    if (old?.value.deleted && (["qq", "profile"].includes(source.type) || source.automatic)) return old;
     try { saved = await put(ctx, id, value, old?.revision || 0); }
     catch (error) { if (n < 4 && conflict(error)) continue; throw error; }
     if (schedule && (value.analysisStatus !== "ready" || value.indexStatus !== "ready")) await enqueue(ctx, [id], `ingest:${info.sha256}:${requestId(id)}:${value.descriptionVersion}:${requestId(value.refs.map(r => r.ref).sort().join("|"))}`);
@@ -450,10 +451,26 @@ module.exports.importFiles = async ctx => {
 };
 module.exports.collect = async ctx => {
   const messageId = text(ctx.input?.messageId, 200);
-  if (!messageId) throw Error("需要当前聊天的消息编号");
-  const asset = await ctx.api.assets({ action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 });
-  const saved = await ingest(ctx, asset.ref, { type: "chat", chatId: ctx.message.chatId, messageId });
+  const url = text(ctx.input?.url, 1000);
+  if (!!messageId === !!url) throw Error("请选择当前聊天的一条图片消息或工具返回的图片地址");
+  const asset = await ctx.api.assets(url ? { action: "fromPublished", url }
+    : { action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 });
+  const saved = await ingest(ctx, asset.ref, { type: asset.publication?.metadata?.generated ? "generated" : "chat", chatId: ctx.message.chatId,
+    ...(url ? { url, pluginId: asset.publication?.pluginId } : { messageId }), automatic: ctx.input?.automatic === true });
   return { collected: true, id: saved.key, processing: saved.value.indexStatus !== "ready" };
+};
+module.exports.collectPublished = async ctx => {
+  if (!(await settings(ctx)).collectGenerated) return { skipped: true };
+  const url = text(ctx.input?.url, 1000), publication = await ctx.api.assets({ action: "inspectPublished", url });
+  const metadata = publication.metadata || {};
+  if (metadata.purpose !== "sticker" || metadata.reusable !== true || metadata.generated !== true) return { skipped: true };
+  const asset = await ctx.api.assets({ action: "fromPublished", url });
+  ctx.signal.throwIfAborted();
+  if (!(await settings(ctx)).collectGenerated) return { skipped: true };
+  const role = metadata.roleProfileId && metadata.roleProfileId === ctx.profile?.id ? metadata.roleProfileId : "";
+  const saved = await ingest(ctx, asset.ref, { type: "generated", chatId: ctx.message.chatId, url,
+    pluginId: publication.pluginId, automatic: true }, role ? { scope: { roleProfileId: role, profileIds: [role] } } : null);
+  return { collected: !saved.value.deleted, id: saved.key, processing: saved.value.indexStatus !== "ready" };
 };
 module.exports.save = async ctx => {
   const input = { ...ctx.input }, row = await get(ctx, input.id);
@@ -545,7 +562,8 @@ module.exports.saveSettings = async ctx => {
     return { saved: true, inherited: true };
   }
   const value = { frequency: Math.max(0, Math.min(100, Math.round(Number(p.frequency) || 0))),
-    cooldownSeconds: Math.max(0, Math.min(3600, Number(p.cooldownSeconds) || 0)), autoCollect: p.autoCollect === true };
+    cooldownSeconds: Math.max(0, Math.min(3600, Number(p.cooldownSeconds) || 0)), autoCollect: p.autoCollect === true,
+    collectGenerated: p.collectGenerated === undefined ? row?.value.collectGenerated ?? DEFAULTS.collectGenerated : p.collectGenerated === true };
   value.retrievalModelId = text(p.retrievalModelId ?? row?.value.retrievalModelId, 200);
   if (value.retrievalModelId) {
     const model = await ctx.api.embeddings({ action: "status", modelId: value.retrievalModelId });
@@ -718,7 +736,7 @@ function lexical(query, item, score) {
   const match = indexText(item).split("\n").some(field => literalText(field).includes(query));
   return { words: match ? 0.95 : score, ocrRank: 0 };
 }
-async function rememberPublished(ctx, id, url, ref, templateToken) {
+async function rememberPublished(ctx, id, url, ref, templateToken, selection = {}) {
   // Indexed by the exact scoped URL. Sending examines only the selected images,
   // rather than republishing/scanning the entire library to recognize ownership.
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -728,7 +746,8 @@ async function rememberPublished(ctx, id, url, ref, templateToken) {
     const ids = strings([id, ...(samePublication ? row.value.ids || [] : [])], 32);
     if (samePublication && row.value.ref === ref && row.value.ids?.includes(id)) return;
     try {
-      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids, ref, ...(templateToken ? { templateToken } : {}) } });
+      await db(ctx, "published", url, "put", { expectedRevision: row?.revision || 0, value: { chatId: ctx.message.chatId, ids, ref,
+        ...selection, ...(templateToken ? { templateToken } : {}) } });
       return;
     } catch (error) { if (!conflict(error) || attempt === 3) throw error; }
   }
@@ -740,6 +759,8 @@ async function issuedSticker(ctx, url) {
 }
 async function search(ctx, input) {
   const query = text(input.query, 1000);
+  const usage = input.usage || "optional";
+  if (!["optional", "required"].includes(usage)) throw Error("请选择随手配图或必要表情");
   const ordinary = input.ordinaryOnly || input.kind === "ordinary", template = input.kind === "template";
   const rows = (await all(ctx)).filter(({ value }) => visible(ctx, value)
     && (!ordinary || !value.textTemplate) && (!template || !!value.textTemplate));
@@ -782,22 +803,25 @@ async function search(ctx, input) {
     return [{ v, score, ocrRank, roleSticker: isRoleSticker(ctx, v) }];
   }).sort((a, b) => (input.mode === "text" ? b.ocrRank - a.ocrRank : 0) || rank(b) - rank(a))
     .slice(0, Math.max(1, Math.min(6, input.limit || 4)));
+  const event = await recordEvent(ctx, "search", ctx.message.chatId, scored.length ? "pending" : "no_match", query || "随机选图",
+    { candidates: scored.map(({ v, score }) => ({ id: v.id, score })), retrieval, warning, usage, requestId: ctx.requestId || "" });
+  const selection = { usage, searchId: event.key, requestId: ctx.requestId || "" };
   const candidates = [], attachments = [];
   for (const { v, score, roleSticker } of scored) {
     const ref = usableRef(v, ctx.message.chatId)?.ref;
     try {
-      const published = v.textTemplate ? null : await ctx.api.assets({ action: "publish", ref, compact: true });
-      if (published) await rememberPublished(ctx, v.id, published.url, ref);
+      const published = v.textTemplate ? null : await ctx.api.assets({ action: "publish", ref, compact: true,
+        shareable: true, publicationKey: event.key });
+      if (published) await rememberPublished(ctx, v.id, published.url, ref, undefined, selection);
       candidates.push({ id: v.id, name: v.name, caption: v.caption, meaning: v.meaning || v.communicativeIntent?.join("；"), tags: v.tags,
         ocrText: text(v.ocrText, 300), usageExamples: strings(v.usageExamples, 3), avoidContexts: v.avoidContexts,
         roleSticker, score: Math.round(score * 1000) / 1000, ...(published ? { url: published.url } : { textTemplate: true }) });
       attachments.push({ assetRef: ref, caption: `${v.id}：${roleSticker ? "专属角色表情，" : ""}${v.caption || "表情"}` });
     } catch { /* Scope may change while candidates are being prepared. */ }
   }
-  const event = await recordEvent(ctx, "search", ctx.message.chatId, candidates.length ? "pending" : "no_match", query || "随机选图",
-    { candidates: candidates.map(({ id, score }) => ({ id, score })), retrieval, warning });
+  await finishEvent(ctx, event, candidates.length ? "pending" : "no_match", { candidates: candidates.map(({ id, score }) => ({ id, score })) });
   await ctx.api.setState("lastSearch", { key: event.key, candidates: candidates.map(({ id, url }) => ({ id, url })) }, "chat");
-  return { searchId: event.key, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
+  return { searchId: event.key, usage, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
     instruction: "专属角色表情画的是你自己，包括 Q 版。有符合当前语境的专属角色表情时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
 }
 async function renderTemplate(ctx, input) {
@@ -820,8 +844,11 @@ async function renderTemplate(ctx, input) {
     || usableRef(current.value, ctx.message.chatId)?.ref !== source) throw Error("表情已变化，请重新选择");
   const asset = await ctx.api.assets({ action: "put", data: image.data, mimeType: image.mimeType, name: current.value.name || "表情" });
   ctx.signal.throwIfAborted();
-  const published = await ctx.api.assets({ action: "publish", ref: asset.ref, compact: true });
-  await rememberPublished(ctx, id, published.url, asset.ref, token);
+  const published = await ctx.api.assets({ action: "publish", ref: asset.ref, compact: true, shareable: true,
+    publicationKey: searchId + ":" + requestId(value) });
+  await rememberPublished(ctx, id, published.url, asset.ref, token, {
+    usage: event.value.data.usage || "optional", searchId, requestId: event.value.data.requestId || "",
+  });
   const last = await ctx.api.getState("lastSearch", "chat");
   if (last?.key === searchId) await ctx.api.setState("lastSearch", { ...last, candidates: [...last.candidates, { id, url: published.url }] }, "chat");
   return { id, url: published.url };
@@ -846,7 +873,7 @@ module.exports.handle = async ctx => {
     const rows = (await all(ctx)).filter(r => visible(ctx, r.value));
     return `当前可用 ${rows.length} 张表情，已建立索引 ${rows.filter(r => r.value.indexStatus === "ready").length} 张。`;
   }
-  const found = await search(ctx, { query: ctx.args, limit: 1, ordinaryOnly: true });
+  const found = await search(ctx, { query: ctx.args, limit: 1, ordinaryOnly: true, usage: "required" });
   return found.candidates.length ? { blocks: [{ type: "image", url: found.candidates[0].url }] } : "没找到合适的表情。";
 };
 module.exports.afterModel = async ctx => {
@@ -856,38 +883,62 @@ module.exports.afterModel = async ctx => {
   const images = [...content.matchAll(/!\[[^\]\r\n]*\]\(([^()\s]+)\)/g)];
   if (!images.length) return {};
   if (images.length > 32) throw Error("单条回复图片过多");
-  const own = new Set();
+  const own = new Map();
   for (const image of images) {
-    if (await issuedSticker(ctx, image[1])) own.add(image[1]);
+    const published = await issuedSticker(ctx, image[1]);
+    if (published) own.set(image[1], published);
   }
   if (!own.size) return {};
   const withoutStickers = () => content.replace(/!\[[^\]\r\n]*\]\(([^()\s]+)\)/g, (markup, url) => own.has(url) ? "" : markup);
   // Mentions/quotes/pokes are addressing or interactions, not a textual body.
   // A pure sticker is a complete reply and must never disappear by lottery.
-  if (!withoutStickers().replace(/\[(?:at|poke):\d+\]/g, "").trim()) return {};
+  const pure = !withoutStickers().replace(/\[(?:at|poke):\d+\]/g, "").trim();
   const replyId = text(ctx.hook?.replyId, 160);
   if (!replyId) return {}; // Non-reply model notifications have no send decision.
   const key = `send:${replyId}`, previous = (await journal(ctx, { action: "get", key })).record;
-  let keep;
+  let decision;
   if (previous) {
     if (previous.value.subject !== ctx.message.chatId) throw Error("发送判定不属于当前聊天");
-    keep = previous.value.data.keep === true;
+    decision = previous.value.data;
   } else {
+    const requiredUrls = [];
+    for (const [url, published] of own) {
+      const explicit = published.usage === "required" && published.requestId === (ctx.hook?.requestId || "");
+      if (pure && !explicit) { requiredUrls.push(url); continue; }
+      if (!explicit) continue;
+      // A required selection belongs to one submission; a later reply cannot
+      // inherit it by reusing the same URL, including concurrent replies.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const key = published.searchId || url, row = (await db(ctx, "selectionUses", key)).record;
+        if (row && row.value.replyId !== replyId) { if (pure) requiredUrls.push(url); break; }
+        try {
+          if (!row) await db(ctx, "selectionUses", key, "put", {
+            expectedRevision: 0, value: { chatId: ctx.message.chatId, replyId },
+          });
+          requiredUrls.push(url); break;
+        } catch (error) { if (!conflict(error) || attempt === 3) throw error; }
+      }
+    }
+    if (requiredUrls.length > 1) throw Error("一条回复请选择一张必要表情");
     const cfg = await settings(ctx), frequency = Math.max(0, Math.min(100, Number(cfg.frequency) || 0));
-    const draw = Math.random() * 100;
-    keep = draw < frequency;
+    const draw = requiredUrls.length ? undefined : Math.random() * 100;
+    decision = { replyId, requestId: ctx.hook?.requestId || "", frequency, ...(draw === undefined ? {} : { draw }),
+      keep: draw === undefined || draw < frequency, requiredUrls, urls: [...own.keys()] };
     try {
       await journal(ctx, { action: "put", key, expectedRevision: 0, value: { at: Date.now(), stream: "delivery", kind: "delivery",
-        subject: ctx.message.chatId, status: keep ? "selected" : "filtered", summary: "图文回复表情判定",
-        data: { replyId, frequency, draw, keep, urls: [...own] } } });
+        subject: ctx.message.chatId, status: decision.keep || requiredUrls.length ? "selected" : "filtered", summary: "表情发送判定",
+        data: decision } });
     } catch (error) {
       if (!conflict(error)) throw error;
       const winner = (await journal(ctx, { action: "get", key })).record;
       if (!winner || winner.value.subject !== ctx.message.chatId) throw error;
-      keep = winner.value.data.keep === true;
+      decision = winner.value.data;
     }
   }
-  return keep ? {} : { content: withoutStickers() };
+  const required = new Set(decision.requiredUrls || []);
+  if (decision.keep && (!required.size || required.size === own.size)) return {};
+  return { content: content.replace(/!\[[^\]\r\n]*\]\(([^()\s]+)\)/g,
+    (markup, url) => own.has(url) && !required.has(url) ? "" : markup) };
 };
 module.exports.beforeModel = async ctx => {
   if (!ctx.api.getCapabilities || !(await ctx.api.getCapabilities()).features?.persistentContextItems) throw Error("表情插件需要支持持久资料的新版本 OpenBot");
@@ -897,15 +948,18 @@ module.exports.beforeModel = async ctx => {
     'query 写这次想表达的意思、态度和对象，比如「被夸后得意叉腰」。找图上的原话用 mode=text。明确想填字时用 kind=template，并按用途搜索，比如「半垂眼想吐槽的思考框」。',
     '结合候选原图、含义和 avoidContexts 选图。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
     '选中可填字表情后用同一工具启动 input.action=render，传 searchId、id 和公开短句 text，思考框尽量在 20 字以内。短句可以表达想法、玩梗或对熟人轻轻吐槽。',
-    '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。图文混合按插件设置决定是否保留表情，文字要能独立表达完整意思。插件关闭、冷却或无可用表情时按当前状态回复。',
+    '搜索时用 usage=required 表示用户明确要表情、斗图或删掉图片就不能完成这条回复；这种表情不受随手配图的频率和间隔限制。普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。用途只对本次回复有效，每条独立回复使用本次搜索结果。',
+    '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。插件关闭或没有合适素材时按实际情况回复。',
+    '用户要求收藏、出现图库缺少且以后能复用的表情、或形成当前聊天的常用梗时，主动用 action=collect 收藏：聊天图片传 messageId 和 imageIndex，工具产物传完整 url。不要收藏普通照片、私人截图、改稿中间版或重复图片。自制表情成品发送后可自动收藏，不必再调用一次。',
   ].join("\n");
   let status;
   const cooldownUntil = last + cfg.cooldownSeconds * 1000;
-  if (Date.now() < cooldownUntil) status = `表情发送冷却至 ${new Date(cooldownUntil).toISOString()}。到期后先检索再发送。`;
-  else if (!await hasVisible(ctx)) status = "当前角色和聊天没有可用表情。";
+  if (!await hasVisible(ctx)) status = "当前角色和聊天没有可用表情。";
   else {
-    status = `当前可使用表情。每条独立回复须先搜索并查看候选；纯表情直接发送，图文混合中的表情按 ${cfg.frequency}% 的概率保留。没有合适的候选可只发文字，主动选择纯表情不受该概率限制。`;
+    status = `当前可使用表情。每条独立回复须先搜索并查看候选；随手配图按 ${cfg.frequency}% 的概率保留，必要表情和纯表情回复直接发送。没有合适候选可只发文字。`;
+    if (Date.now() < cooldownUntil) status += ` 随手配图冷却至 ${new Date(cooldownUntil).toISOString()}，仍可检索并发送必要表情。`;
   }
+  status += cfg.collectGenerated ? " 自制表情成品发出后自动收藏。" : " 自制表情自动收藏已关闭，需要时可明确调用收藏工具。";
   return { systemPromptAppend, contextItems: [{ key: "availability", content: status + " 新状态替代本插件先前状态；历史状态不授予发送权限。" }] };
 };
 async function hasVisible(ctx) {
@@ -931,13 +985,19 @@ module.exports.beforeSend = async ctx => {
   if (!own.size) return {};
   const cfg = await settings(ctx);
   const cooldown = Date.now() - (await ctx.api.getState("lastSent", "chat") || 0) < cfg.cooldownSeconds * 1000;
+  const replyId = text(ctx.hook?.replyId, 160);
+  const decision = replyId ? (await journal(ctx, { action: "get", key: `send:${replyId}` })).record : null;
+  if (decision && decision.value.subject !== ctx.message.chatId) throw Error("发送判定不属于当前聊天");
+  const required = new Set(decision?.value.data?.requiredUrls || []);
   let selected = false, checks = 0;
   const next = [];
   for (const part of content) {
     const url = part?.type === "image" ? part.data?.file || part.data?.url : "";
     const published = own.get(url);
     if (!published) { next.push(part); continue; }
-    if (cooldown || selected) continue;
+    const necessary = required.has(url) || !replyId && published.usage === "required" && !published.requestId;
+    if (selected || cooldown && !necessary) continue;
+    let accepted = false;
     for (const id of strings(published.ids, 32)) {
       if (++checks > 64) throw Error("待发送表情需要核验的记录过多，请减少图片后重试");
       const row = await get(ctx, id);
@@ -957,8 +1017,9 @@ module.exports.beforeSend = async ctx => {
           } catch { ctx.signal.throwIfAborted(); continue; }
         }
       }
-      next.push(part); selected = true; break;
+      next.push(part); selected = true; accepted = true; break;
     }
+    if (necessary && !accepted) throw Error("这次回复需要的表情已不可用，请重新选图或调整回复");
   }
   return { content: next };
 };
@@ -967,11 +1028,11 @@ module.exports.afterSend = async ctx => {
   if (!["ok", "sent", "completed", "partial"].includes(receipt?.status) && !receipt?.data?.message_id) return;
   const sent = (receipt.sentSegments || []).filter(part => part.type === "image").map(part => part.data?.file || part.data?.url);
   if (!sent.length) return;
-  let owned = false;
+  const ownedUrls = new Set();
   for (const url of new Set(sent.slice(0, 32))) {
-    if (await issuedSticker(ctx, url)) { owned = true; break; }
+    if (await issuedSticker(ctx, url)) ownedUrls.add(url);
   }
-  if (owned) {
+  if (ownedUrls.size) {
     await ctx.api.setState("lastSent", Date.now(), "chat");
     const search = await ctx.api.getState("lastSearch", "chat"), selected = search?.candidates?.find(item => sent.includes(item.url));
     if (selected) {
@@ -982,12 +1043,22 @@ module.exports.afterSend = async ctx => {
       await ctx.api.setState("recentStickers", [selected.id, ...recent], "chat");
     }
   }
+  const foreign = [...new Set(sent)].filter(url => /^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/.test(url) && !ownedUrls.has(url)).slice(0, 8);
+  if (foreign.length && (await settings(ctx)).collectGenerated) for (const url of foreign) {
+    let publication;
+    try { publication = await ctx.api.assets({ action: "inspectPublished", url }); }
+    catch { ctx.signal.throwIfAborted(); continue; }
+    const metadata = publication.metadata || {};
+    if (metadata.purpose === "sticker" && metadata.reusable === true && metadata.generated === true) {
+      await ctx.api.jobs({ action: "start", actionId: "collectPublished", input: { url }, requestKey: `collect:${requestId(url)}` });
+    }
+  }
 };
 module.exports.messageReceived = async ctx => {
   if (!(await settings(ctx)).autoCollect || ctx.message.sender?.isBot) return;
   const media = (ctx.message.media || []).filter(item => ["image", "mface"].includes(item.type));
   for (let i = 0; i < Math.min(media.length, 8); i++) if (media[i].type === "mface" || media[i].subType === 1 || media[i].sub_type === 1) {
-    try { await module.exports.collect({ ...ctx, input: { messageId: ctx.message.id, imageIndex: i } }); } catch { /* Continue with other attachments. */ }
+    try { await module.exports.collect({ ...ctx, input: { messageId: ctx.message.id, imageIndex: i, automatic: true } }); } catch { ctx.signal.throwIfAborted(); }
   }
 };
 module.exports._test = { descriptions, indexText, textIndex, textScores, visible, isRoleSticker, usableRef, parseAnalysis, ingest, processItem, search };

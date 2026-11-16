@@ -181,8 +181,11 @@ async function references(ctx, input) {
   const images = [];
   for (const ref of refs) {
     check(ctx); let picture;
-    if (ref.assetRef && !ref.messageId) {
-      const own = string(ref.assetRef, 500, "图片引用"), info = await ctx.api.assets({ action: "info", ref: own });
+    if ([ref.assetRef, ref.messageId, ref.url].filter(Boolean).length !== 1) throw Error("参考图须指定消息编号或工具返回的图片地址");
+    if (ref.assetRef || ref.url) {
+      const own = ref.url ? (await ctx.api.assets({ action: "fromPublished", url: string(ref.url, 1000, "图片地址") })).ref
+        : string(ref.assetRef, 500, "图片引用");
+      const info = await ctx.api.assets({ action: "info", ref: own });
       if (info.bytes > LIMIT.reference) throw Error("参考图超过 600 KiB，请先缩小图片");
       const chunks = []; let offset = 0;
       for (let n = 0; n < 12; n++) {
@@ -454,6 +457,8 @@ module.exports.selfie_reference = async ctx => {
 };
 async function drawImage(ctx, mode) {
   const input = ctx.input || {}, config = ctx.config || {};
+  const purpose = input.purpose || "image";
+  if (!["image", "sticker"].includes(purpose) || input.draft !== undefined && typeof input.draft !== "boolean") throw Error("图片用途无效");
   if (mode === "selfie" && input.references !== undefined && (!Array.isArray(input.references) || input.references.length)) throw Error("自拍只使用已设置的固定形象，请不要传入聊天参考图");
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
   const userPrompt = string(input.prompt, LIMIT.prompt, "画图要求"), prompt = mode === "selfie" ? `${SELFIE_PROMPT}\n\n本次画图要求：\n${userPrompt}` : userPrompt;
@@ -527,7 +532,9 @@ async function drawImage(ctx, mode) {
   check(ctx);
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
-  const published = await ctx.api.assets({ action: "publish", ref: stored.ref });
+  const published = await ctx.api.assets({ action: "publish", ref: stored.ref, shareable: true, compact: purpose === "sticker",
+    metadata: { generated: true, purpose, reusable: purpose === "sticker" && input.draft !== true,
+      ...(purpose === "sticker" && mode === "selfie" && ctx.profile?.id ? { roleProfileId: ctx.profile.id } : {}) } });
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   return { mode, provider, ...(snapshot?.manual ? { selfieReferenceRevision: snapshot.manual.revision } : {}), images: [{ assetRef: stored.ref, url: published.url, mimeType }],

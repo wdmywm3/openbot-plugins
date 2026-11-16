@@ -8,8 +8,8 @@ const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 const gif = "R0lGODlhAgABAIEAAExpcQD/AP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAACAlQKACH5BAUPAAAALAAAAAACAAEAgUxpcf//AAAA/wAAAAICVAoAOw==";
 const plain = value => JSON.parse(JSON.stringify(value));
 function fixture(config = {}, input = {}) {
-  const controller = new AbortController(), requests = [], closes = [], stored = [], streams = new Map(); let serial = 0;
-  const fx = { controller, requests, closes, stored, payload: { data: [{ b64_json: png }] }, chunks: null, status: 200 };
+  const controller = new AbortController(), requests = [], closes = [], stored = [], publications = [], streams = new Map(); let serial = 0;
+  const fx = { controller, requests, closes, stored, publications, payload: { data: [{ b64_json: png }] }, chunks: null, status: 200 };
   const ctx = { config: { ...defaults, openaiImageModel: "gpt-image-2.6-sunburst", openaiTextModel: "fixture-chat", ...config },
     input: { prompt: "雨中的猫", ...input }, principal: { source: "channel", role: "owner", senderId: "owner", channelId: "fixture" },
     signal: controller.signal, deadlineAt: Date.now() + 60000, api: {
@@ -28,7 +28,8 @@ function fixture(config = {}, input = {}) {
     async readMessageAttachment({ messageId, maxBytes }) { assert.equal(messageId, "reference"); assert.equal(maxBytes, 600 * 1024); return { data: png, mimeType: "image/png" }; },
     async assets(request) {
       if (request.action === "put") { stored.push(plain(request)); return { ref: "plugin-asset://fixture" }; }
-      if (request.action === "publish") return { url: "openbot-plugin-asset://published" };
+      if (request.action === "publish") { publications.push(plain(request)); return { url: "openbot-plugin-asset://published" }; }
+      if (request.action === "fromPublished") { assert.equal(request.url, "openbot-plugin-asset://another-plugin"); return { ref: "adopted" }; }
       if (request.action === "info") return { bytes: Buffer.from(png, "base64").length, mimeType: "image/png" };
       if (request.action === "read") return { data: png, done: true };
       throw Error(request.action);
@@ -45,6 +46,15 @@ function fixture(config = {}, input = {}) {
   assert.equal(fx.requests[0].options.body.n, 1); assert.equal(fx.requests[0].options.body.stream, true);
   assert.equal(fx.stored[0].data, png); assert.equal(result.images[0].mimeType, "image/png");
   assert(!JSON.stringify(result).includes(png)); assert(!JSON.stringify(result).includes("fixture-secret")); assert.equal(fx.closes.length, 1);
+  assert.equal(fx.publications[0].shareable, true); assert.equal(fx.publications[0].metadata.reusable, false);
+  fx = fixture({}, { purpose: "sticker", format: "gif" }); fx.state.payload = { data: [{ b64_json: gif }] };
+  await draw(fx.ctx);
+  assert.deepEqual(fx.publications[0].metadata, { generated: true, purpose: "sticker", reusable: true });
+  assert.equal(fx.publications[0].compact, true); assert.equal(fx.stored[0].data, gif);
+  fx = fixture({}, { purpose: "sticker", draft: true }); await draw(fx.ctx);
+  assert.equal(fx.publications[0].metadata.reusable, false, "drafts are not marked as reusable outputs");
+  fx = fixture({}, { references: [{ url: "openbot-plugin-asset://another-plugin" }] }); await draw(fx.ctx);
+  assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits", "editing can adopt another plugin's published image");
   fx = fixture({}, { references: [{ messageId: "reference", index: 0 }] }); await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits");
   assert.equal(fx.requests[0].options.body.images[0].image_url, "data:image/png;base64," + png);

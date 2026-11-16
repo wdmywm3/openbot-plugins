@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.5.3",
+  "version": "2.6.0",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -17,7 +17,8 @@
         "resumableJobSlices",
         "pagedProfileMedia",
         "profileMediaMetadata",
-        "qqGateway"
+        "qqGateway",
+        "mediaHandoff"
       ],
       "main": "index.js",
       "permissions": [
@@ -76,7 +77,7 @@
           "aliases": [
             "qqSticker"
           ],
-          "description": "按想表达的意思或图片原话检索表情，给可填字表情填写短句，或收藏当前聊天图片。",
+          "description": "按表达含义检索表情（区分随手配图和必要表情）、填字，或收藏当前聊天图片和工具生成的图片。用户要求收藏或遇到值得复用的新表情时主动收藏。",
           "scope": "all",
           "permission": "member",
           "mutating": true,
@@ -155,6 +156,19 @@
               "note": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "usage": {
+                "type": "string",
+                "enum": [
+                  "optional",
+                  "required"
+                ],
+                "description": "搜索用途。optional 是文字顺便配图；required 是用户明确要表情、斗图或删掉图就无法完成回复。仅本次回复的必要表情免除配图概率和间隔。"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "收藏工具产物时填写返回的完整图片 URL，与 messageId 二选一。"
               }
             },
             "required": [
@@ -703,6 +717,27 @@
             ],
             "additionalProperties": false
           }
+        },
+        {
+          "id": "collectPublished",
+          "export": "collectPublished",
+          "kind": "job",
+          "permission": "member",
+          "restartable": true,
+          "timeoutMs": 30000,
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false
+          }
         }
       ],
       "ui": {
@@ -792,9 +827,9 @@
         ]
       },
       "metadata": {
-        "changelog": "根据当前实例的 QQ 网关能力提供收藏同步。",
+        "changelog": "必要表情不受随手配图概率和间隔限制；支持收藏工具产物，自动收录已发出的自制表情成品。",
         "requirements": [
-          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
+          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
