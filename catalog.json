@@ -324,7 +324,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.3.4",
+      "version": "0.4.0",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -347,32 +347,32 @@
           "qqbot"
         ],
         "requirements": [
-          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持全局服务配置、模型目录及并发队列。",
+          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.3.4：修正通过通用插件工具查询画图结果时的参数说明。0.3.3：修复 OpenAI 密钥格式处理，支持从模型列表选择模型，新增允许非主人画图的开关。",
+        "changelog": "生成图片可在当前聊天交给其他插件使用；区分表情成品和改稿，支持发送后的自动收藏。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "5d833428504f6f5ed39d3537b352aeabe69b0c42",
+      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
       "files": [
         {
           "path": "README.md",
-          "size": 7175,
-          "sha256": "9121c5f48c38c58fff52f3bd050ceddac6d889089aa2693812938a23c9babc48"
+          "size": 8215,
+          "sha256": "bc98eef2f84dd429e19eff16d620fd17ae68f09d41dd2e7b79488fea1f85c11c"
         },
         {
           "path": "index.js",
-          "size": 38660,
-          "sha256": "0bff6a697d8b25c48548b85a9d97ea814902ff8f92607f1f853a43e6faf2494b"
+          "size": 39395,
+          "sha256": "32fea4dbb2b650435892c40e196efb7c5fcf8ef3488cbb321426f9b67aae83c8"
         },
         {
           "path": "plugin.json",
-          "size": 22128,
-          "sha256": "aecf52243ee6010d3974571519c195397be5cd41b6d61dd1dc02c04a6dcd20ce"
+          "size": 23234,
+          "sha256": "73c8217062627b5e43a586b807b16414bc640110727f9924ed6472dfc5ed004c"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -401,8 +401,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5777,
-          "sha256": "869659250faabc9fc5c41dde22602931b8d54c37728b27539c286aff2c8d8d9c"
+          "size": 6803,
+          "sha256": "90a7b72bad52f1f781d5f3afc88d008d4bb2071c2193ed236b30d3dfcb0498e5"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -439,7 +439,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.5.3",
+      "version": "2.6.0",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -470,12 +470,12 @@
         "usage": "/meme 按关键词或随机发送表情\n/memeinfo 查看可用表情数量",
         "platforms": [],
         "requirements": [
-          "请先安装 OpenBot 0.1.99 或更新版本，再更新本插件。需支持分页角色媒体、插件弹窗及持久上下文。",
+          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "根据当前实例的 QQ 网关能力提供收藏同步。",
+        "changelog": "必要表情不受随手配图概率和间隔限制；支持收藏工具产物，自动收录已发出的自制表情成品。",
         "components": [
           "commands",
           "hooks",
@@ -486,12 +486,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
       "files": [
         {
           "path": "README.md",
-          "size": 9237,
-          "sha256": "150bbbb656ab7c34f67ca915b17e3dae09b32311b1c3af5dd0785fb9756d9090"
+          "size": 10548,
+          "sha256": "106c6b17594cee31d70d82e8c17ba5985d7c027796b2f09ae3bf07356f7bc8b7"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -510,8 +510,8 @@
         },
         {
           "path": "index.js",
-          "size": 71447,
-          "sha256": "242d43bc2248e6626a25ce466f4640e4a55c7cf4a26f906e4973e67e4a6f64a4"
+          "size": 77365,
+          "sha256": "9fc3606220db288160034534402d5121c9315f534f6caee5c02d1ec6c2c899de"
         },
         {
           "path": "mcp.json",
@@ -530,13 +530,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 21740,
-          "sha256": "11137002d0ec5e2360840eda46a1f4d6e7696a2f7940388d913e162359325383"
+          "size": 23020,
+          "sha256": "3e748a14a0a6993525bb86269033eca57c50202dec696508e166e84e7cca25e1"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 3569,
-          "sha256": "09e23b151282822b0ae9112ed97aff8015a46c08b5282481fc4695188a86ce3b"
+          "size": 4505,
+          "sha256": "9c9776251fefab98d2e96aa5bd887c7d06ad5c8d49ab4b936b8870801d8dfbf4"
         },
         {
           "path": "ui/app.js",
@@ -545,8 +545,8 @@
         },
         {
           "path": "ui/index.html",
-          "size": 2563,
-          "sha256": "d5228234775f69abf35852b5659c82485ce7527aa2ae402cab5c218653197729"
+          "size": 2610,
+          "sha256": "6a3e176e36ee18a61ae9ff91e824a3f664cebcd56c52abf41f4fed42710aa3e4"
         },
         {
           "path": "ui/panel.html",
@@ -555,8 +555,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 17404,
-          "sha256": "6b7aab096d90917feb08e8ac8def9779060ba49f1a6020f0017be1a1a059ab39"
+          "size": 17633,
+          "sha256": "959e277ea0c8232373888b4b5bee1ad414e1e40dc510972937014767eb6ac778"
         },
         {
           "path": "ui/style.css",
