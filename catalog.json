@@ -568,8 +568,8 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.2",
-      "description": "为统一记忆提供自动召回、人物画像、闲时整理和 Dream，并兼容已有复查。",
+      "version": "2.6.3",
+      "description": "为统一记忆提供自动召回、人物画像、唤醒后整理和 Dream，并兼容已有复查。",
       "category": "assistant",
       "main": "index.js",
       "permissions": [
@@ -600,9 +600,10 @@
         "usage": "",
         "platforms": [],
         "requirements": [
+          "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "支持把尚未执行的单次复查移交给私人管家，已有周期复查沿用原设置。",
+        "changelog": "支持唤醒期结束后短暂整理，并在分段、压缩时触发；每轮连续失败三次后停止，下一次触发独立重试，避免聊天被永久锁住。",
         "components": [
           "hooks",
           "tools",
@@ -611,12 +612,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "91931471f5ed08d3e0e5846aa4623d3433111544",
       "files": [
         {
           "path": "README.md",
-          "size": 11408,
-          "sha256": "e255054dcd32f5e9182e7b169c5688d7557238ee32a17972a409975e51c00799"
+          "size": 11928,
+          "sha256": "4e3dc0d7e28d86fd50a4f8e153e6f3d36a62a0524dae1a5e95691b2e1d7491b0"
         },
         {
           "path": "followup-runtime.cjs",
@@ -775,8 +776,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14074,
-          "sha256": "f269458fb2b676aaf22e74e1757284686cc9409c7cbe38c7cf3973ef697ad9b5"
+          "size": 14225,
+          "sha256": "11a64d44ececbdd81b4eb0c41d4a5bb732f9d561e0a0e754a339c41e22079a4a"
         },
         {
           "path": "process.cjs",
@@ -890,8 +891,13 @@
         },
         {
           "path": "unified-fork-organizer.cjs",
-          "size": 13535,
-          "sha256": "f80394b309b842d4b82b4a3f4c02e9d07ae4b7b6e85932fcd98aa40be5c25e1a"
+          "size": 14754,
+          "sha256": "7eb764182c0c01780d06580c7bceab24d2aed4f27a1307f7532c9e0ebadd7e81"
+        },
+        {
+          "path": "unified-fork-retries.cjs",
+          "size": 1970,
+          "sha256": "9177b94d80b108d72a36419bde66d00a6ee458de30652e40fde526d2ab11147c"
         },
         {
           "path": "unified-legacy-rollback.cjs",
@@ -955,13 +961,13 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 37611,
-          "sha256": "4e2b3593ebc70b9236aedffecd06f4fe3a0dc2bfdf680f162f9d834322e25f69"
+          "size": 38032,
+          "sha256": "1b37babd25c0c1391f170f89466dd11a0570d59786333510b6af589de5483b84"
         },
         {
           "path": "unified-scheduling.cjs",
-          "size": 3054,
-          "sha256": "3c131dfa196060649b8279e7ebf05fd9b1f50d7fd6624513e6fcbe66710c335a"
+          "size": 3428,
+          "sha256": "c57f1a1cade82639c80cefa5a59702403babc7b3a3890ff0e12ad51dcfd6ee6f"
         },
         {
           "path": "unified-state.cjs",
