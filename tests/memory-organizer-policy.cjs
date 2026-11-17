@@ -5,7 +5,8 @@ const host = process.env.OPENBOT_HOST_ROOT || path.resolve(__dirname, "../../ope
 const { createUnifiedMemoryRepository } = require(path.join(host, "electron/lib/context/unified-memory-repository.cjs"));
 const organizer = require("../plugins/memory/unified-organizer.cjs"), dream = require("../plugins/memory/unified-dream.cjs");
 const prompts = require("../plugins/memory/unified-dream-prompts.cjs");
-const { open, close } = require("../plugins/memory/storage.cjs"), { get, state, save } = require("../plugins/memory/unified-state.cjs");
+const { open, close } = require("../plugins/memory/storage.cjs"), { get, put, state, save } = require("../plugins/memory/unified-state.cjs");
+const forkRetries = require("../plugins/memory/unified-fork-retries.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-organizer-policy-"));
 const db = new DatabaseSync(":memory:"), storage = open(root), scopes = new Map();
 const originalBuild = prompts.build;
@@ -235,6 +236,7 @@ const empty = () => ({ facts: [], topics: [] });
     await runtime.conversationBoundary(boundaryCtx);
     assert.deepEqual(queued.map(item => [item.actionId, item.chatId, item.input.mode]), [["process", forked.scope.chatId, "dream"]]);
     await assert.rejects(runtime.process(forkCtx), /acknowledgement lost/);
+    put(storage, forkRetries.key(forked.scope), get(storage, forkRetries.key(forked.scope), []).map(item => ({ ...item, retryAt: 0 })));
     await runtime.process(forkCtx);
     assert.equal(captured.length, 1);
     assert.deepEqual(captured[0].branches.map(branch => branch.key), [...branches.keys()]);
@@ -256,7 +258,70 @@ const empty = () => ({ facts: [], topics: [] });
     assert(state(storage, forked.scope).nextRun > Date.now(), "extraction advances the daily schedule even during maintenance backoff");
     assert(!JSON.stringify(captured[1].branches).includes(publicMeme.id), "daily Dream only processes remaining visible sources");
     assert.equal(forked.records({ mode: "history", category: "meme" }).length, 2);
-    console.log("Memory organizer policy: fork boundaries and daily Dream, visible evidence, diary, public memes, deduplication, receipts and recall passed.");
+    const retrying = harness("wake-retries");
+    retrying.add("这轮只是随口聊天。");
+    let fail = true, busy = false, cancel;
+    const retrySnapshots = [{ id: "wake-failed", boundary: "wake", at: Date.now() }], attempts = [], retryJobs = [];
+    retrying.ctx.api.jobs = async request => { retryJobs.push(request); return { id: request.requestKey }; };
+    retrying.ctx.api.conversationForks = async request => {
+      if (request.action === "list") return { snapshots: retrySnapshots };
+      if (request.action === "sources") return { items: retrying.messages, nextOffset: null };
+      attempts.push(request.id);
+      if (busy) throw Object.assign(Error("foreground"), { code: "CONVERSATION_FORK_BUSY" });
+      if (cancel) { cancel.abort(); throw Error("canceled"); }
+      if (fail) throw Error("当前会话没有足够空间执行辅助请求");
+      return { results: request.branches.map(branch => ({ key: branch.key, output: "{}" })) };
+    };
+    save(storage, retrying.scope, { settingsOverride: { enabled: true }, nextRun: Date.now() + 86400000,
+      maintenanceNextRun: Date.now() + 86400000, failures: 5, retryAt: Date.now() + 86400000 });
+    const retryCtx = { ...retrying.ctx, dataRoot: root, message: { chatId: retrying.scope.chatId }, input: { mode: "dream", snapshotId: "wake-failed" } };
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    assert.equal(retryJobs.length, 1, "a new boundary recovers chats blocked by the old chat-wide failure count");
+    for (let index = 0; index < 3; index++) {
+      await assert.rejects(runtime.process(retryCtx), /没有足够空间/);
+      assert.equal(get(storage, forkRetries.key(retrying.scope))[0].failures, index + 1);
+      if (index < 2) {
+        await runtime.process(retryCtx);
+        assert.equal(attempts.length, index + 1, "the same round observes its retry delay");
+        put(storage, forkRetries.key(retrying.scope), get(storage, forkRetries.key(retrying.scope)).map(item => ({ ...item, retryAt: 0 })));
+      }
+    }
+    await runtime.process(retryCtx);
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    assert.equal(attempts.length, 3, "three failed attempts stop this round, even when the old boundary is delivered again");
+    assert.equal(retryJobs.length, 1);
+    fail = false;
+    retrySnapshots[0] = { ...retrySnapshots[0], boundary: "segment", boundaryId: "same-request-segment" };
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    await runtime.process({ ...retryCtx, input: retryJobs.at(-1).input });
+    assert.equal(attempts.length, 4, "a new segment retries even when it refers to the same captured request as the failed wake");
+    assert.notEqual(retryJobs[0].requestKey, retryJobs[1].requestKey);
+    for (const boundary of ["wake", "segment", "compaction"]) {
+      retrying.add(`这是 ${boundary} 后的新一轮闲聊。`);
+      const snapshot = { id: `new-${boundary}`, boundary, at: Date.now() + retrySnapshots.length };
+      retrySnapshots.push(snapshot);
+      await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot } });
+      await runtime.process({ ...retryCtx, input: retryJobs.at(-1).input });
+      assert.equal(attempts.at(-1), snapshot.id, `${boundary} processes fresh work instead of retrying the exhausted snapshot`);
+    }
+    const canceled = { id: "canceled-fork", boundary: "wake", at: Date.now() + 100 };
+    retrying.add("新一轮消息用于检查后台让路。");
+    retrySnapshots.push(canceled); busy = true;
+    const busyCtx = { ...retryCtx, input: { mode: "dream", snapshotId: canceled.id } };
+    assert.equal((await runtime.process(busyCtx)).busy, true);
+    assert(!get(storage, forkRetries.key(retrying.scope)).some(item => item.id === canceled.id), "busy is not a failed attempt");
+    busy = false; cancel = new AbortController();
+    await assert.rejects(runtime.process({ ...busyCtx, signal: cancel.signal }), /canceled/);
+    assert(!get(storage, forkRetries.key(retrying.scope)).some(item => item.id === canceled.id), "cancellation is not a failed attempt");
+    for (let index = 0; index < 3; index++) forkRetries.failed(storage, retrying.scope, "prepared-write", Error("receipt lost"));
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "prepared-write");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), false);
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "fresh-boundary");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), true, "a new boundary can resume an existing idempotent write");
+    forkRetries.failed(storage, retrying.scope, "prepared-write", Error("receipt still lost"));
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "fresh-boundary");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), false, "the same new boundary cannot reset its retry delay");
+    console.log("Memory organizer policy: wake/segment/compaction boundaries, three attempts per round, fresh-boundary recovery, cancellation, daily Dream, evidence and idempotent receipts passed.");
   } finally {
     prompts.build = originalBuild; close(); db.close();
     assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir())); assert(path.basename(root).startsWith("openbot-memory-organizer-policy-"));
