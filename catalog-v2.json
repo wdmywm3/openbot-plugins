@@ -439,7 +439,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -475,7 +475,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "必要表情不受随手配图概率和间隔限制；支持收藏工具产物，自动收录已发出的自制表情成品。",
+        "changelog": "修复自制表情收藏后停在待识别的问题，成品发出后会自动识图并建立索引。",
         "components": [
           "commands",
           "hooks",
@@ -486,7 +486,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
+      "ref": "b10db60697e7cdb1d1d3e36b477b20210c10af7a",
       "files": [
         {
           "path": "README.md",
@@ -510,8 +510,8 @@
         },
         {
           "path": "index.js",
-          "size": 77365,
-          "sha256": "9fc3606220db288160034534402d5121c9315f534f6caee5c02d1ec6c2c899de"
+          "size": 77765,
+          "sha256": "a3c398c0bcbfec6d47e3d5b047068e846dbe323d9d460fb35ae7906c997ffd72"
         },
         {
           "path": "mcp.json",
@@ -530,8 +530,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 23020,
-          "sha256": "3e748a14a0a6993525bb86269033eca57c50202dec696508e166e84e7cca25e1"
+          "size": 22997,
+          "sha256": "57efb501004b21bd19728e416c109d31a8f7619ed87b03b83a4556ab7dd829c9"
         },
         {
           "path": "skills/stickers/SKILL.md",
