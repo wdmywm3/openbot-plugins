@@ -194,13 +194,26 @@ async function main() {
   await plugin.afterSend({ ...collection.ctx, hook: { result: sentGenerated } });
   assert.equal(collection.jobs[0].actionId, "collectPublished");
   assert.equal(collection.calls.includes("recognize"), false, "delivery only queues collection, never performs recognition");
-  await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } });
+  const collectionJob = collection.jobs[0];
+  const collectionContext = { ...collection.ctx, input: collectionJob.input, api: {
+    ...collection.ctx.api,
+    async jobs(input) {
+      if (["start", "resume"].includes(input.action)) throw Error("后台任务不能递归调度任务");
+      const result = await collection.ctx.api.jobs(input);
+      return input.action === "current" ? { ...result, action: collectionJob.actionId } : result;
+    },
+  } };
+  const finishedCollection = await plugin.collectPublished(collectionContext);
+  assert.equal(finishedCollection.collected, true);
+  assert.equal(finishedCollection.processing, false);
   assert.equal(collection.get("b").value.source.pluginId, "any-producer", "collection uses metadata, not a producer ID");
   assert.equal(collection.get("b").value.roleProfileId, "p");
   assert.equal(collection.get("b").value.chatMode, "include");
-  assert.equal(collection.get("b").value.analysisStatus, "pending");
-  await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } });
+  assert.equal(collection.get("b").value.analysisStatus, "ready");
+  assert.equal(collection.get("b").value.indexStatus, "ready");
+  await plugin.collectPublished(collectionContext);
   assert.equal([...collection.records.keys()].filter(key => key.startsWith("items:")).length, 1, "repeat receipts deduplicate originals");
+  assert.equal(collection.calls.filter(call => call === "recognize").length, 1, "repeat receipts reuse completed recognition");
   for (const metadata of [{ generated: true, purpose: "image", reusable: true }, { generated: true, purpose: "sticker", reusable: false }]) {
     collection.publications.get(generatedUrl).metadata = metadata;
     const before = collection.jobs.length;
@@ -208,13 +221,13 @@ async function main() {
     assert.equal(collection.jobs.length, before, "ordinary images and drafts do not auto-collect");
   }
   collection.records.set("settings:default", { value: { collectGenerated: false } });
-  assert.equal((await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } })).skipped, true);
+  assert.equal((await plugin.collectPublished(collectionContext)).skipped, true);
   assert.equal((await plugin.collect({ ...collection.ctx, input: { url: generatedUrl } })).collected, true, "explicit collection remains available");
   await assert.rejects(plugin.collect({ ...collection.ctx, input: { messageId: "message", url: generatedUrl } }), /请选择/);
   const deleting = collection.get("b"); await plugin.remove({ ...collection.ctx, input: { id: deleting.key, revision: deleting.revision } });
   collection.records.get("settings:default").value.collectGenerated = true;
   collection.publications.get(generatedUrl).metadata = { generated: true, purpose: "sticker", reusable: true };
-  assert.equal((await plugin.collectPublished({ ...collection.ctx, input: { url: generatedUrl } })).collected, false,
+  assert.equal((await plugin.collectPublished(collectionContext)).collected, false,
     "automatic receipts never resurrect a manually deleted sticker");
   const templated = fixture(), templateId = "a".repeat(64);
   await plugin.importFiles({ ...templated.ctx, input: { refs: ["import"] } });

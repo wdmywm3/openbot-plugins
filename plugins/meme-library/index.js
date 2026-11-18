@@ -286,7 +286,8 @@ module.exports.process = async ctx => {
     if (!config.recognitionRequest) throw Error("重新识别任务缺少编号");
   }
   if (typeof ctx.input?.retrievalModelId === "string") config.retrievalModelId = ctx.input.retrievalModelId;
-  const ids = strings(ctx.input?.ids, 20000), sliced = job?.action === "process" && !ctx.input?.profileBatch;
+  const ids = strings(ctx.input?.ids, 20000);
+  const sliced = ["process", "collectPublished"].includes(job?.action) && !ctx.input?.profileBatch;
   const state = sliced ? job?.checkpoint?.processSlice || { offset: 0, cursor: null, completed: 0, failed: 0, failures: [] } : null;
   let selected, nextCursor = null, nextOffset = 0, more = false;
   if (sliced && !ids.length) {
@@ -469,8 +470,15 @@ module.exports.collectPublished = async ctx => {
   if (!(await settings(ctx)).collectGenerated) return { skipped: true };
   const role = metadata.roleProfileId && metadata.roleProfileId === ctx.profile?.id ? metadata.roleProfileId : "";
   const saved = await ingest(ctx, asset.ref, { type: "generated", chatId: ctx.message.chatId, url,
-    pluginId: publication.pluginId, automatic: true }, role ? { scope: { roleProfileId: role, profileIds: [role] } } : null);
-  return { collected: !saved.value.deleted, id: saved.key, processing: saved.value.indexStatus !== "ready" };
+    pluginId: publication.pluginId, automatic: true }, role ? { scope: { roleProfileId: role, profileIds: [role] } } : null, false);
+  let value = saved.value;
+  if (!value.deleted && (value.analysisStatus !== "ready" || value.indexStatus !== "ready")) {
+    // Collection already runs as a job. Process this item within that job.
+    await module.exports.process({ ...ctx, input: { ids: [saved.key] } });
+    value = (await get(ctx, saved.key))?.value;
+  }
+  const collected = !!value && !value.deleted;
+  return { collected, id: saved.key, processing: collected && value.indexStatus !== "ready" };
 };
 module.exports.save = async ctx => {
   const input = { ...ctx.input }, row = await get(ctx, input.id);
