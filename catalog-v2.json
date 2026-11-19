@@ -1448,24 +1448,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.24",
+      "version": "1.1.25",
       "name": "嘻嘻",
-      "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 27 张 Q 版专属角色表情。",
+      "description": "蓝发蓝眼、白色斗篷装的音游猫娘，负责 NapCatQQ 群聊互动、简单问答和联网查证。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 602663,
-      "sha256": "3e9f3daac3f45a078c9594fbfb2d854a7cd5278ff31c44efb5b5c121e2139833",
+      "size": 601108,
+      "sha256": "d3638370dcaf8d1fc382e255e4cfadcb514d7ce6f8e2abac633cec0918f8aa4b",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19648218,
-        "sha256": "3cf5a925fc68d8356c5d3cd255600ce03e1362beea6209901e64f2ee626cadb7",
+        "size": 19646663,
+        "sha256": "de246273bc3aaace23575df0f59670920ad6325609db8ee3c8d1eef81d019ac5",
         "count": 27
       },
-      "ref": "a7ad93e5cad85204d6c87660896283b3e67ffcae",
+      "ref": "f88f7df7554cb68c1b7a46b05196d694a5658cba",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 2664066,
-        "sha256": "943f5eff65b64e8d08ee3735630a5a644c7b6bcd2099aee2d0d0dcf2be2ecfc1"
+        "size": 2662402,
+        "sha256": "12faf52029c2dceaa9e7702678ff2dad54bb22f73f8530899e508433df7f5756"
       },
       "referenceCount": 3
     }
