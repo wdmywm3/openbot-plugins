@@ -570,7 +570,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.5",
+      "version": "2.6.6",
       "description": "为统一记忆提供自动召回、人物画像、唤醒后整理和 Dream，并兼容已有复查。",
       "category": "assistant",
       "main": "index.js",
@@ -605,7 +605,7 @@
           "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "聊天中的主动记忆与后台整理共用人物画像。支持本人确认的性别、有原话依据的聊天印象，以及从多次实际发送归纳的常用表情与惯用表达。",
+        "changelog": "人物画像分开保存具体陈述、所属成员和依据，原消息可追溯。主动记忆与自动整理保留否定、条件和时效，区分饮食习惯与口味偏好。旧的有据画像原位更新并保留历史。",
         "components": [
           "hooks",
           "tools",
@@ -614,12 +614,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "e6e275dd551046a0ef4da89fab0edc349a835bbc",
+      "ref": "fbd2e0febcf4e6aeb96b73cb96f91fe865ec1847",
       "files": [
         {
           "path": "README.md",
-          "size": 13552,
-          "sha256": "772be9b0d85db086ac9aff1dc06d2a22abc1d7999334e8df6d71ed3405da325e"
+          "size": 13976,
+          "sha256": "84f134041f99c3dc991dbae014412833780392b435ae781d6337d0925e8b9954"
         },
         {
           "path": "followup-runtime.cjs",
@@ -723,8 +723,13 @@
         },
         {
           "path": "lib/features/channels/channel-member-memory-proof.cjs",
-          "size": 7939,
-          "sha256": "2b40acefc801be97e8ad03af838f99932f9e87f22fe1ab0001093c3d2af34aca"
+          "size": 7911,
+          "sha256": "fc399a3c7340e6c35b25c421ff69cf75aff2041758fb867ac81737be6f598841"
+        },
+        {
+          "path": "lib/features/channels/channel-member-memory-statement.cjs",
+          "size": 8606,
+          "sha256": "f74ac034c1df54014cc275320372035696680fdc3e1f8637d183f5615d9c3042"
         },
         {
           "path": "lib/features/channels/channel-memory-policy.cjs",
@@ -783,8 +788,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14669,
-          "sha256": "ed53869c6cc40316c89bcd3f70ef1b0651a234c6a2e8bb80850a7d86913d955f"
+          "size": 14708,
+          "sha256": "ba2a19ac2d13a7ec06e1ebad490220d35a57362657c590105085d5a9788c89dc"
         },
         {
           "path": "process.cjs",
@@ -808,8 +813,8 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 7990,
-          "sha256": "5ac6213177da5dd65992335fcccf11df079929265d057ea6dc9f414a59d4333d"
+          "size": 8497,
+          "sha256": "5dca809a4a4c50fa800ddc668fd6b308fa4d618192b1c1f768cd903647a4d07b"
         },
         {
           "path": "source-retrieval.cjs",
@@ -858,8 +863,8 @@
         },
         {
           "path": "unified-candidates.cjs",
-          "size": 6732,
-          "sha256": "cc73d310b1225dbaa18d63c41adb2888fbdad93c87c462688ca1e39d38f8d6a8"
+          "size": 7183,
+          "sha256": "ed0bbe7fd12f416f0f9e3dcd22cd4a4594a42925d7bd9d76133f8efe7ca4e93d"
         },
         {
           "path": "unified-catalog-cache.cjs",
@@ -878,8 +883,8 @@
         },
         {
           "path": "unified-dream.cjs",
-          "size": 21894,
-          "sha256": "9e451fd7adfd9cdd35b6963e0ca09cfecb4232024e52ced231dab12fffc7ff19"
+          "size": 22740,
+          "sha256": "13b7f3cd7e07d5936793f49c0b023f0ee563c72fa63ee7d423423bea507f36df"
         },
         {
           "path": "unified-existing.cjs",
@@ -943,33 +948,33 @@
         },
         {
           "path": "unified-profile-impressions.cjs",
-          "size": 9218,
-          "sha256": "e31a793e942dfc8b5910e6294fd1908ea18b41b61fe75750f99464f78eb0cbf5"
+          "size": 9400,
+          "sha256": "3b5f21d7bdaf7f4f3dd099838d892950fe923a042477bd33a74ac3e42142f7fa"
         },
         {
           "path": "unified-profile-migration.cjs",
-          "size": 8613,
-          "sha256": "0f3fe6d2247d9a47f2e0eb50f546194204e7281272231e41b907d7f4fbee4742"
+          "size": 11142,
+          "sha256": "8ff988a0f690fdcb9c6105d916167b854204d860dc57a3fcc96661c72e3eda31"
         },
         {
           "path": "unified-profile-policy.cjs",
-          "size": 6043,
-          "sha256": "bc0d3267df5a559427117c04f0133eb9ce9f1a53a79c3499ac6bd5f4f350400a"
+          "size": 6185,
+          "sha256": "4f5a0b4ea134a80ac5b97569013c882a52a2211a84a50b8677883a8edcefe101"
         },
         {
           "path": "unified-profile-usage.cjs",
-          "size": 7681,
-          "sha256": "961e575acc2b2365cae73cda624a8a23fd5e7b8f9ea7d3da944cc1f69b35f92a"
+          "size": 7530,
+          "sha256": "ac8fb7c5e3a10e58c84f447f9a22b67b9c9400ef801d9b9fb45e6af5d86fa950"
         },
         {
           "path": "unified-retention.cjs",
-          "size": 5995,
-          "sha256": "0c837df5e1b99eef7494c75700ad1a4b548297df7721037ae1dfb1a84eae9fe5"
+          "size": 6194,
+          "sha256": "c961bf4172dcb332dd3f7cdf43786cb1a23b4b3f1901c069ea237413ce30599d"
         },
         {
           "path": "unified-retrieval.cjs",
-          "size": 11114,
-          "sha256": "b1f75bfaad0a60e18effbc390c19b906bd31b20b63f9ec22e021c8e1f5d6516b"
+          "size": 11592,
+          "sha256": "2a9b89bbca43ee218ec2ece83940c7ab105e9ef681454c13118c26683f528446"
         },
         {
           "path": "unified-review-policy.cjs",
@@ -983,8 +988,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 42778,
-          "sha256": "0f3d775584ae558253614b2c75f389768f63b31d433d1b8b0bd2a8c0529e6923"
+          "size": 43444,
+          "sha256": "12dc7a557457b42f39f4551e358b6dce6a094ad702428c0207fbd7b22edc2426"
         },
         {
           "path": "unified-scheduling.cjs",
