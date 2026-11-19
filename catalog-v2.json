@@ -660,7 +660,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.3",
+      "version": "2.6.4",
       "description": "为统一记忆提供自动召回、人物画像、唤醒后整理和 Dream，并兼容已有复查。",
       "category": "assistant",
       "main": "index.js",
@@ -695,7 +695,7 @@
           "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "支持唤醒期结束后短暂整理，并在分段、压缩时触发；每轮连续失败三次后停止，下一次触发独立重试，避免聊天被永久锁住。",
+        "changelog": "整理记录分别显示新增记忆、画像条目和更新数。自动保存经历需要已送达的结果和说明后续用途的真人原话，普通答复留在聊天历史。",
         "components": [
           "hooks",
           "tools",
@@ -704,12 +704,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "91931471f5ed08d3e0e5846aa4623d3433111544",
+      "ref": "7ac2f1d274bf2dd63b48ecba580946f6e78e7605",
       "files": [
         {
           "path": "README.md",
-          "size": 11928,
-          "sha256": "4e3dc0d7e28d86fd50a4f8e153e6f3d36a62a0524dae1a5e95691b2e1d7491b0"
+          "size": 12290,
+          "sha256": "d0d1f0d7bd7896d42a88e1a0ba85790823b20c3a1c5839eaed8ee1a2f6c157d3"
         },
         {
           "path": "followup-runtime.cjs",
@@ -743,8 +743,8 @@
         },
         {
           "path": "lib/context/channel-dream-run-repository.cjs",
-          "size": 11065,
-          "sha256": "6cb0db71278af4ef6e19ae0b4fcb68326ee79ae6344502b1139d2068bcc51578"
+          "size": 11392,
+          "sha256": "571188c3390f588588ae1c534f5cc156eb5c3f63e2b14a073dff34120577771f"
         },
         {
           "path": "lib/context/channel-memory-repository.cjs",
@@ -868,8 +868,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14225,
-          "sha256": "11a64d44ececbdd81b4eb0c41d4a5bb732f9d561e0a0e754a339c41e22079a4a"
+          "size": 14237,
+          "sha256": "2db38c3a8eabcaa6b955884da7fb3d661a517242d53eecfa6f7ae1a9461e77a0"
         },
         {
           "path": "process.cjs",
@@ -893,8 +893,8 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 7241,
-          "sha256": "e427b30a00331c24b6174d75e4c63c38391ed4f52767fc9a5e450b7994ea8ac4"
+          "size": 7409,
+          "sha256": "c29c238a97846fe1361b18a8d1665014ae051e786d20c42d1d175b852420450f"
         },
         {
           "path": "source-retrieval.cjs",
@@ -963,8 +963,8 @@
         },
         {
           "path": "unified-dream.cjs",
-          "size": 18333,
-          "sha256": "0d12439274a6618838c3376ed98c1fb699d55451eb8174fbbbb5bd198d6fef30"
+          "size": 19250,
+          "sha256": "f219d9dc4ff4eb48e63b8f67fc6094a0e76fbbf01301fd3a86f94e3932c6021e"
         },
         {
           "path": "unified-existing.cjs",
@@ -983,8 +983,8 @@
         },
         {
           "path": "unified-fork-organizer.cjs",
-          "size": 14754,
-          "sha256": "7eb764182c0c01780d06580c7bceab24d2aed4f27a1307f7532c9e0ebadd7e81"
+          "size": 15082,
+          "sha256": "922a28998c7d1e84ecaf0f69123d4326954f84c7c912498e79499ce67d4cf9bd"
         },
         {
           "path": "unified-fork-retries.cjs",
@@ -998,8 +998,8 @@
         },
         {
           "path": "unified-maintenance.cjs",
-          "size": 19283,
-          "sha256": "81cf745bb182fa7fe383e2cbc91ff09c64f47ae503f819607d1abd413afb0f15"
+          "size": 19502,
+          "sha256": "ca37a623aa86d4b67d915ffb2ff78e2df2edb6e980dc77bfb2f274e20e83bf15"
         },
         {
           "path": "unified-material-policy.cjs",
@@ -1052,9 +1052,14 @@
           "sha256": "3c8f856d4b929aca14b07c53a936163e19f8a4480fb145cf8bf6dd66387e3cd9"
         },
         {
+          "path": "unified-run-counts.cjs",
+          "size": 2711,
+          "sha256": "a25c0b1ee61f284e68d2a426729c3633ba16f332de3f1300e7d4a21058182e74"
+        },
+        {
           "path": "unified-runtime.cjs",
-          "size": 38032,
-          "sha256": "1b37babd25c0c1391f170f89466dd11a0570d59786333510b6af589de5483b84"
+          "size": 38531,
+          "sha256": "4bfeaad501db03f535bd6025244b01593e991228609f395cc310b886b3822252"
         },
         {
           "path": "unified-scheduling.cjs",
