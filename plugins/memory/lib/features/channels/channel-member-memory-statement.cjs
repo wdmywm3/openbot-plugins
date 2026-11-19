@@ -16,24 +16,26 @@ function foodClaim(value) {
     verb: match[2], food: match[3] };
 }
 function facetFor(fact, statement) {
-  if (!fact?.facet) return "";
-  if (!foodFacet.test(fact.facet)) return fact.facet;
+  const facet = typeof fact?.facet === "string" ? fact.facet.trim() : "";
+  if (!facet) return "";
+  if (!foodFacet.test(facet)) return facet;
   const claim = foodClaim(fact.value) || foodClaim(statement);
-  return claim ? (["avoid", "consume"].includes(claim.attitude) ? "饮食习惯" : "饮食偏好") : fact.facet;
+  return claim ? (["avoid", "consume"].includes(claim.attitude) ? "饮食习惯" : "饮食偏好") : facet;
 }
 function profileInfo(record) {
   if (record?.category !== "profile" || record.subjectRefs?.length !== 1 || typeof record.subjectRefs[0] !== "string") return null;
-  const { profile = {}, fact } = record.attributes || {};
+  const profile = record.attributes?.profile || {}, fact = record.attributes?.fact;
   const basis = bases.has(profile.basis) ? profile.basis : fact?.assertion === "self" && record.sources?.length ? "self_report"
     : fact?.assertion === "reported" && record.sources?.length ? "reported" : record.updatedBy?.startsWith("desktop:") ? "manual" : "";
   const namedFacet = typeof profile.facet === "string" ? profile.facet.trim() : "";
   const facet = profile.field === "gender" ? "性别" : profile.field === "impression" ? "聊天印象"
-    : namedFacet || (fact?.facet === "preferred_address" ? "常用称呼" : facetFor(fact, record.content)) || sections[profile.section] || "";
+    : namedFacet || (fact?.facet === "preferred_address" ? "常用称呼" : facetFor(fact, record.content))
+      || (Object.hasOwn(sections, profile.section) ? sections[profile.section] : "");
   return { facet, basis };
 }
 function unprefixed(record, originals) {
   let body = record.content.trim();
-  const subject = record.subjectRefs[0], { profile = {}, fact } = record.attributes || {};
+  const subject = record.subjectRefs[0], profile = record.attributes?.profile || {}, fact = record.attributes?.fact;
   if (profile.field === "gender" && typeof profile.value === "string" && profile.value.trim()) return profile.value.trim();
   const names = new Set([subject, `QQ ${subject}`, `群成员 QQ ${subject}`, `群成员 ${subject}`]);
   for (const row of originals) if (String(row?.sender?.id) === subject)
@@ -61,6 +63,7 @@ function normalizeProfile(record, originals = [], { verify = false } = {}) {
   const info = profileInfo(record);
   if (!info || typeof record.content !== "string" || record.nextOffset != null) return record;
   const attrs = record.attributes || {}, fact = attrs.fact;
+  if (fact && (typeof fact.facet !== "string" || typeof fact.value !== "string" || fact.subjectId !== record.subjectRefs[0])) return record;
   if (fact?.contentHash && fact.contentHash !== digest(record.content)) return record;
   let content = unprefixed(record, originals), conditions = record.conditions || [], factConditions = fact?.conditions || [];
   if (verify && info.basis === "self_report" && (foodFacet.test(fact?.facet) || !fact && foodClaim(content))) {
