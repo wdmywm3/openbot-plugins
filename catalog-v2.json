@@ -324,7 +324,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -349,32 +349,32 @@
           "qqbot"
         ],
         "requirements": [
-          "请先安装 OpenBot 0.1.113 或更新版本，再更新本插件。",
+          "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "支持在同一聊天按编号取图。出图后回传结果，输入框上方可查看排队和运行中的任务。",
+        "changelog": "插件更新后，可以在原聊天补发之前画好的图片，复用原图和原来的显示方式。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a7ad93e5cad85204d6c87660896283b3e67ffcae",
+      "ref": "6dfb79fcf688c2a2ccb9d0b25e87503eb046b977",
       "files": [
         {
           "path": "README.md",
-          "size": 8507,
-          "sha256": "07ea938f133b3951e4e9c198675fdd01019a33dacf0c7e18060dbe0185ff343b"
+          "size": 8781,
+          "sha256": "31f550460e0480e35a84f6ce3ab571651a2709100457433f2f27d2faa767fa34"
         },
         {
           "path": "index.js",
-          "size": 39461,
-          "sha256": "6c32e517bbf84856cb295f1f242cda14be8230c52acb100b39001925063683ce"
+          "size": 39987,
+          "sha256": "0d54b9e508443e2c7ddbbc3fa05bb084b173e486a5aca4f84d43359a18f7bb05"
         },
         {
           "path": "plugin.json",
-          "size": 23379,
-          "sha256": "8453ac6aacc934422377d004e354b2692a7554c77dca4c2095b65354a9635978"
+          "size": 24126,
+          "sha256": "09b7055674be16313a2f45a4de3301b144cfed54e99b9277a99211bc264ba1f8"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -403,8 +403,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 6905,
-          "sha256": "3dd217b5693d3a22b1cc36b77b81e61279b7dc20517b679bdbd8245f8c141c57"
+          "size": 7499,
+          "sha256": "2c838ef9ee9cfa5e29a57abd6651eb81d1b146456aa4290ac34e8d1105f8ca50"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
