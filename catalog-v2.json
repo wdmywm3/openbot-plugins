@@ -1453,24 +1453,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.26",
+      "version": "1.1.27",
       "name": "嘻嘻",
       "description": "蓝发蓝眼、白色斗篷装的音游猫娘，负责 NapCatQQ 群聊互动、简单问答和联网查证。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 601656,
-      "sha256": "ddafc18fb0047b9b396d25a8b26e93120f158d0dc905a240ca2e0a16e6c0807d",
+      "size": 602329,
+      "sha256": "98b86ea40a1d6d14754472bb98ee5af62201139198b29e3f0a5bdf6e7440cf4a",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19647211,
-        "sha256": "6a7191ac4742030224d82f9015e1c4f4cdaf65b59033d666e0e8da7668ef332b",
+        "size": 19647884,
+        "sha256": "804e2c8e5f2548ca268b10868a18cf75c959e3a2309ebae06807bbdf68ab25e2",
         "count": 27
       },
-      "ref": "6234ed19ef03abe7e0abd9e984fbbc558710e580",
+      "ref": "f9228b8a845aa91fa3e0ce10a985b7663163d125",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 2662402,
-        "sha256": "65da9db4a9fb9ea7974289122f11903bbe6df85597d8ba195cb5ad88ca436861"
+        "size": 2662598,
+        "sha256": "d2850617a5a737d34d9fca76bdde770e52f999387851b8d365158b13db04b79b"
       },
       "referenceCount": 3
     }
