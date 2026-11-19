@@ -14,6 +14,7 @@ const retries = require("./unified-fork-retries.cjs");
 const planKey = ({ chatId }) => `plus:fork-plan:${chatId}`;
 const progressKey = ({ chatId }) => `plus:fork-progress:${chatId}`;
 const seenKey = ({ chatId }) => `plus:fork-seen:${chatId}`;
+const { selectRequests, reviewRequests } = require("./unified-operation-checks.cjs");
 const mark = source => hash(JSON.stringify([source.id, source.version, source.offset, source.content.length]));
 const eligible = item => item.direction === "in" ? !item.sender?.isBot && admit(item)
   : delivered(item) && (!item.event?.type || item.event.type === "message") && item.content.trim();
@@ -26,7 +27,7 @@ function advance(storage, scope, position, materials = []) {
   retries.clear(storage, scope, retries.identity(position));
 }
 
-function branches(scope, materials, history = []) {
+function branches(scope, materials, history = [], topicTitles = [], operationReceipts = false) {
   const userIds = materials.filter(item => item.direction === "in").map(item => item.id);
   const outIds = materials.filter(delivered).map(item => item.id);
   const privateChat = isPrivateDreamScope(scope);
@@ -38,6 +39,8 @@ function branches(scope, materials, history = []) {
     ["facts", `${human}
 提取稳定事实、明确达成的约定和决定。本人稳定习惯、饮食偏好等个人属性由画像分支保存，同一原话只需一条记忆。最多 16 条 facts，每条使用 kind:"fact"、content、evidence、retention:{basis:"explicit|boundary|stable|ongoing",reason:"以后在什么情形下用得上"}。${FACT_PROMPT}
 可给至多 12 条 topics 供后续查找原文，格式 {title,keywords,sourceIds,status:"open|closed"}。只给确有后续用途的讨论建立索引。
+已有主题标题供匹配：${JSON.stringify(topicTitles)}。同一主题用已有标题并链接本批新原文。只引用本批明确支持的进展。
+${operationReceipts ? '如果本批有真人明确交办给机器人的状态变更，而结果仍需核实，可给出 verificationRequests，最多 4 项，每项 {evidence:[{id:"本批原交办消息编号",quote:"原交办的逐字摘录"}]}。例如要求机器人以后在本群不再回复某成员、取消一条提醒。个人偏好、建议、玩笑、引用、已撤回的请求、已经有明确成功回执的动作和普通咨询不填。' : ""}
 ${privateChat ? `另可给出 records 和 updates，最多各 8 条。records 保存有后续用途的私聊事项，kind:"matter"，subtype:"goal|question|followup"，progress:"active|waiting|completed|canceled|closed"，附 content 和 evidence。updates 使用现有 id、revision、content、progress、evidence。终止事项只有本人明确重开才填 reopen:true。只在本人明确要求复查时填写 nextReviewAt、reviewIntervalMinutes、reviewOnChange 或 watchActivityId。日期按发言时间计算。` : "群聊只提取事实和群内约定。发言人的主张要保留归属。"}
 ${edit}`],
     ["profiles", `${human}
@@ -75,6 +78,8 @@ function merge(response, materials, refs) {
   const changes = new Set();
   const payloads = new Map(response.results.map(item => [item.key, parseResult(item.output.trim()
     .replace(/^```(?:json)?\s*\n([\s\S]+)\n```$/i, "$1"))]));
+  const requests = selectRequests(payloads.get("facts")?.verificationRequests, materials);
+  if (requests.length) output.verificationRequests = requests;
   for (const [branch, allowed] of Object.entries(fields)) {
     const value = payloads.get(branch);
     if (!value) throw Error("整理分支缺少结果");
@@ -139,8 +144,17 @@ async function work(ctx, storage, scope, includeLatest = false) {
 
 async function run(ctx, storage, scope, trigger, includeLatest = false, preferredId, preferredBoundaryId) {
   const prepared = get(storage, planKey(scope));
-  const commit = prepared => dream.commit(ctx, storage, scope, prepared.job, { fork: true,
-    onReceipt: () => advance(storage, scope, prepared.position, prepared.marks) });
+  const commit = async prepared => {
+    const reviews = prepared.operationReviews || await reviewRequests(ctx, scope, prepared.verificationRequests);
+    if (!prepared.operationReviews && reviews.length) {
+      prepared.operationReviews = reviews;
+      put(storage, planKey(scope), prepared);
+    }
+    return dream.commit(ctx, storage, scope, prepared.job, { fork: true, onReceipt: () => {
+      advance(storage, scope, prepared.position, prepared.marks);
+      if (reviews.length) storage.dreamRepository.runs.trace(scope, prepared.runId, "operation_review", { text: JSON.stringify(reviews) });
+    } });
+  };
   let job = prepared?.job, snapshots = [], snapshot;
   try {
     if (prepared) {
@@ -184,18 +198,21 @@ async function run(ctx, storage, scope, trigger, includeLatest = false, preferre
       return { pending, saved: 0 };
     }
     const prior = await impressions.prepare(ctx, storage, scope, materials, live.scanStart?.cursor || 0);
+    const topicTitles = get(storage, "plus:topics:" + scope.chatId, []).slice(0, 12).map(topic => topic.title);
+    const operationReceipts = !!(await ctx.api.getCapabilities?.())?.features?.operationReceipts;
     const response = await ctx.api.conversationForks({ action: "run", chatId: scope.chatId, id: snapshot.id,
-      usageCategory: "memory", branches: branches(scope, materials, prior.history) });
+      usageCategory: "memory", branches: branches(scope, materials, prior.history, topicTitles, operationReceipts) });
     ctx.signal.throwIfAborted();
     const parsed = merge(response, materials, memoryRefs);
     const existing = await existingTargets(ctx, scope, parsed);
     const usage = await profileUsage.collect(ctx, storage, scope, materials, parsed.usages, live.scanStart?.cursor || 0);
     const planned = await dream.plan(ctx, scope, parsed, materials, existing, { allowExperience: true, observedProfiles: usage.records, impressionHistory: prior.history });
     const fresh = state(storage, scope);
-    if (fresh.paused || trigger !== "manual" && !fresh.settings.enabled) return { pending: true, saved: 0 };
+    if (trigger !== "manual" && !fresh.settings.enabled) return { pending: true, saved: 0 };
     job = { trigger, cutoff: snapshot.at, upper: offset };
     job.runId = storage.dreamRepository.runs.start(scope, job);
-    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark), usageEntries: usage.entries, impressionEntries: prior.entries };
+    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark), usageEntries: usage.entries, impressionEntries: prior.entries,
+      ...(operationReceipts && parsed.verificationRequests ? { verificationRequests: parsed.verificationRequests } : {}) };
     put(storage, planKey(scope), ready);
     return { ...await commit(ready), pending };
   } catch (error) {

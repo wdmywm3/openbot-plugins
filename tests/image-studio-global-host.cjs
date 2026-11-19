@@ -37,7 +37,7 @@ const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plu
     const config = commands.getPluginGlobalSettings({ pluginId: saved.id }).config;
     assert.equal(config.provider, "openai-images", "new installations use the explicit OpenAI Images provider");
     assert.equal(config.openaiImageModel, ""); assert.equal(config.openaiTextModel, "");
-    assert.equal(config.globalConcurrency, 2); assert.equal(config.instanceConcurrencyDefault, 1);
+    assert.equal(config.globalConcurrency, 4); assert.equal(config.instanceConcurrencyDefault, 2);
     await commands.savePluginGlobalSettings({ pluginId: saved.id, config: { provider: "openai-images", globalHourly: 7 } });
     await assert.rejects(commands.savePluginGlobalSettings({ pluginId: saved.id, config: { instanceConcurrency: 4 } }), /未声明/);
     await assert.rejects(commands.setPluginGlobalSecret({ pluginId: saved.id, key: "undeclared", value: "x" }), /未声明/);

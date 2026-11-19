@@ -136,7 +136,7 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
   try {
     while (true) {
       check(ctx);
-      await currentDrawConfig(ctx, mode);
+      // watchDrawing observes live settings while the response streams.
       if (++reads > 1200) throw Error("画图服务返回过多数据片段");
       const value = await ctx.api.readStream({ id: stream.id, maxBytes: 65535, waitMs: 10000 });
       if (value.data) {
@@ -386,10 +386,11 @@ async function consumeQuota(ctx, config) {
       instance = { id: channelId, hourly: 0, daily: 0 }; items.push(instance);
     }
     const hourly = sameHour ? Number(old.hourly) || 0 : 0, daily = sameDay ? Number(old.daily) || 0 : 0;
-    if (hourly >= caps.globalHour) throw Error("画图已达到总每小时上限，请稍后再试。");
-    if (daily >= caps.globalDay) throw Error("画图已达到总每日上限，请明天再试。");
-    if (instance.hourly >= caps.instanceHour) throw Error("此实例已达到每小时画图上限，请稍后再试。");
-    if (instance.daily >= caps.instanceDay) throw Error("此实例已达到每日画图上限，请明天再试。");
+    const quotaError = message => Object.assign(new Error(message), { code: "PLUGIN_PUBLIC_ERROR" });
+    if (hourly >= caps.globalHour) throw quotaError("画图已达到总每小时上限，请稍后再试。");
+    if (daily >= caps.globalDay) throw quotaError("画图已达到总每日上限，请明天再试。");
+    if (instance.hourly >= caps.instanceHour) throw quotaError("此实例已达到每小时画图上限，请稍后再试。");
+    if (instance.daily >= caps.instanceDay) throw quotaError("此实例已达到每日画图上限，请明天再试。");
     instance.hourly++; instance.daily++;
     try {
       await ctx.api.database({ ...base, action: "put", expectedRevision: record?.revision || 0,
@@ -465,7 +466,7 @@ async function drawImage(ctx, mode) {
   if (!["image", "sticker"].includes(purpose) || input.draft !== undefined && typeof input.draft !== "boolean") throw Error("图片用途无效");
   if (mode === "selfie" && input.references !== undefined && (!Array.isArray(input.references) || input.references.length)) throw Error("自拍只使用已设置的固定形象，请不要传入聊天参考图");
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
-  const userPrompt = string(input.prompt, LIMIT.prompt, "画图要求"), prompt = mode === "selfie" ? `${SELFIE_PROMPT}\n\n本次画图要求：\n${userPrompt}` : userPrompt;
+  const userPrompt = string(input.prompt, LIMIT.prompt, "画图要求"), prompt = mode === "selfie" ? `${userPrompt}\n\n${SELFIE_PROMPT}` : userPrompt;
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
   let images;
   if (snapshot) {

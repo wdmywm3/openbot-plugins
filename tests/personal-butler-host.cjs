@@ -63,7 +63,7 @@ async function until(fn, predicate, message) {
     sessions = createSessionSqliteRepository({ fs, path, paths });
     sessions.saveSessionMeta(store.data.sessions[0]);
     let version = "v1", matches = true, invalidReport = false, seq = 0, pageRequests = 0, modelCalls = 0;
-    let proposals = () => [], idleProposal = () => null, transferredReviews = 0;
+    let proposals = () => [], idleProposal = () => null, transferredReviews = 0, skillDraft;
     let researchFinding = input => ({ quote: researchedPages.get(input.url) || "", kind: "insight", notify: /导出/.test(input.page) });
     const researchedPages = new Map();
     const searches = [];
@@ -99,6 +99,7 @@ async function until(fn, predicate, message) {
       makeId, safeError: String, isNapCatOneBotChannel: () => !wechat,
       getTaskRepository: () => storage.backgroundAgentRepository, activityRepository: storage.activityRepository,
       sourceRepository: storage.sourceRepository, unifiedMemoryRepository: storage.unifiedMemoryRepository, pluginData: storage.pluginDataStore.background,
+      proposeSkill(value, active) { active(); skillDraft = value; return { id: "skill-review", state: "pending_review" }; },
       conversationEpoch: (channelId, id) => storage.conversationEventRepository.epoch(channelId, id),
       getConversationTurn: events.currentTurn, publishConversationEvent: events.publishPlugin, getConversationEvent: events.get,
       cancelConversationEvent: events.withdraw, runPluginAgent: args => {
@@ -107,6 +108,7 @@ async function until(fn, predicate, message) {
           assert.equal(target, chatId);
           assert.deepEqual(optionalTools, ["web_search", "web_fetch"]);
           const question = externalContent[0].content.question;
+          if (/纸本目录/.test(question)) return { outcome: "blocked", observedUrls: [], data: { blockedBy: "missing_reference" } };
           assert.match(question, /归档工具/);
           searches.push(question);
           const address = /替代/.test(question) ? "https://archive.example.test/alternative" : "https://archive.example.test/specs";
@@ -156,6 +158,25 @@ async function until(fn, predicate, message) {
       assert.equal(job.status, status, job.error); return job;
     }
     const dataActor = { ...scope, pluginId: plugin.id };
+    const workflowReceipt = (text, result = { ok: true, output: "完成" }) => {
+      const turn = message(text);
+      const evidence = toolEvidence({ ...turn, currentToolCallId: makeId("call") }, "format_report", { format: "text" }, result);
+      const saved = storage.sourceRepository.record(evidence.scope, evidence.material);
+      const item = storage.sourceRepository.get(scope, saved);
+      return { id: item.id, version: item.version };
+    };
+    const workflow = { action: "learn", skillName: "format-report", subject: "报告整理", description: "将已确认范围的报告整理为文本。",
+      steps: ["核对报告范围。", "保留标题和各项结果。"], evidence: [workflowReceipt("整理周报"), workflowReceipt("整理月报")] };
+    await invoke(workflow, message("看一下报告整理"), "failed");
+    const proposed = await invoke(workflow, message("请总结报告整理的流程，变成技能"));
+    assert.equal(proposed.result.state, "pending_review"); assert.equal(skillDraft.chatId, chatId);
+    assert.match(skillDraft.content, /format_report/);
+    assert.deepEqual(skillDraft.sources, workflow.evidence);
+    workflowReceipt("整理季度报告", { ok: false, error: "报告未生成" });
+    const { evidence: knownReceipts, ...workflowWithoutRefs } = workflow;
+    const newDraft = await invoke({ ...workflowWithoutRefs, skillName: "format-report-guide", operation: "format_report" }, message("请总结报告整理，生成技能"));
+    assert.equal(newDraft.result.state, "pending_review");
+    assert.deepEqual(skillDraft.sources, knownReceipts, "find recent verified successes independently and skip a failed result");
     const dataLocation = { scope: "channel", name: "butler", collection: "watches" };
     const read = async key => (await storage.pluginDataStore.background.database(dataActor, { ...dataLocation, action: "get", key })).record;
     const due = async key => {
@@ -654,6 +675,18 @@ async function until(fn, predicate, message) {
     }, row => !row.value.research || row.value.research.status === "closed", "a revised memory should stop the old research plan");
     assert(!revoked.value.facts.insight);
     assert.equal(searches.length, 2, "the old research question was not run after its premise changed");
+
+    const blockedQuestion = "纸本目录 分类规则", sourceText = "我还想知道纸本目录的公开分类规则";
+    await invoke({ action: "note", subject: "纸本目录", question: blockedQuestion, quote: sourceText }, message(sourceText));
+    const unchecked = await matter("纸本目录");
+    await researchDue(unchecked);
+    const waiting = await until(async () => { await runtime.runPluginPoll(channel, plugin); return matter("纸本目录"); },
+      row => row.value.research.status === "waiting_user", "a missing reference remains in the original matter");
+    assert.equal(waiting.value.research.blocker, "missing_reference");
+    const supplied = "补充纸本目录公开编号 A2，请继续查可选分类";
+    const resumed = await invoke({ action: "resume", id: waiting.key, quote: supplied, question: "纸本目录 A2 可选分类" }, message(supplied));
+    assert.equal(resumed.result.id, waiting.key);
+    assert.equal(resumed.result.research.status, "pending");
 
     channel.connected = false;
     const reviewQuote = "请下次检查服务状态", reviewMessage = message(reviewQuote);

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "personal-butler",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
   "extensions": {
     "com.openbot": {
@@ -10,11 +10,11 @@
       "metadata": {
         "platforms": ["QQ", "微信"],
         "requirements": ["QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"],
-        "changelog": "在 QQ 和微信的授权聊天中主动整理线索、继续查证和跟进事项，接收记忆 Plus 的单次复查移交。"
+        "changelog": "保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。"
       },
       "apiVersion": 1,
       "main": "index.js",
-      "permissions": ["state", "jobs", "agent", "model", "network", "sources", "history", "conversation", "conversation:notify", "memory:read", "memory:write", "hook:messageReceived", "hook:replyDelivered", "hook:taskFinished"],
+      "permissions": ["state", "jobs", "agent", "model", "network", "sources", "history", "conversation", "conversation:notify", "memory:read", "memory:write", "skills:propose", "hook:messageReceived", "hook:replyDelivered", "hook:taskFinished"],
       "requiredFeatures": ["conversationDelivery", "offlineBackground", "persistentAvatars", "persistentActivities", "unifiedMemory"],
       "networkHosts": ["*"],
       "execution": { "concurrency": "parallel" },
@@ -30,20 +30,25 @@
           "export": "butler",
           "permission": "owner",
           "scope": "private",
-          "description": "在当前聊天查看管家主动整理的事项、待查问题、已有发现与期限，用列表返回的编号查看或停止。followUpAt 是回看时间，deadlineAt 是有依据的截止日。聊天过程中，若从工具反馈或已核实的分析中发现值得继续查的问题，可用 note 提交本轮用户原话、相关对象和公开查询问题，管家后台核验后接手。用户无需明确交办。普通聊天和已进入资料流的网页结果也会自动整理。create 可交办公共 HTTPS 网页跟进，append 为网页追加条件，remember 保存用户明确确认的长期偏好。",
+          "description": "查看、停止或续办主人私聊中的事项。note 提交值得后续查证的公开问题，resume 用主人新补充恢复原事项。create 跟进公开 HTTPS 网页，append 追加条件，remember 保存明确确认的长期偏好。learn 仅在主人明确要求总结技能、且有两个不同回合的明确成功回执时提交文字草稿。",
           "inputSchema": {
             "type": "object",
             "additionalProperties": false,
             "required": ["action"],
             "properties": {
-              "action": { "type": "string", "enum": ["create", "list", "get", "append", "stop", "remember", "note"] },
+              "action": { "type": "string", "enum": ["create", "list", "get", "append", "stop", "remember", "note", "resume", "learn"], "description": "resume 用当前用户补充的公开查询问题继续原事项；learn 提交待审核技能" },
               "id": { "type": "string", "maxLength": 96, "description": "已有事项编号" },
               "url": { "type": "string", "maxLength": 1500, "description": "创建时从用户原消息原样取得的公开 HTTPS URL" },
               "condition": { "type": "string", "maxLength": 500, "description": "创建或追加时，从用户原消息逐字取得的跟进条件" },
               "preference": { "type": "string", "maxLength": 500, "description": "用户明确要求长期记住的原文片段" },
-              "subject": { "type": "string", "maxLength": 80, "description": "note 的事项或产品名称" },
-              "question": { "type": "string", "maxLength": 200, "description": "note 的具体公开待查问题。只填可公开搜索的关键词" },
-              "quote": { "type": "string", "maxLength": 240, "description": "note 取自本轮用户消息的依据原话" }
+              "subject": { "type": "string", "maxLength": 80, "description": "note 的事项名称，或 learn 中用户原话里的流程名称" },
+              "question": { "type": "string", "maxLength": 200, "description": "note 或 resume 的具体公开待查问题。只填可公开搜索的关键词" },
+              "quote": { "type": "string", "maxLength": 240, "description": "note 或 resume 取自本轮用户消息的依据原话" },
+              "skillName": { "type": "string", "maxLength": 64, "description": "learn 的可复用技能名称，使用小写字母、数字和连字符" },
+              "description": { "type": "string", "maxLength": 280, "description": "learn 的适用条件和完成结果" },
+              "operation": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$", "description": "learn 在本私聊查找近期回执所用的准确工具名。已持有两条回执时可直接传 evidence" },
+              "steps": { "type": "array", "minItems": 2, "maxItems": 6, "items": { "type": "string", "maxLength": 300 } },
+              "evidence": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "object", "required": ["id", "version"], "additionalProperties": false, "properties": { "id": { "type": "string", "maxLength": 120 }, "version": { "type": "string", "pattern": "^[a-f0-9]{64}$" } } } }
             }
           }
         }

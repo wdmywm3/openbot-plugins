@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
   "extensions": {
     "com.openbot": {
@@ -35,7 +35,8 @@
         "conditionalGlobalSettings",
         "mediaHandoff",
         "mediaRepublication",
-        "toolCompletionEvents"
+          "toolCompletionEvents",
+          "pluginSkillUpload"
       ],
       "networkHosts": [
         "*"
@@ -57,17 +58,17 @@
         "codexResponseModel": "",
         "size": "1024x1024",
         "quality": "medium",
-        "globalConcurrency": 2,
-        "instanceConcurrencyDefault": 1,
+        "globalConcurrency": 4,
+        "instanceConcurrencyDefault": 2,
         "instanceConcurrency": 0,
-        "queueLimit": 20,
-        "queueTimeoutSeconds": 300,
-        "instanceHourlyDefault": 10,
-        "instanceDailyDefault": 50,
+        "queueLimit": 32,
+        "queueTimeoutSeconds": 420,
+        "instanceHourlyDefault": 20,
+        "instanceDailyDefault": 100,
         "instanceHourly": 0,
         "instanceDaily": 0,
-        "globalHourly": 20,
-        "globalDaily": 100
+        "globalHourly": 40,
+        "globalDaily": 200
       },
       "configSchema": {
         "type": "object",
@@ -227,7 +228,7 @@
           "globalConcurrency": {
             "type": "integer",
             "title": "总并发数",
-            "default": 2,
+            "default": 4,
             "minimum": 1,
             "maximum": 32,
             "scope": "global"
@@ -235,7 +236,7 @@
           "instanceConcurrencyDefault": {
             "type": "integer",
             "title": "每个实例默认并发数",
-            "default": 1,
+            "default": 2,
             "minimum": 1,
             "maximum": 32,
             "scope": "global"
@@ -252,7 +253,7 @@
           "queueLimit": {
             "type": "integer",
             "title": "最多排队任务",
-            "default": 20,
+            "default": 32,
             "minimum": 0,
             "maximum": 100,
             "scope": "global"
@@ -260,7 +261,7 @@
           "queueTimeoutSeconds": {
             "type": "integer",
             "title": "最长排队时间（秒）",
-            "default": 300,
+            "default": 420,
             "minimum": 1,
             "maximum": 3600,
             "scope": "global"
@@ -268,7 +269,7 @@
           "instanceHourlyDefault": {
             "type": "integer",
             "title": "每实例默认每小时上限",
-            "default": 10,
+            "default": 20,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -276,7 +277,7 @@
           "instanceDailyDefault": {
             "type": "integer",
             "title": "每实例默认每日上限",
-            "default": 50,
+            "default": 100,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -302,7 +303,7 @@
           "globalHourly": {
             "type": "integer",
             "title": "总每小时上限",
-            "default": 20,
+            "default": 40,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -310,7 +311,7 @@
           "globalDaily": {
             "type": "integer",
             "title": "总每日上限",
-            "default": 100,
+            "default": 200,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -324,7 +325,8 @@
           "export": "draw_image",
           "title": "画图",
           "completion": "chat",
-          "description": "生成一张图片或 GIF 动图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取当前角色的人设图，也可指定视角。两种方式分别启用。返回可发送的图片地址。",
+          "successLabel": "生成成功",
+          "description": "生成一张图片或 GIF 动图。拟写提示词前按当前可用的 image-studio:imagegen 指南构图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取当前角色的人设图，也可指定视角。两种方式分别启用。返回可发送的图片地址。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -360,6 +362,7 @@
               },
               "prompt": {
                 "type": "string",
+                "description": "直接送入图像 API 的自然语言正文。从画面或具体编辑指令起笔，写清可见主体、构图与必要细节。任务名放在外层 title，请求者和聊天经过留在会话中。画面需要印出的原文用引号标明。",
                 "minLength": 1,
                 "maxLength": 12000
               },
@@ -599,6 +602,9 @@
               "provider",
               "size",
               "quality"
+            ],
+            "widgets": [
+              { "type": "skill-upload", "title": "生图 Skill", "skills": ["imagegen", "gpt-image"] }
             ]
           },
           {
@@ -782,7 +788,7 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "插件更新后，可以在原聊天补发之前画好的图片，复用原图和原来的显示方式。"
+        "changelog": "生图指南现按画面构图、光影、材质与微表情编写提示词。可在插件设置中上传自己的 Markdown 或 ZIP 指南，也可恢复默认。"
       }
     }
   }

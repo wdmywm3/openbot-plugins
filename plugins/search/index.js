@@ -72,6 +72,48 @@ function stripHtmlNoise(html = "") {
     .replace(/<(nav|footer|header|aside|form)\b[\s\S]*?<\/\1>/gi, " ");
 }
 
+function screenInlineHtml(html) {
+  const stack = [], output = [];
+  const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+  const hiddenTags = new Set(["script", "style", "noscript", "template", "svg", "canvas", "iframe"]);
+  const pattern = /<!--[\s\S]*?(?:-->|$)|<\/?[a-zA-Z][\w:-]*(?:"[^"]*"|'[^']*'|[^'"<>])*?>/g;
+  const color = value => value?.replace(/\s+/g, "").replace(/^white$/, "#ffffff").replace(/^#fff$/, "#ffffff").replace(/^rgb\(255,255,255\)$/, "#ffffff");
+  let last = 0, hiddenTextCount = 0;
+  const add = text => {
+    if (stack.at(-1)?.hidden) { if (text.trim()) hiddenTextCount++; }
+    else if (!stack.at(-1)?.ignored) output.push(text);
+  };
+  for (const match of html.matchAll(pattern)) {
+    add(html.slice(last, match.index)); last = match.index + match[0].length;
+    const markup = match[0], tag = /^<(\/?)([a-z][\w:-]*)/i.exec(markup);
+    if (!tag) continue;
+    const name = tag[2].toLowerCase();
+    if (tag[1]) {
+      const index = stack.findLastIndex(item => item.name === name);
+      if (index < 0) continue;
+      const closed = stack[index]; stack.length = index;
+      if (!closed.hidden && !closed.ignored) add(markup);
+      continue;
+    }
+    const attributes = markup.slice(tag[0].length);
+    const style = decodeHtml(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attributes)?.slice(1).find(value => value !== undefined) || "").toLowerCase();
+    const rules = Object.fromEntries(style.split(";").map(part => part.trim().split(/:\s*/)).filter(pair => pair.length === 2).map(([key, value]) => [key.trim(), value.replace(/\s*!important\s*$/, "").trim()]));
+    const parent = stack.at(-1), background = color(rules["background-color"] || rules.background) || parent?.background || "#ffffff";
+    const foreground = color(rules.color) || parent?.foreground;
+    const hidden = parent?.hidden || /(?:^|\s)hidden(?:\s|=|\/?>)/i.test(attributes)
+      || rules.display === "none" || ["hidden", "collapse"].includes(rules.visibility) || rules["content-visibility"] === "hidden"
+      || rules.opacity !== undefined && Number(rules.opacity) <= 0.01 || foreground === "transparent" || foreground === background;
+    const ignored = parent?.ignored || hiddenTags.has(name);
+    if (!hidden && !ignored) add(markup);
+    if (!voidTags.has(name) && !markup.endsWith("/>")) {
+      if (stack.length >= 128) break;
+      stack.push({ name, hidden, ignored, background, foreground });
+    }
+  }
+  if (stack.length < 128) add(html.slice(last));
+  return { html: output.join(""), hiddenTextCount };
+}
+
 function firstMatch(value, re) {
   const match = re.exec(String(value || ""));
   return match ? decodeHtml(match[1].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim() : "";
@@ -97,8 +139,9 @@ function htmlToText(html = "") {
 }
 
 function normalizeHtml(rawText, maxChars) {
-  const title = firstMatch(rawText, /<title\b[^>]*>([\s\S]*?)<\/title>/i);
-  const text = htmlToText(rawText);
+  const { html, hiddenTextCount } = screenInlineHtml(rawText);
+  const title = firstMatch(html, /<title\b[^>]*>([\s\S]*?)<\/title>/i);
+  const text = htmlToText(html);
   const limited = limitText(text || title || "", maxChars);
   return {
     title,
@@ -106,6 +149,7 @@ function normalizeHtml(rawText, maxChars) {
     content: limited.text,
     cleanChars: charLen(text || title || ""),
     truncated: limited.truncated,
+    diagnostics: hiddenTextCount ? [{ code: "html_hidden_text_removed", count: hiddenTextCount }] : [],
   };
 }
 

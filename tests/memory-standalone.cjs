@@ -66,12 +66,13 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
       assert(state(current(ctx).storage, current(ctx).scope).nextRun > now); assert.equal(generated, 0);
       assert.equal((await runtime.process({ ...ctx, input: { chatId, mode: "dream" } })).reason, "not_due");
     });
-    await check("pause survives storage restart and enabled settings resume", async () => {
-      await manage({ action: "stop" }); close();
-      assert.equal((await runtime.list(ctx)).paused, true);
-      assert.equal((await runtime.process({ ...ctx, input: { chatId, mode: "dream" } })).reason, "paused");
-      await manage({ action: "settings", settings: { enabled: true } });
-      assert.equal((await runtime.list(ctx)).paused, false);
+    await check("legacy chat pause cannot override the saved schedule", async () => {
+      const { storage } = current(ctx), key = `plus:state:${chatId}`;
+      put(storage, key, { ...get(storage, key), paused: true });
+      close();
+      assert.equal((await runtime.list(ctx)).settings.enabled, true);
+      assert.equal((await runtime.process({ ...ctx, input: { chatId, mode: "dream" } })).reason, "not_due");
+      for (const action of ["pause", "resume", "stop"]) await assert.rejects(manage({ action }), /只管理整理策略/);
     });
     await check("index-only processing never invokes the model", async () => {
       const result = await runtime.process({ ...ctx, input: { chatId, mode: "index" } });
@@ -97,12 +98,11 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
     await check("cross-chat input is rejected before work", async () => {
       await assert.rejects(runtime.process({ ...ctx, input: { chatId: "onebot:private:other", mode: "index" } }), /当前聊天/);
     });
-    await check("manual run explicitly resumes and queues one job", async () => {
-      await manage({ action: "stop" }); const before = jobs.length;
+    await check("manual run queues one job", async () => {
+      const before = jobs.length;
       await manage({ action: "run" });
       const queued = jobs.slice(before).filter(item => item.action === "start");
       assert.equal(queued.length, 1); assert.equal(queued[0].input.dream, true); assert.equal(queued[0].chatId, chatId);
-      assert.equal((await runtime.list(ctx)).paused, false);
     });
     await check("unavailable and undelivered sources are excluded", () => {
       for (const key of ["deleted", "routeBlocked", "memoryExcluded"]) assert.equal(material.admit({ ...source, [key]: true }), false, key);
@@ -156,7 +156,7 @@ async function manage(input) { return runtime.manage({ ...ctx, input: { chatId, 
     });
     await check("running jobs and source failures leave checkpoints unchanged", async () => {
       await assert.rejects(runtime.manage({ ...ctx, input: { chatId, action: "startFromNow", requestKey: "busy" }, api: { ...ctx.api,
-        jobs: async () => ({ jobs: [{ action: "process", status: "running" }] }) } }), /请先暂停/);
+        jobs: async () => ({ jobs: [{ action: "process", status: "running" }] }) } }), /请等任务结束/);
       await assert.rejects(runtime.manage({ ...ctx, input: { chatId, action: "startFromNow", requestKey: "failed-head" }, api: { ...ctx.api,
         sources: async () => { throw Error("source temporarily unavailable"); } } }), /temporarily unavailable/);
       assert.equal((await runtime.list(ctx)).checkpoint.cursor, 77);

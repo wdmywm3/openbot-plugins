@@ -3,17 +3,10 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), os = requ
 const runtime = require("../plugins/memory/unified-runtime.cjs"), { current, put, state, save } = require("../plugins/memory/unified-state.cjs");
 const { close } = require("../plugins/memory/storage.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-management-"));
-const scope = { channelId: "bot", chatId: "onebot:group:team" }, canceled = [], jobs = [];
+const scope = { channelId: "bot", chatId: "onebot:group:team" }, jobs = [];
 const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: { chatId: scope.chatId }, signal: new AbortController().signal,
   api: { sources: async () => ({ scopes: [{ chatId: scope.chatId, name: "测试群", privatePayload: "x".repeat(100000) }] }),
-    jobs: async input => {
-      if (input.action === "cancel") { canceled.push(input.id); jobs.find(job => job.id === input.id).status = "canceled"; return {}; }
-      const visible = jobs.filter(job => !input.statuses || input.statuses.includes(job.status));
-      let offset = 0;
-      if (input.cursor) { offset = visible.findIndex(job => job.id === input.cursor) + 1; assert(offset > 0, "canceling a page must not invalidate the next page cursor"); }
-      const page = visible.slice(offset, offset + 50);
-      return { jobs: page, nextCursor: visible.length > offset + 50 ? page.at(-1).id : null };
-    } } };
+    jobs: async input => ({ jobs: jobs.filter(job => !input.statuses || input.statuses.includes(job.status)) }) } };
 (async () => {
   try {
     const { storage } = current(ctx), runs = storage.dreamRepository.runs;
@@ -144,15 +137,10 @@ const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: 
       assert.deepEqual(errors, conflicts, "every conflict remains readable across bounded preview pages");
     } finally { legacy.convert = convert; }
 
-    jobs.length = 0;
-    jobs.push(...Array.from({ length: 65 }, (_, i) => ({ id: String(i), action: i % 2 ? "followup" : "process", status: "queued" })), { id: "other", action: "import", status: "queued" });
-    ctx.input = { chatId: scope.chatId, action: "stop" }; await runtime.manage(ctx);
-    assert.equal(new Set(canceled).size, 65); assert(!canceled.includes("other")); assert.equal(state(storage, scope).paused, true);
-
     const abort = new AbortController(), stoppedId = runs.start(scope, { trigger: "manual", cutoff: Date.now(), upper: 0 });
-    save(storage, scope, { paused: false, job: { runId: stoppedId, trigger: "manual" } }); abort.abort(Error("用户停止"));
-    await assert.rejects(require("../plugins/memory/unified-organizer.cjs").run({ ...ctx, signal: abort.signal }, storage, scope), /用户停止/);
+    save(storage, scope, { job: { runId: stoppedId, trigger: "manual" } }); abort.abort(Error("任务取消"));
+    await assert.rejects(require("../plugins/memory/unified-organizer.cjs").run({ ...ctx, signal: abort.signal }, storage, scope), /任务取消/);
     assert.equal(runs.get(scope, stoppedId).status, "paused"); assert.equal(state(storage, scope).error, ""); assert.equal(state(storage, scope).failures, 0);
-    console.log("Memory management: empty-run filtering, stable pagination, bounded detail/list payloads, lossless event paging, all queued cancellations, and stop without failure passed.");
+    console.log("Memory management: empty-run filtering, stable pagination, bounded detail/list payloads, lossless event paging and cancellation without failure passed.");
   } finally { close(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-memory-management-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

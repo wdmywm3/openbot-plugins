@@ -85,6 +85,17 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const models = await runtime.runPluginAction(channel, plugin, catalogAction, { source: "openai", target: "image" });
     assert.deepEqual(models.models.map(item => item.id), ["gpt-image-2.6-flare"]);
     const context = { requestId: "draw", purpose: "chat", channelPrincipal: { source: "channel", channelId: channel.id, chatId: "chat", senderId: "member", messageType: "group" } };
+    const { effectiveSkills } = fromHost("plugins/plugin-skill-upload.cjs");
+    const builtin = plugin.skills;
+    plugin.skills = effectiveSkills(builtin, plugin.ui, null);
+    const primary = plugin.skills.find(skill => skill.name === "image-studio:imagegen");
+    assert((await runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context)).success);
+    plugin.skills = effectiveSkills(builtin, plugin.ui, { target: "imagegen", content: "自定义正文", revision: "fixture",
+      resources: { "references/light.md": "杯沿反射窗外的暖光。" } });
+    assert.match((await runtime.readPluginSkillForModel(primary.id, {}, context)).skillContext, /自定义正文/);
+    assert.match((await runtime.readPluginSkillForModel(primary.id, { resource: "references/light.md" }, context)).skillContext, /杯沿反射窗外的暖光/);
+    await assert.rejects(runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context), /没有这个参考文件/);
+    plugin.skills = builtin;
     const tool = "plugin__image-studio__draw_image";
     async function finish(input, requestKey, expectedStatus = "completed", actor = context, toolName = tool) {
       let job = await runtime.runNativePluginTool(toolName, { action: "start", requestKey, input }, actor);

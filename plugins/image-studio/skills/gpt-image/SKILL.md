@@ -27,10 +27,6 @@ openbot-visibility:
 
 # GPT Image 绘图指导
 
-这是一份可选参考。先按照 `image-studio:imagegen` 的工具说明执行；只有需要 GPT Image 的提示词、参考图或动图指导时才读取本 Skill，不需要把全文加入每次请求。
+沿用 `image-studio:imagegen` 的自然语言画面与工具流程。把原样文字放在引号内并标明位置，编辑时先定位底图中的具体目标，迭代仅描述本次变化。多张参考按实际输入顺序写明对象、位置和保留关系；每次请求携带所需参考。
 
-把用户需求整理为主体、动作、场景、构图、风格、画面文字和必须保留的约束。用户没有要求的角色、品牌、对白和剧情不要自行增加。对参考图说明每张图的作用；修改角色时描述需要保留的面貌、发型和辨识特征。
-
-GPT Image 2.6 Flare 偏重速度，Sunburst 偏重细节与精确编辑。动图提示词写清动作起点、终点、镜头是否固定及是否循环；可用 `format: "gif"`、`frameCount` 和 `frameDurationMs` 请求动图。最终以服务实际返回的格式与任务结果为准，服务不支持时说明原因。
-
-更详细的提示词范例和原则见 `references/prompting.md` 与 `references/sample-prompts.md`，只在需要时读取。它们改编自 OpenAI Codex 的 imagegen Skill，许可见 `LICENSE.txt`。
+动图可写动作起点、变化和回到起点的方式，并说明机位是否固定。格式、帧数、帧时长分别使用 `format`、`frameCount`、`frameDurationMs`。关于构图、光影和微表情，可通过主指南读取 `references/prompting.md`。

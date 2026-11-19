@@ -184,13 +184,17 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
       patch: { content: record.content, subtype: record.subtype, progress: record.progress, sources: record.sources, attributes: record.attributes } }); before.push({ id: old.id, revision: old.revision });
   }
   const bounded = await retention.candidateBudget(ctx, scope, operations, before);
-  return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length + memes.length - admittedFacts.length + omittedExperiences + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
+  const topics = result.topics.map(topic => ({ ...topic, sources: topic.sourceIds.map(id => {
+    const source = materials.find(item => item.id === id);
+    return { id, version: source.version };
+  }) }));
+  return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length + memes.length - admittedFacts.length + omittedExperiences + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics,
     links: (parsed.records || []).filter(item => privateChat && item.kind === "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
 }
 async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}) {
   ctx.signal.throwIfAborted();
   const settings = state(storage, scope);
-  if (settings.paused || job.trigger !== "manual" && !settings.settings.enabled) throw Error("整理已暂停，保留检查点等待明确恢复");
+  if (job.trigger !== "manual" && !settings.settings.enabled) throw Error("自动整理已关闭，已保留进度");
   const planKey = `plus:${fork ? "fork-plan" : "plan"}:${scope.chatId}`;
   const prepared = get(storage, planKey);
   if (!prepared || prepared.runId !== job.runId) throw Error("整理检查点缺失");
@@ -250,7 +254,7 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
   save(storage, scope, { ...(fork ? { lastRun: Date.now() } : { cursor: prepared.after, checkpointAt: Date.now(), job: pending ? { ...job, prepared: false } : null,
     ...(!pending ? { lastRun: Date.now(), nextRun: nextRun(live.settings, Date.now()) } : {}) }), error: "", failures: 0, retryAt: 0,
     ...(prepared.style && !live.styleLocked ? { style: { ...prepared.style, updatedAt: Date.now() } } : {}) });
-  if (!fork || prepared.topics.length) put(storage, `plus:topics:${scope.chatId}`, prepared.topics);
+  require("./unified-topics.cjs").merge(storage, scope, prepared.topics, prepared.operations, result.items);
   const savedCount = result.items.filter(Boolean).length;
   if (savedCount) storage.dreamRepository.runs.change(scope, job.runId, countChanges(prepared.operations, result.items));
   if (skipped.length) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify(skipped) });

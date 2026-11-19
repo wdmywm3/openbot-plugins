@@ -21,7 +21,7 @@ const ctx = { dataRoot: root, plugin: { id: "memory", namespace: "one" }, princi
 const scopeFor = suffix => ({ channelId: "one", chatId: `onebot:group:${suffix}` });
 function create(scope, content, fields = {}, who = actor(scope.chatId)) { return repo.memory(who, { action: "create", requestKey: `setup-${++request}`, record: { content, kind: "fact", status: "active", tier: "working", ...fields } }); }
 function read(scope, id) { return repo.memory(actor(scope.chatId), { action: "read", mode: "history", id }).item; }
-function enabled(scope) { save(storage, scope, { settingsOverride: { enabled: true }, paused: false, maintenanceFailures: 0, maintenanceRetryAt: 0 }); }
+function enabled(scope) { save(storage, scope, { settingsOverride: { enabled: true }, maintenanceFailures: 0, maintenanceRetryAt: 0 }); }
 const keep = record => ({ id: record.id, revision: record.revision, action: "keep", reason: "有明确的持续交流用途，现状仍然有效" });
 async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) { result = await maintenance.run(ctx, storage, scope, options); if (!result.pending) return result; } assert.fail("maintenance did not finish its bounded pages"); }
 (async () => {
@@ -96,8 +96,8 @@ async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) 
     const clock = scopeFor("clock"); enabled(clock); save(storage, clock, { nextRun: Date.now() + 100000, maintenanceNextRun: Date.now() - 1 });
     const noSources = { ...ctx, api: { ...ctx.api, sources: async () => ({ upper: 0, observedAt: 0 }) } };
     assert.equal(await scheduling.due(noSources, storage, clock), "scheduled", "idle's later nextRun cannot postpone the daily maintenance deadline");
-    save(storage, clock, { paused: true }); assert.equal(await scheduling.due(noSources, storage, clock), "");
-    save(storage, clock, { paused: false, settingsOverride: { enabled: false } }); assert.equal(await scheduling.due(noSources, storage, clock), "");
+    save(storage, clock, { paused: true }); assert.equal(await scheduling.due(noSources, storage, clock), "scheduled");
+    save(storage, clock, { settingsOverride: { enabled: false } }); assert.equal(await scheduling.due(noSources, storage, clock), "");
 
     const payloadScope = scopeFor("payload"); enabled(payloadScope);
     const quote = "来源原话".repeat(200);

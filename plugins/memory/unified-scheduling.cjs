@@ -29,7 +29,7 @@ async function due(ctx, storage, scope, { forks = false } = {}) {
   const batch = !forks && get(storage, `plus:organizer-batch:${scope.chatId}`);
   const fork = forks && get(storage, `plus:fork-plan:${scope.chatId}`);
   const maintenance = get(storage, `plus:maintenance-cycle:${scope.chatId}`);
-  if (live.paused || active(storage, scope)) return "";
+  if (active(storage, scope)) return "";
   if (forks && live.forkManualRequested) return "manual";
   if (!live.settings.enabled && ((forks ? fork?.job.trigger : live.job?.trigger || batch?.trigger) !== "manual") && !maintenance?.manual && !live.maintenanceManual) return "";
   if (!forks && (live.job || batch)) return "continuation";

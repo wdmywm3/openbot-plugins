@@ -34,6 +34,10 @@ assert.match(htmlPayload.content, /Story Headline/, "HTML payload should keep us
 assert.match(htmlPayload.content, /First useful paragraph/, "HTML payload should keep useful body text");
 assert.doesNotMatch(htmlPayload.content, /secret|global navigation|copyright footer|<script|<main/i, "HTML payload should remove page chrome and tags");
 assert.ok(htmlPayload.stats.rawChars > htmlPayload.stats.returnedChars, "HTML stats should expose shrinkage");
+const screened = normalizeWebContent({ contentType: "text/html", rawText: '<main><p hidden>hidden note</p><p style="color:#fff">blended label</p><p style="background:#000;color:white">visible caption</p></main>' });
+assert.doesNotMatch(screened.content, /hidden note|blended label/);
+assert.match(screened.content, /visible caption/);
+assert.equal(screened.diagnostics[0].code, "html_hidden_text_removed");
 
 const jsonPayload = normalizeWebContent({
   url: "https://api.example.com/items",

@@ -13,6 +13,7 @@
     "catalog": "node scripts/build-catalog.cjs",
     "sync:shared": "node scripts/sync-learning.cjs",
     "test:watch": "python -B -m unittest discover -s tests -p watch*_test.py -v",
+    "test:computer-use": "node tests/computer-use-host.cjs",
     "test:search": "node tests/search.cjs && node tests/search-content.cjs",
     "test:images": "node tests/image-studio.cjs && node tests/image-studio-selfie.cjs && node tests/image-studio-catalog.cjs && node tests/image-studio-limits.cjs",
     "test:memes": "node tests/meme-library.cjs && node tests/meme-engine.cjs",

@@ -15,7 +15,7 @@ const messages = Array.from({ length: 350 }, (_, index) => ({ id: `message-${ind
 const repo = createUnifiedMemoryRepository(db, { source: (_scope, id) => messages.find(item => item.id === id),
   ownerAllowed: (who, kind, ownerId) => kind === "chat" && (who.chatId === ownerId || who.managementChats?.includes(ownerId)) });
 const actor = { ...scope, id: "plugin:memory", manage: true, permissions: ["memory:read", "memory:write", "memory:manage"], canReadChat: () => true };
-const storage = open(root), calls = []; let failAfterCommit = false, failed = false, paused = false, changedPolicy = false;
+const storage = open(root), calls = []; let failAfterCommit = false, failed = false, disableDuringBatch = false, changedPolicy = false;
 const ctx = { signal: new AbortController().signal, principal: { ...scope, source: "lifecycle" }, api: {
   sources: async input => {
     if (input.action === "read") return { item: messages.find(item => item.id === input.id) };
@@ -29,7 +29,7 @@ const ctx = { signal: new AbortController().signal, principal: { ...scope, sourc
     const batch = JSON.parse(request.continuation.content), source = batch.messages.find(item => item.text.includes("回答简短"));
     assert(batch.messages.length > 12 || calls.length > 1);
     assert(batch.messages.every(item => item.version === undefined && item.observedAt === undefined));
-    if (paused) save(storage, scope, { paused: true });
+    if (disableDuringBatch) save(storage, scope, { settingsOverride: { enabled: false } });
     const invoke = input => organizer.tool({ ...ctx, input: { ticket: batch.ticket, ...input } }, storage, scope);
     const result = { facts: [], topics: [], records: [{ kind: "experience", content: "我记得一起聊天", evidence: [] }] };
     if (source) {
@@ -93,9 +93,10 @@ const ctx = { signal: new AbortController().signal, principal: { ...scope, sourc
     await dream.run(ctx, storage, scope);
     assert.notEqual(calls.at(-1).taskId, oldTask); assert.equal(calls.at(-1).continuation.sequence, 1);
     assert.equal(repo.memory(actor, { action: "search" }).items.length, 1, "policy changes do not duplicate committed memory");
-    messages.push({ ...messages[1], id: "pause", seq: 354 }); paused = true;
-    await assert.rejects(dream.run(ctx, storage, scope), /暂停/);
-    assert(get(storage, `plus:state:${scope.chatId}`).cursor < 354, "pause prevents uncommitted progress and writes");
+    save(storage, scope, { settingsOverride: { enabled: true } });
+    messages.push({ ...messages[1], id: "disable", seq: 354 }); disableDuringBatch = true;
+    await assert.rejects(dream.run(ctx, storage, scope, "idle"), /自动整理已关闭/);
+    assert(get(storage, `plus:state:${scope.chatId}`).cursor < 354, "disabling an automatic run prevents uncommitted progress and writes");
     const legacy = repo.memory(actor, { action: "create", requestKey: "legacy-profile", record: { content: "已有的个人偏好", kind: "preference", status: "active", subjectRefs: ["alice"] } });
     const event = repo.memory(actor, { action: "create", requestKey: "event-fact", record: { content: "这次下载了模型", kind: "fact", status: "active", subjectRefs: ["alice"] } });
     const elsewhere = { ...actor, chatId: "onebot:group:elsewhere" };

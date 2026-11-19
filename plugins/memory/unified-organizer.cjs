@@ -74,7 +74,7 @@ async function collect(ctx, scope, after, upper) {
 function live(ctx, storage, scope, batch) {
   ctx.signal.throwIfAborted();
   const policy = state(storage, scope);
-  if (policy.paused || batch.trigger !== "manual" && !policy.settings.enabled) throw Error("整理已暂停");
+  if (batch.trigger !== "manual" && !policy.settings.enabled) throw Error("自动整理已关闭，已保留进度");
   return policy;
 }
 function normalizeResult(value, batch) {
@@ -174,7 +174,6 @@ async function executeTool(ctx, storage, scope) {
 async function runBatch(ctx, storage, scope, trigger) {
   const dream = require("./unified-dream.cjs");
   let policy = state(storage, scope), batch = get(storage, batchKey(scope));
-  if (policy.paused) throw Error("整理已暂停");
   if (policy.job?.prepared && !batch) return dream.commit(ctx, storage, scope, policy.job);
   if (!batch || batch.after <= policy.cursor && !batch.receipt && policy.job?.runId !== batch.runId) {
     const collected = await collect(ctx, scope, policy.cursor || 0, policy.job?.upper);
@@ -251,7 +250,7 @@ async function run(ctx, storage, scope, trigger = "manual") {
     for (let index = 0; index < 4; index++) {
       ctx.signal.throwIfAborted();
       result = await runBatch(ctx, storage, scope, trigger); saved += result.saved || 0; skipped += result.skipped || 0;
-      if (!result.pending || state(storage, scope).paused) break;
+      if (!result.pending) break;
     }
     return { ...result, saved, skipped };
   })();
@@ -259,7 +258,7 @@ async function run(ctx, storage, scope, trigger = "manual") {
   try { return await task; }
   catch (error) {
     const policy = state(storage, scope);
-    if (ctx.signal.aborted || policy.paused) {
+    if (ctx.signal.aborted || trigger !== "manual" && !policy.settings.enabled) {
       save(storage, scope, { error: "", failures: 0, retryAt: 0 });
       if (policy.job?.runId) storage.dreamRepository.runs.finish(scope, policy.job.runId, "paused", "整理已停止，已保留进度");
       throw error;

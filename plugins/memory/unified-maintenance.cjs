@@ -26,7 +26,7 @@ function pending(storage, scope) { return !!get(storage, cycleKey(scope)); }
 function assertLive(ctx, storage, scope, cycle) {
   ctx.signal.throwIfAborted();
   const live = state(storage, scope);
-  if (live.paused || !cycle.manual && !live.settings.enabled) throw Error("整理已暂停，保留维护进度");
+  if (!cycle.manual && !live.settings.enabled) throw Error("自动整理已关闭，已保留维护进度");
 }
 function own(ctx, record) {
   return record?.createdBy === actorId(ctx) && ["pending", "active"].includes(record.status) && record.tier === "working"
@@ -242,8 +242,9 @@ async function run(ctx, storage, scope, { manual = false } = {}) {
     return { pending: true, changed };
   } catch (error) {
     const live = state(storage, scope);
-    if (cycle.runId) storage.dreamRepository.runs.finish(scope, cycle.runId, ctx.signal.aborted || live.paused ? "paused" : "failed", String(error.message || error));
-    if (!ctx.signal.aborted && !live.paused) {
+    const stopped = ctx.signal.aborted || !cycle.manual && !live.settings.enabled;
+    if (cycle.runId) storage.dreamRepository.runs.finish(scope, cycle.runId, stopped ? "paused" : "failed", String(error.message || error));
+    if (!stopped) {
       const failures = (live.maintenanceFailures || 0) + 1;
       save(storage, scope, { maintenanceFailures: failures, maintenanceRetryAt: Date.now() + Math.min(3600000, 60000 * 2 ** Math.min(failures, 6)) });
     }

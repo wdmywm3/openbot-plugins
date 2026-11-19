@@ -1,6 +1,6 @@
 "use strict";
 const api=window.openbotPlugin,$=id=>document.getElementById(id),runsOnly=api.getContext().viewId==='runs';
-const states={running:'整理中',completed:'已完成',interrupted:'已中断',paused:'已暂停',failed:'失败',rolled_back:'已回滚',rollback_pending:'回滚待处理'};
+const states={running:'整理中',completed:'已完成',interrupted:'已中断',paused:'已中断',failed:'失败',rolled_back:'已回滚',rollback_pending:'回滚待处理'};
 let chatId=api.getContext().chatId||'',snapshot,nextOffset=null,generation=0,revision=0,savedRevision=0,saveTimer,savePromise,loading=0,failed=false,styleChat=null;
 const call=(action,input={})=>api.callAction(action,{...input,chatId});
 let chatListPromise;
@@ -32,8 +32,8 @@ function renderSettings(){const config=snapshot.settings;$("inherit-label").hidd
 }
 async function refresh(append=false){if(append)pagesExpanded=true;const current=generation,request=++loading,result=await call('list',{includeChats:false,offset:append?nextOffset:0});if(current!==generation||request!==loading)return;snapshot=result;pagesExpanded=append;$("chat").value=chatId;
  if(revision===savedRevision&&!runsOnly)renderSettings();
- $("status").textContent=snapshot.error||(snapshot.paused?'自动整理已暂停':snapshot.busy?'正在整理…':snapshot.pending?'有未完成的整理':!chatId?'选择一个聊天后，可以查看记录或立即整理。':'');
- $("run").disabled=!chatId||snapshot.busy;$("pause").hidden=!chatId||snapshot.paused||!snapshot.settings.enabled;$("resume").hidden=!chatId||!snapshot.paused;$("stop").hidden=!snapshot.busy&&!snapshot.pending;
+ $("status").textContent=snapshot.error||(snapshot.busy?'正在整理…':snapshot.pending?'有未完成的整理':!chatId?'选择一个聊天后，可以查看记录或立即整理。':'');
+ $("run").disabled=!chatId||snapshot.busy;
  if(!append)$("items").replaceChildren();for(const run of snapshot.runs?.items||[]){const row=document.createElement('div');row.className='item';row.append(button(new Date(run.createdAt).toLocaleString()+' · '+(states[run.status]||run.status)+'\n'+(run.summary||''),async()=>{await flush();if(failed)return;await api.ui.openOverlay({viewId:'details',input:{chatId,runId:run.id}});await refresh();}));$("items").append(row);}
  if(!append&&chatId&&!snapshot.runs?.items?.length)$("items").textContent='暂无整理记录';nextOffset=snapshot.runs?.nextOffset??null;$("more").hidden=nextOffset===null;
  if(!append){renderFollowups(snapshot);renderMaintenance(snapshot);}
@@ -49,7 +49,7 @@ $("preferences").addEventListener('change',event=>{if(event.target.matches('inpu
 $("retry-save").onclick=()=>{failed=false;void flush();};
 async function selectScope(next,publish=true){await flush();if(revision!==savedRevision&&!await api.ui.confirm({title:'放弃修改',message:'当前修改尚未保存，切换聊天会丢失这次修改。',confirmLabel:'放弃修改'})){$("chat").value=chatId;return;}chatId=next;generation++;revision=savedRevision=0;failed=false;styleChat=null;api.ui.setDirty(false);$("save-status").textContent='';$("retry-save").hidden=true;if(publish)api.ui.setContext({chatId});await refresh();}
 $("chat").onchange=()=>task(()=>selectScope($("chat").value));api.ui.onContextChange(value=>{if((value.chatId||'')!==chatId)task(()=>selectScope(value.chatId||'',false));});
-for(const [id,action]of [['run','run'],['pause','pause'],['resume','resume'],['stop','stop']])$(id).onclick=()=>task(async()=>{await flush();if(failed)return;await call('manage',{action});await refresh();});
+$("run").onclick=()=>task(async()=>{await flush();if(failed)return;await call("manage",{action:"run"});await refresh();});
 $("start-now").onclick=()=>task(async()=>{await flush();if(failed)return;if(!await api.ui.confirm({title:'跳过此前记录',message:'之后从当前时间开始整理，这个聊天此前尚未整理的记录将跳过。',confirmLabel:'跳过'}))return;await call('manage',{action:'startFromNow',requestKey:'checkpoint:'+Date.now()+':'+Math.random().toString(36).slice(2)});await refresh();});
 $("style-reset").onclick=()=>task(async()=>{await flush();if(failed)return;await call('manage',{action:'style',values:{},locked:true});styleChat=null;await refresh();});
 $("import").onclick=()=>task(async()=>{await flush();if(failed)return;const picked=await api.selectFiles({extensions:['json']});if(picked.files?.length)await call('import',{refs:picked.files.map(file=>file.ref)});await Promise.all([loadChats(),refresh()]);});

@@ -33,7 +33,8 @@ const all = () => memory.memory(actor, { action: "search" }).items;
 const read = id => memory.memory(actor, { action: "read", id }).item;
 async function edit(record, patch, quote) {
   const evidence = message("update-" + record.revision, quote);
-  modelReply = { facts: [], topics: [], updates: [{ id: record.id, revision: record.revision, content: quote, evidence, ...patch }] };
+  modelReply = { facts: [], topics: [{ title: "项目复查", keywords: ["项目"], sourceIds: [evidence[0].id], status: "open" }],
+    updates: [{ id: record.id, revision: record.revision, content: quote, evidence, ...patch }] };
   await runtime.process(context({ dream: true })); return read(record.id);
 }
 (async () => {
@@ -41,7 +42,8 @@ async function edit(record, patch, quote) {
     await runtime.initialize(context());
     const evidence = message("request", "请从现在开始每小时复查项目进展，有新资料时也检查一下。");
     await runtime.beforeModel(context()); await runtime.afterModel(context());
-    modelReply = { facts: [], topics: [], records: [{ kind: "matter", subtype: "followup", content: "复查项目进展", progress: "waiting", evidence,
+    modelReply = { facts: [], topics: [{ title: "项目复查", keywords: ["项目", "进展"], sourceIds: [evidence[0].id], status: "open" }],
+      records: [{ kind: "matter", subtype: "followup", content: "复查项目进展", progress: "waiting", evidence,
       nextReviewAt: Date.now() - 1000, reviewIntervalMinutes: 60, reviewOnChange: true }] };
     await runtime.process(context({ dream: true })); let record = read(all()[0].id);
     assert.equal(record.attributes.reviewIntervalMinutes, 60); assert.equal(record.attributes.reviewOnChange, true);
@@ -52,6 +54,10 @@ async function edit(record, patch, quote) {
     const newTime = Date.now() + 2 * 86400000;
     record = await edit(record, { nextReviewAt: newTime, reviewIntervalMinutes: 120 }, "改到后天开始，每两小时复查，有新资料仍然继续检查。");
     assert.equal(record.attributes.nextReviewAt, newTime); assert.equal(record.attributes.reviewIntervalMinutes, 120); assert.equal(record.attributes.reviewOnChange, true);
+    const knowledge = await runtime.recall(context({ searchIn: "topics", query: "项目复查" }));
+    assert.equal(knowledge.topics.length, 1);
+    assert.deepEqual(knowledge.topics[0].sources.map(ref => ref.id).sort(), ["request", "update-1"]);
+    assert.equal(knowledge.topics[0].notes[0].revision, record.revision);
     assert((await runtime.followup(context(oldJob.input))).skipped); assert.equal(agentCalls, 0, "old queued job cannot run after postponement");
     record = await edit(record, {}, "同一项目仍在等待对方回复。"); assert.equal(record.attributes.nextReviewAt, newTime);
     record = await edit(record, { nextReviewAt: null }, "先停止这个项目的全部自动复查。"); assert.deepEqual(record.attributes, {});

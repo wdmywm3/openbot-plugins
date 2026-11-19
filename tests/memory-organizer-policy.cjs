@@ -204,12 +204,16 @@ const empty = () => ({ facts: [], topics: [] });
     const [fact, publicMeme, outbound, unseen] = forked.messages;
     forked.add("下次安排座位要用到今天发的报名人数和名单。");
     const purpose = forked.messages.at(-1);
+    forked.add("请以后在本群别回复阿甲。");
+    forked.add("请以后在本群别回复阿乙。");
+    const [unchecked, confirmed] = forked.messages.slice(-2);
     Object.assign(outbound, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
-    const visible = [fact, publicMeme, outbound, purpose], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    const visible = [fact, publicMeme, outbound, purpose, unchecked, confirmed], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
     const branches = new Map([
       ["facts", { facts: [{ kind: "fact", subjectId: "alice", content: fact.content, evidence: [{ id: fact.id, quote: fact.content }],
         retention: { basis: "explicit", reason: "后续有人问何时结束接龙时使用这个约定。" } },
-      { kind: "fact", content: unseen.content, evidence: [{ id: unseen.id, quote: unseen.content }] }] }],
+      { kind: "fact", content: unseen.content, evidence: [{ id: unseen.id, quote: unseen.content }] }],
+      verificationRequests: [unchecked, confirmed, unseen, outbound].map(source => ({ evidence: [{ id: source.id, quote: source.content }] })) }],
       ["profiles", { facts: [] }],
       ["memes", { memes: [meme(publicMeme, "有猫饼", meaning)] }],
       ["experience", { records: [
@@ -218,7 +222,21 @@ const empty = () => ({ facts: [], topics: [] });
         { kind: "experience", content: "我发了一条群消息，已经送达。", evidence: [{ id: outbound.id, quote: outbound.content }] },
       ] }],
     ]);
-    forked.ctx.api.sources = async () => assert.fail("fork extraction must not sweep the raw source feed");
+    const lookups = [], notices = [];
+    forked.ctx.api.getCapabilities = async () => ({ features: { operationReceipts: true } });
+    forked.ctx.api.sources = async input => {
+      assert.equal(input.action, "operationReceipts", "fork extraction must not sweep the raw source feed");
+      const source = [unchecked, confirmed].find(item => item.id === input.id);
+      assert(source, "only actual visible inbound user's evidence reaches the receipt lookup");
+      assert.equal(input.version, source.version);
+      assert.equal(input.chatId, forked.scope.chatId);
+      lookups.push(input.id);
+      return { available: true, receipts: source === confirmed ? [{ id: "existing", status: "completed" }] : [] };
+    };
+    forked.ctx.api.publishConversationEvent = async event => {
+      notices.push(event);
+      return { id: "confirmation-notice" };
+    };
     forked.ctx.api.conversationForks = async request => {
       if (request.action === "list") return { snapshots };
       if (request.action === "sources") return { items: visible, nextOffset: null };
@@ -250,6 +268,11 @@ const empty = () => ({ facts: [], topics: [] });
     assert.equal(captured.length, 1);
     assert.deepEqual(captured[0].branches.map(branch => branch.key), [...branches.keys()]);
     assert.deepEqual(requestKeys, Array(3).fill(requestKeys[0]), "lost or incomplete receipts retry the same write without calling the model again");
+    assert.deepEqual(lookups, [unchecked.id, confirmed.id], "replaying a memory commit does not recheck the same operations");
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0].chatId, forked.scope.chatId);
+    assert.equal(notices[0].delivery, "piggyback");
+    assert.equal(JSON.parse(notices[0].text).sourceMessageId, unchecked.id);
     assert.equal(forked.records({ mode: "history" }).length, 3, "valid fact, meme and delivered diary item share one write");
     assert.deepEqual(storage.dreamRepository.runs.list(forked.scope, { meaningfulOnly: true }).items[0].counts, { created: 3 });
     const experience = forked.records({ mode: "history", kind: "experience" });

@@ -40,7 +40,9 @@ function fixture(config = {}, input = {}) {
   return { ...fx, ctx, state: fx };
 }
 (async () => {
-  let fx = fixture(); let result = await draw(fx.ctx);
+  const artwork = "图1窗台上的蓝杯子，杯身写着“给阿棠”，侧后方的暖光落在杯沿。";
+  let fx = fixture({}, { prompt: artwork }); let result = await draw(fx.ctx);
+  assert.equal(fx.requests[0].options.body.prompt, artwork, "the provider receives the image description, including requested lettering");
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/generations");
   assert.equal(fx.requests[0].options.body.model, "gpt-image-2.6-sunburst");
   assert.equal(fx.requests[0].options.body.n, 1); assert.equal(fx.requests[0].options.body.stream, true);
