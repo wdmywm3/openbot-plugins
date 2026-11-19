@@ -24,6 +24,6 @@ function build(ctx, storage, scope) {
   return { context, system: [DREAM_PROMPT, FACT_PROMPT, REVISION_PROMPT, context.chatType === "group" ? GROUP : PRIVATE,
     ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, require("./unified-memes.cjs").PROMPT,
     require("./unified-profile-policy.cjs").STANDARD, require("./unified-profile-policy.cjs").USAGE_PROMPT,
-    require("./unified-profile-impressions.cjs").prompt([])].join("\n\n") };
+    require("./unified-profile-impressions.cjs").GENDER_PROMPT].join("\n\n") };
 }
 module.exports = { build };

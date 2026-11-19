@@ -25,7 +25,7 @@ function queries(item, scope) {
   const parts = [...new Set([text.slice(0, 80), ...text.split(/[\s，。！？；：、,.!?;:()（）"“”]+/u).filter(part => part.length >= 2).slice(0, 2)])].filter(Boolean);
   return parts.map(query => ({ kind: value.kind, query: query.slice(0, 500) }));
 }
-async function resolveExisting(ctx, scope, supplied = [], proposals = []) {
+async function resolveExisting(ctx, scope, supplied = [], proposals = [], { profileHistory = false } = {}) {
   ctx.signal.throwIfAborted();
   if (proposals.length > 128 || supplied.length > MAX_READS) throw Error("本批查重条目过多，请分批提交");
   const ownSpace = ctx.api.memorySpace
@@ -50,7 +50,7 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = []) {
         return;
       }
       if (expectedRevision && item.revision !== expectedRevision) throw Error("记忆在查重期间已变化，请重新查询后提交");
-      if (suppliedRecord || available(item)) known.set(item.id, item);
+      if (suppliedRecord || available(item) || profileHistory && item.category === "profile") known.set(item.id, item);
     })();
     reads.set(key, task); return task;
   };
@@ -70,7 +70,7 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = []) {
           mode: "history", ...input, limit: PAGE_SIZE, ...continuation });
         active();
         for (const item of result.items || []) {
-          if (item.status && !available(item)) continue;
+          if (!profileHistory && item.status && !available(item)) continue;
           await read(item.id, item.revision);
         }
         if (result.nextOffset == null) return;
@@ -82,7 +82,8 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = []) {
   };
   // At most two independent lookups run concurrently; each host page/read stays
   // cancellable. Identical subject queries within this submission share work.
-  const work = proposals.flatMap(item => queries(item, scope).flatMap(query => ["active", "pending"].map(status => ({ ...query, status }))));
+  const work = profileHistory ? [...new Set(proposals.map(item => item.subjectRefs[0]))].map(subjectId => ({ subjectId, category: "profile" }))
+    : proposals.flatMap(item => queries(item, scope).flatMap(query => ["active", "pending"].map(status => ({ ...query, status }))));
   let next = 0;
   const results = await Promise.allSettled([0, 1].map(async () => {
     try { for (;;) { active(); const item = work[next++]; if (!item) return; await search(item); } }

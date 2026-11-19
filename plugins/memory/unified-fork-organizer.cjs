@@ -7,7 +7,7 @@ const { STANDARD, USAGE_PROMPT } = require("./unified-profile-policy.cjs");
 const { EXTRACTION: MEMES } = require("./unified-memes.cjs");
 const { admit, delivered } = require("./unified-material-policy.cjs");
 const dream = require("./unified-dream.cjs");
-const profileUsage = require("./unified-profile-usage.cjs");
+const observations = require("./unified-profile-observations.cjs");
 const impressions = require("./unified-profile-impressions.cjs");
 const retries = require("./unified-fork-retries.cjs");
 
@@ -27,7 +27,7 @@ function advance(storage, scope, position, materials = []) {
   retries.clear(storage, scope, retries.identity(position));
 }
 
-function branches(scope, materials, history = [], topicTitles = [], operationReceipts = false) {
+function branches(scope, materials, topicTitles = [], operationReceipts = false) {
   const userIds = materials.filter(item => item.direction === "in").map(item => item.id);
   const outIds = materials.filter(delivered).map(item => item.id);
   const privateChat = isPrivateDreamScope(scope);
@@ -46,7 +46,7 @@ ${edit}`],
     ["profiles", `${human}
 facts 提取本人明确自述的个人事实、稳定偏好、称呼或交流边界。为每项提供 profileSection，最多 16 条。每条使用 kind:"preference" 或 "fact"、content、subjectId（真实发言人 ID）、evidence、retention:{basis:"explicit|boundary|stable",reason:"将来适用的具体情形"}。
 ${USAGE_PROMPT}
-${impressions.prompt(history)}
+${impressions.GENDER_PROMPT}
 ${privateChat ? '对话方明确希望长期调整和我的交流方式时，可加 style:{values:{tone:"calm|warm|lively",length:"brief|balanced|detailed",formality:"casual|neutral|formal",humor:"little|moderate"},evidence}，只填有原话依据的字段。' : ""}
 ${STANDARD}
 ${FACT_PROMPT}
@@ -83,7 +83,6 @@ function merge(response, materials, refs) {
   for (const [branch, allowed] of Object.entries(fields)) {
     const value = payloads.get(branch);
     if (!value) throw Error("整理分支缺少结果");
-    if (branch === "profiles" && Array.isArray(value.impressions)) output.impressions = value.impressions.slice(0, 8);
     if (branch === "profiles" && Array.isArray(value.usages)) output.usages = value.usages.slice(0, 24)
       .filter(hint => rows.get(hint?.messageId)?.direction === "in");
     if (branch === "profiles" && evidence(value.style?.evidence, true)) {
@@ -197,21 +196,20 @@ async function run(ctx, storage, scope, trigger, includeLatest = false, preferre
       advance(storage, scope, position);
       return { pending, saved: 0 };
     }
-    const prior = await impressions.prepare(ctx, storage, scope, materials, live.scanStart?.cursor || 0);
     const topicTitles = get(storage, "plus:topics:" + scope.chatId, []).slice(0, 12).map(topic => topic.title);
     const operationReceipts = !!(await ctx.api.getCapabilities?.())?.features?.operationReceipts;
     const response = await ctx.api.conversationForks({ action: "run", chatId: scope.chatId, id: snapshot.id,
-      usageCategory: "memory", branches: branches(scope, materials, prior.history, topicTitles, operationReceipts) });
+      usageCategory: "memory", branches: branches(scope, materials, topicTitles, operationReceipts) });
     ctx.signal.throwIfAborted();
     const parsed = merge(response, materials, memoryRefs);
     const existing = await existingTargets(ctx, scope, parsed);
-    const usage = await profileUsage.collect(ctx, storage, scope, materials, parsed.usages, live.scanStart?.cursor || 0);
-    const planned = await dream.plan(ctx, scope, parsed, materials, existing, { allowExperience: true, observedProfiles: usage.records, impressionHistory: prior.history });
+    const hints = observations.hints(scope, materials, parsed.usages, live.scanStart?.cursor || 0);
+    const planned = await dream.plan(ctx, scope, parsed, materials, existing, { allowExperience: true });
     const fresh = state(storage, scope);
     if (trigger !== "manual" && !fresh.settings.enabled) return { pending: true, saved: 0 };
     job = { trigger, cutoff: snapshot.at, upper: offset };
     job.runId = storage.dreamRepository.runs.start(scope, job);
-    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark), usageEntries: usage.entries, impressionEntries: prior.entries,
+    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark), profileHints: hints,
       ...(operationReceipts && parsed.verificationRequests ? { verificationRequests: parsed.verificationRequests } : {}) };
     put(storage, planKey(scope), ready);
     return { ...await commit(ready), pending };

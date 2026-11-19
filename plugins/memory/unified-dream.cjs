@@ -53,7 +53,7 @@ function experienceRetention(item, materials, scope) {
   supported.attributes.retention.sourceId = purpose.sourceId;
   return supported;
 }
-async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [], impressionHistory = [] } = {}) {
+async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [], impressionProposals = [], impressionHistory = [] } = {}) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const memes = parsed.memes ?? [];
   const memeFacts = memePolicy.facts(memes, materials, containsSecret);
@@ -83,9 +83,9 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
       records.push({ item, record: recordFields(item, materials, privateChat, { scope }) });
     }
   }
-  const impressions = impressionPolicy.records(parsed.impressions, scope, materials, impressionHistory).filter(record => !containsSecret(record.content));
+  const impressions = impressionPolicy.records(impressionProposals, scope, materials, impressionHistory).filter(record => !containsSecret(record.content));
   const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
-    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record), ...observedProfiles, ...impressions,
+    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record),
   ]);
   const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
@@ -127,8 +127,19 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
       validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(fact ? { fact } : {}), ...profile } }, materials);
     if (record) (gender ? addField : add)(record);
   }
-  for (const record of observedProfiles) if (!containsSecret(record.content)) add(record);
-  for (const record of impressions) addField(record);
+  if (observedProfiles.length || impressions.length) {
+    const history = await require("./unified-existing.cjs").resolveExisting(ctx, scope, [], [...observedProfiles, ...impressions], { profileHistory: true });
+    const actor = "plugin:" + (ctx.plugin?.id || "memory");
+    const writable = old => ["active", "pending"].includes(old.status) && old.createdBy === actor && old.updatedBy === actor
+      && !old.attributes?.retention?.protected && old.attributes?.profile?.basis !== "manual";
+    for (const record of observedProfiles) {
+      if (!containsSecret(record.content)) require("./unified-profile-usage.cjs").addRecord(record, history, operations, before, writable);
+    }
+    for (const record of impressions) {
+      const related = history.filter(old => old.subjectRefs?.includes(record.subjectRefs[0]) && old.attributes?.profile?.field === "impression");
+      if (related.every(writable)) impressionPolicy.addField(record, related, operations, before, reserved, actor);
+    }
+  }
   for (const item of result.revisions) {
     const old = known.get(item.supersedes.id);
     if (!old || old.revision !== item.supersedes.revision) throw Error("修订目标版本不在本次读取范围");
@@ -191,11 +202,11 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
   return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length + memes.length - admittedFacts.length + omittedExperiences + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics,
     links: (parsed.records || []).filter(item => privateChat && item.kind === "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
 }
-async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}) {
+async function commit(ctx, storage, scope, job, { onReceipt, fork = false, profile = false } = {}) {
   ctx.signal.throwIfAborted();
   const settings = state(storage, scope);
   if (job.trigger !== "manual" && !settings.settings.enabled) throw Error("自动整理已关闭，已保留进度");
-  const planKey = `plus:${fork ? "fork-plan" : "plan"}:${scope.chatId}`;
+  const planKey = `plus:${profile ? "profile-plan" : fork ? "fork-plan" : "plan"}:${scope.chatId}`;
   const prepared = get(storage, planKey);
   if (!prepared || prepared.runId !== job.runId) throw Error("整理检查点缺失");
   const obsolete = new Set(["MEMORY_FORGOTTEN_SOURCE", "MEMORY_SOURCE", "MEMORY_CONFLICT", "MEMORY_NOT_FOUND"]);
@@ -204,7 +215,7 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
     result = prepared.operations.length ? await ctx.api.memory({ action: "batch", chatId: scope.chatId, operations: prepared.operations,
       requestKey: `dream:${job.runId}:${prepared.after}` }) : { ok: true, items: [] };
   } catch (error) {
-    if (fork || !obsolete.has(error.code)) throw error;
+    if (fork || !obsolete.has(error.code) || profile && error.code !== "MEMORY_FORGOTTEN_SOURCE") throw error;
     // The rejected batch is atomic. Persist the fallback mode before individually admitting independent proposals.
     prepared.individual = true; put(storage, planKey, prepared);
   }
@@ -250,8 +261,8 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
   }
   put(storage, auditKey, audit);
   const live = state(storage, scope);
-  const pending = !fork && prepared.after < job.upper;
-  save(storage, scope, { ...(fork ? { lastRun: Date.now() } : { cursor: prepared.after, checkpointAt: Date.now(), job: pending ? { ...job, prepared: false } : null,
+  const pending = !fork && !profile && prepared.after < job.upper;
+  if (!profile) save(storage, scope, { ...(fork ? { lastRun: Date.now() } : { cursor: prepared.after, checkpointAt: Date.now(), job: pending ? { ...job, prepared: false } : null,
     ...(!pending ? { lastRun: Date.now(), nextRun: nextRun(live.settings, Date.now()) } : {}) }), error: "", failures: 0, retryAt: 0,
     ...(prepared.style && !live.styleLocked ? { style: { ...prepared.style, updatedAt: Date.now() } } : {}) });
   require("./unified-topics.cjs").merge(storage, scope, prepared.topics, prepared.operations, result.items);
@@ -263,8 +274,10 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
   storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(planKey);
   if (prepared.omitted) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify({ code: "retention", count: prepared.omitted }) });
   const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length + (prepared.omitted || 0), runId: job.runId };
-  require("./unified-profile-usage.cjs").save(storage, scope, prepared.usageEntries);
-  impressionPolicy.save(storage, scope, prepared.impressionEntries);
+  const observations = require("./unified-profile-observations.cjs");
+  observations.append(storage, scope, prepared.profileHints);
+  if (prepared.usageEntries || prepared.impressionEntries)
+    observations.importLegacy(storage, scope, live.scanStart?.cursor || 0, Date.now(), prepared.usageEntries, prepared.impressionEntries);
   onReceipt?.(receipt);
   storage.db.exec("RELEASE plus_commit");
   return receipt;

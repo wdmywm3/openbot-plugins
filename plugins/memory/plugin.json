@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.7",
+  "version": "2.6.8",
   "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
   "extensions": {
     "com.openbot": {
@@ -474,7 +474,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "新增主题知识与常驻记忆，整理时可核对操作回执，支持把待执行的单次复查移交私人管家。保留成员画像的原话和归属验证。"
+        "changelog": "按成员跨分段累计近 90 天的表情和发言。常用表情和聊天印象核对三次相隔至少一天的本人原消息，可在没有新分段时形成，重启后接续。"
       }
     }
   }

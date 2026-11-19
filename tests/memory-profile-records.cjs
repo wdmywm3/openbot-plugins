@@ -72,72 +72,30 @@ async function checkUsage() {
   const attachment = { index: 0, type: "image", sticker: true, description: "[动画表情]", previewAvailable: true,
     name: "0123456789abcdef0123456789abcdef.gif" };
   const make = (minute, extra = {}) => add("收到啦[动画表情]", minute, { attachments: [attachment], ...extra });
-  const a = make(0), b = make(12), c = make(45);
-  const ignored = [make(50, { forwarded: true }), make(50, { direction: "out" }), make(50, { sender: { id: "bot", isBot: true } }),
-    make(50, { memoryExcluded: true }), make(60, { sender: { id: "someone-else" } }), make(60, { chatId: "other" }),
-    make(65, { attachments: [{ ...attachment, sticker: false }] }), make(66, { content: "[图片]", attachments: [{ type: "image", index: 0, name: attachment.name }] })];
-  let pending = await usage.collect(ctx, storage, scope, [a, a, b, ...ignored]);
-  assert.equal(pending.records.length, 0);
-  assert.equal(pending.entries.find(e => e.subject === "member").refs.length, 2);
-  const separate = { ...scope, chatId: "other" };
-  assert.equal((await usage.collect(ctx, storage, separate, [{ ...c, chatId: "other" }])).records.length, 0);
-  const shot = (m, i) => ({ id: "segment-" + i, at: m.createdAt, boundary: "segment" });
-  let visible, snapshot, failWrite = false;
-  ctx.api.conversationForks = async input => {
-    if (input.action === "list") return { snapshots: [snapshot] };
-    if (input.action === "sources") return { items: visible, nextOffset: null };
-    return { results: input.branches.map(branch => ({ key: branch.key, output: JSON.stringify(branch.key === "profiles" ? {
-      usages: visible.map(row => ({ type: "expression", messageId: row.id, expression: "收到啦" })),
-      facts: [{ kind: "preference", subjectId: "member", profileSection: "interests", content: "小林喜欢这个表情包", evidence: [{ id: visible[0].id, quote: "[动画表情]" }],
-        retention: { basis: "stable", reason: "以后根据偏好推荐表情包" } }],
-    } : {}) })) };
-  };
-  const native = ctx.api.memory;
-  ctx.api.memory = async input => {
-    const result = await native(input);
-    if (failWrite && input.action === "batch") { failWrite = false; throw Error("receipt lost"); }
-    return result;
-  };
-  for (const [index, row] of [a, b].entries()) {
-    visible = [row]; snapshot = shot(row, index);
-    assert.equal((await forks.run(ctx, storage, scope, "manual")).saved, 0);
-  }
-  messages.set(a.id, { ...a, deleted: true });
-  assert.equal((await usage.collect(ctx, storage, scope, [c])).records.length, 0);
-  messages.set(a.id, a);
-  visible = [c]; snapshot = shot(c, 3); failWrite = true;
-  await assert.rejects(forks.run(ctx, storage, scope, "manual"), /receipt lost/);
-  assert.equal((await usage.collect(ctx, storage, scope, [c])).records.length, 1, "unacknowledged writes do not consume observations");
-  require("../plugins/memory/unified-fork-retries.cjs").clear(storage, scope, snapshot.id);
-  await forks.run(ctx, storage, scope, "manual");
-  const records = search({ category: "profile" }).map(hit => read(hit.id));
-  const observed = records.filter(r => r.attributes.profile?.basis === "observed_use");
-  assert.equal(observed.length, 2, "one sticker habit and one expression survive replay");
-  assert(!records.some(r => r.content.includes("喜欢这个表情包")));
-  const sticker = observed.find(r => r.attributes.profile.usage === "sticker");
+  const a = make(-5 * 1440), b = make(-3 * 1440), c = make(0);
+  const stickerKey = "sticker:" + usage.stickerId(attachment, a);
+  const record = rows => usage.record(scope, "member", stickerKey, rows);
+  const ignored = [make(-2 * 1440, { forwarded: true }), make(-2 * 1440, { direction: "out" }), make(-2 * 1440, { sender: { id: "bot", isBot: true } }),
+    make(-2 * 1440, { memoryExcluded: true }), make(-2 * 1440, { sender: { id: "another" } }), make(-2 * 1440, { chatId: "other" }),
+    make(-2 * 1440, { attachments: [{ ...attachment, sticker: false }] }), make(-2 * 1440, { content: "[图片]", attachments: [{ type: "image", index: 0, name: attachment.name }] })];
+  assert.equal(record([a, a, c, ...ignored]), undefined);
+  assert.equal(record([make(0), make(45), make(15 * 60)]), undefined);
+  const sticker = record([a, b, c]);
   assert.equal(sticker.content, "常用这张表情，常和「收到啦」一起发。");
   assert.equal(sticker.kind, "fact"); assert.equal(sticker.attributes.fact.assertion, "observed");
   assert.deepEqual(sticker.sources.map(ref => ref.id), [a.id, b.id, c.id]);
   assert.equal(sticker.attributes.sourceImages[0].index, 0);
-  assert.equal(observed.find(r => r.attributes.profile.usage === "expression").content, "常用「收到啦」这个表达。");
-  assert.equal((await usage.collect(ctx, storage, scope, [a, b, c])).records.length, 0);
-  const sender = { id: "other" };
-  assert.equal((await usage.collect(ctx, storage, scope, [make(2000, { sender }), make(2001, { sender }), make(2002, { sender })])).records.length, 0, "a burst never qualifies");
-  assert.equal((await usage.collect(ctx, storage, scope, [make(0, { sender }), make(3, { sender }), make(32 * 1440, { sender })])).records.length, 0, "uses months apart do not qualify");
+  assert.equal(usage.record(scope, "member", "expression:收到啦", [a, b, c]).content, "常用「收到啦」这个表达。");
   assert.equal(usage.stickerId({ type: "image", name: attachment.name }, { content: "[动画表情]", attachments: [attachment] }), "file:" + attachment.name.slice(0, 32));
 }
 async function checkImpressionAndGender() {
-  const policy = require("../plugins/memory/unified-profile-impressions.cjs"), sender = { id: "helper", name: "小青" };
+  const sender = { id: "helper", name: "小青" };
   const a = add("先把完整的报错发出来，我帮你看看。", -4500, { sender });
   const b = add("你之前试过哪几种办法？我们可以先排除那些。", -2940, { sender });
   const c = add("我把设置分成三步，你先试第一步，有问题再一起看。", -1350, { sender });
-  const first = await policy.prepare(ctx, storage, scope, [a, b]);
-  policy.save(storage, scope, first.entries);
-  const next = await policy.prepare(ctx, storage, scope, [c]);
-  assert.deepEqual(next.history.map(r => r.id), [a.id, b.id]);
   const evidence = [a, b, c].map(s => ({ id: s.id, quote: s.content }));
   const entry = { subjectId: sender.id, behavior: "常先问清别人试过什么，再一步步帮忙排查", impression: "愿意帮人，也讲究条理", evidence };
-  const proposed = async (row, current = [c], history = next.history) => dream.plan(ctx, scope, { facts: [], topics: [], impressions: [row] }, current, [], { impressionHistory: history });
+  const proposed = async (row, current = [c], history = [a, b]) => dream.plan(ctx, scope, { facts: [], topics: [] }, current, [], { impressionProposals: [row], impressionHistory: history });
   const plan = await proposed(entry);
   assert.equal(plan.operations.length, 1);
   const record = plan.operations[0].record;
@@ -150,8 +108,8 @@ async function checkImpressionAndGender() {
   assert.equal((await proposed(entry, [c], [a, { ...b, forwarded: true }])).operations.length, 0);
   assert.equal((await proposed(entry, [c], [a, b].map(s => ({ ...s, createdAt: c.createdAt })))).operations.length, 0);
   const saved = seed(record, "first-impression"); assert.equal((await proposed(entry)).operations.length, 0);
-  const d = add("先把你看到的选项贴一下，我们可以一起核对。", 0, { sender });
-  const e = add("这次从第二个开关开始看，你把结果发给我。", 250, { sender });
+  const d = add("先把你看到的选项贴一下，我们可以一起核对。", 150, { sender });
+  const e = add("这次从第二个开关开始看，你把结果发给我。", 1620, { sender });
   const changed = { ...entry, impression: "帮助别人时很耐心", evidence: [c, d, e].map(s => ({ id: s.id, quote: s.content })) };
   const revision = await proposed(changed, [d, e], [c]);
   assert.equal(revision.operations[0].id, saved.id);
@@ -175,15 +133,14 @@ async function checkImpressionAndGender() {
   ctx.api.conversationForks = async req => {
     if (req.action === "list") return { snapshots: [{ id, boundary: "segment", at: visible.at(-1).createdAt }] };
     if (req.action === "sources") return { items: visible, nextOffset: null };
-    if (id === "later-help") assert(req.branches.find(branch => branch.key === "profiles").instruction.includes(days[0].id));
+    if (id === "later-help") assert(!req.branches.find(branch => branch.key === "profiles").instruction.includes(days[0].id));
     return { results: req.branches.map(branch => ({ key: branch.key, output: JSON.stringify(branch.key === "profiles" && id === "later-help"
       ? { impressions: [{ ...entry, subjectId: "guide", evidence: days.map(s => ({ id: s.id, quote: s.content })) }] } : {}) })) };
   };
   await forks.run(ctx, storage, scope, "manual");
   visible = [days[2]]; id = "later-help";
-  assert.equal((await forks.run(ctx, storage, scope, "manual")).saved, 1);
-  const persisted = search({ category: "profile", subjectId: "guide" });
-  assert.deepEqual(read(persisted[0].id).sources.map(r => r.id), days.map(s => s.id));
+  assert.equal((await forks.run(ctx, storage, scope, "manual")).saved, 0);
+  assert.equal(search({ subjectId: "guide", category: "profile" }).length, 0, "a segment cannot independently publish an inferred impression");
 }
 async function checkActiveTool() {
   const runtime = require("../plugins/memory/unified-runtime.cjs"), sender = { id: "active-member", name: "阿晓" };

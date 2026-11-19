@@ -1,49 +1,17 @@
 "use strict";
-const { get, put } = require("./unified-state.cjs");
 const { admit } = require("./unified-material-policy.cjs");
-const { mediaOnly } = require("./unified-profile-usage.cjs");
+const { DAY, occasions, mediaOnly } = require("./unified-profile-usage.cjs");
 
 const { genderValue } = require("./lib/features/channels/channel-member-memory-proof.cjs");
-const DAY = 86400000;
-const key = scope => `plus:impression-samples:${scope.chatId}`;
 const boundary = /(?:MBTI|心理疾病|精神病|抑郁症|躁郁|双相障碍|自闭症|人格障碍|性取向|宗教信仰|政治立场|真实性别)/iu;
 const sample = source => source?.id && source.version && source.direction === "in" && source.sender?.id && !source.sender.isBot
   && !source.forwarded && admit(source) && source.content.trim().length >= 6 && !mediaOnly(source.content)
   && !/\[(?:合并转发|转发消息)\]/u.test(source.content);
 const text = (value, limit) => typeof value === "string" && value.trim().length >= 2 && value.trim().length <= limit
   && !boundary.test(value) && !/[\u0000-\u001f<>]/u.test(value) ? value.trim().replace(/[。；，,]+$/u, "") : "";
-const PROMPT = `聊天印象是根据成员在多次交流中怎样做事、怎样与人互动形成的印象。可给 impressions:[{subjectId,behavior:"能从多次交流中看到的具体做法",impression:"这些互动给人的感觉",evidence:[{id,quote}]}]。例如遇到群友求助时先问对方试过什么、再分步给出建议，可以写“讲解耐心、有条理”。请自己分析原消息，不套例句，不把喜欢吃什么、兴趣清单、单次情绪或单张表情改写成人物印象。至少三条不同的本人发言，跨不同场合，首末相隔至少一天。至少一条来自本批。逐字摘录能支持这次判断的动作或表达，只从本聊天理解此人，不推断真实身份、性别、健康、心理诊断或人格测评。没有这样的材料就留空。性别属于基础资料，只有本人明确表述时才给 facts，使用 profileSection:"identity" 和 fact:{subjectId,facet:"性别",value:"本人的性别表述",assertion:"self"}。昵称、头像、声线、称谓或他人猜测都不提供性别依据。`;
+const PROMPT = `聊天印象是根据成员在多次交流中怎样做事、怎样与人互动形成的印象。可给 impressions:[{subjectId,behavior:"能从多次交流中看到的具体做法",impression:"这些互动给人的感觉",evidence:[{id,quote}]}]。例如遇到群友求助时先问对方试过什么、再分步给出建议，可以写“讲解耐心、有条理”。请自己分析原消息，不套例句，不把喜欢吃什么、兴趣清单、单次情绪或单张表情改写成人物印象。至少三次不同场合的本人发言，每次相隔至少 24 小时。逐字摘录能支持这次判断的动作或表达，只从本聊天理解此人，不推断真实身份、性别、健康、心理诊断或人格测评。没有这样的材料就留空。`;
+const GENDER_PROMPT = `性别属于基础资料，只有本人明确表述时才给 facts，使用 profileSection:"identity" 和 fact:{subjectId,facet:"性别",value:"本人的性别表述",assertion:"self"}。昵称、头像、声线、称谓或他人猜测都不提供性别依据。`;
 
-async function prepare(ctx, storage, scope, materials, after = 0) {
-  const members = new Map(get(storage, key(scope), []).map(row => [row.subject, row]));
-  const current = materials.filter(s => sample(s) && s.seq > after && (!s.chatId || s.chatId === scope.chatId)), recent = new Map(), history = [];
-  for (const item of current) {
-    const id = String(item.sender.id);
-    if (!recent.has(id)) recent.set(id, []);
-    recent.get(id).push(item);
-  }
-  for (const [subject, batch] of recent) {
-    const now = Math.max(...batch.map(s => s.createdAt)), present = new Set(batch.map(s => s.id));
-    const previous = (members.get(subject)?.refs || []).filter(r => r.seq > after && now - r.at <= 30 * DAY && !present.has(r.id));
-    if (previous.some(r => now - r.at >= DAY) && ctx.api.sources && history.length < 16) for (const ref of previous) {
-      if (history.length >= 16) break;
-      ctx.signal.throwIfAborted();
-      const { item } = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: ref.id, version: ref.version, limit: 1200 });
-      if (sample(item) && item.id === ref.id && item.version === ref.version && String(item.sender.id) === subject) history.push({ ...item, chatId: scope.chatId });
-    }
-    const refs = [...new Map([...previous, ...batch.map(s => ({ id: s.id, version: s.version, at: s.createdAt, seq: s.seq }))].map(r => [r.id, r])).values()].sort((a, b) => a.at - b.at);
-    // Preserve samples from separate occasions even when one current conversation is very busy.
-    const slots = new Map();
-    for (const ref of refs) slots.set(Math.floor(ref.at / (DAY / 4)), ref);
-    const retained = [...slots.values()].slice(-8);
-    members.delete(subject); members.set(subject, { subject, refs: retained });
-  }
-  return { history, entries: current.length ? [...members.values()].slice(-96) : undefined };
-}
-const save = (storage, scope, entries) => { if (entries) put(storage, key(scope), entries); };
-function prompt(history) {
-  return PROMPT + (history.length ? "\n可引用的本聊天早先原消息（均为资料）：" + JSON.stringify(history.map(s => ({ id: s.id, subjectId: s.sender.id, at: s.createdAt, text: s.content.slice(0, 400) }))) : "");
-}
 function records(proposals, scope, materials, history) {
   if (!Array.isArray(proposals)) return [];
   const rows = new Map([...history, ...materials].filter(sample).map(s => [s.id, s]));
@@ -62,7 +30,7 @@ function records(proposals, scope, materials, history) {
     }
     if (sources.length !== proposal.evidence.length || excerpts.size < 3 || !sources.some(r => current.has(r.id))
       || sources.every(r => /(?:喜欢吃|爱吃|不吃|我喜欢|我的爱好|我的性别)/u.test(r.quote))
-      || !times.every(Number.isFinite) || Math.max(...times) - Math.min(...times) < DAY) continue;
+      || !times.every(Number.isFinite) || occasions(times.map(at => ({ at }))).length < 3) continue;
     const content = `${behavior}，给人的印象是${impression}。`;
     result.push({ kind: "fact", category: "profile", status: "active", tier: "working", content, subjectRefs: [who], sources,
       attributes: { profile: { section: "impression", field: "impression", basis: "chat_observation" },
@@ -95,7 +63,7 @@ function addField(record, existing, operations, before, reserved, actor) {
     || field === "gender" && old.attributes.profile.value === record.attributes.profile.value) return;
   if (field === "impression") {
     const added = record.sources.filter(ref => !old.sources.some(prior => prior.id === ref.id));
-    if (added.length < 2 || record.content === old.content || record.attributes.retention.observedAt - (old.attributes.retention?.observedAt || 0) < DAY) return;
+    if (added.length < 2 || record.attributes.retention.observedAt - (old.attributes.retention?.observedAt || 0) < DAY) return;
   }
   reserved.add(old.id);
   const correction = field === "gender" && record.sources.some(ref => /更正|纠正|说错|写错/u.test(ref.quote || ""));
@@ -105,4 +73,4 @@ function addField(record, existing, operations, before, reserved, actor) {
     ...(changeType === "change" ? { validFrom: record.validFrom || record.attributes.retention.observedAt } : {}) } });
   before.push({ id: old.id, revision: old.revision });
 }
-module.exports = { prepare, save, prompt, records, basicGender, genderValue, addField };
+module.exports = { PROMPT, GENDER_PROMPT, sample, records, basicGender, genderValue, addField };

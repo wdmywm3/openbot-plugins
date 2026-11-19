@@ -19,6 +19,14 @@ function open(root) {
     CREATE INDEX IF NOT EXISTS source_image_failures_recent ON source_image_failures(chat_id,code,created_at DESC,source_id,image_index);
     CREATE TABLE IF NOT EXISTS plugin_answers(chat_id TEXT,id TEXT,content TEXT,PRIMARY KEY(chat_id,id));
     CREATE TABLE IF NOT EXISTS plugin_followups(id TEXT PRIMARY KEY,value_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS profile_observations(
+      chat TEXT NOT NULL, id TEXT NOT NULL, signal TEXT NOT NULL, subject TEXT NOT NULL, version TEXT NOT NULL,
+      seq INTEGER NOT NULL, at INTEGER NOT NULL, label TEXT NOT NULL DEFAULT '', substantive INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(chat,id,signal));
+    CREATE INDEX IF NOT EXISTS profile_observations_member ON profile_observations(chat,subject,signal,at);
+    CREATE INDEX IF NOT EXISTS profile_observations_age ON profile_observations(chat,at);
+    CREATE TABLE IF NOT EXISTS profile_reviews(
+      chat TEXT NOT NULL, subject TEXT NOT NULL, signal TEXT NOT NULL, through INTEGER NOT NULL, reviewed INTEGER NOT NULL, retry_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY(chat,subject,signal));
     CREATE TABLE IF NOT EXISTS plugin_meta(key TEXT PRIMARY KEY,value_json TEXT NOT NULL);`);
   if (!db.prepare("PRAGMA table_info(embedding_receipts)").all().some(column => column.name === "chunk_ids")) db.exec("ALTER TABLE embedding_receipts ADD COLUMN chunk_ids TEXT NOT NULL DEFAULT '[]'");
   for (const [name, fallback] of [["complete", 1], ["cursor", 0]]) if (!db.prepare("PRAGMA table_info(embedding_receipts)").all().some(column => column.name === name)) db.exec(`ALTER TABLE embedding_receipts ADD COLUMN ${name} INTEGER NOT NULL DEFAULT ${fallback}`);

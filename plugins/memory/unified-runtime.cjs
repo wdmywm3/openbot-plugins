@@ -13,6 +13,7 @@ const scheduling = require("./unified-scheduling.cjs"), processing = new Map();
 const checkpoints = require("./unified-checkpoints.cjs");
 const forkOrganizer = require("./unified-fork-organizer.cjs");
 const forkRetries = require("./unified-fork-retries.cjs");
+const profileReview = require("./unified-profile-review.cjs");
 const { runSummary } = require("./unified-run-counts.cjs");
 const memberProof = require("./lib/features/channels/channel-member-memory-proof.cjs");
 const dedup = require("./unified-candidates.cjs");
@@ -34,6 +35,8 @@ async function initialize(ctx) {
   const { storage, scope } = current(ctx);
   const capabilities = await ctx.api.getCapabilities(), restored = capabilities.dataRestoreId || "";
   if (restored && get(storage, "plus:restore") !== restored) {
+    storage.db.exec("DELETE FROM profile_observations; DELETE FROM profile_reviews");
+    storage.db.prepare("DELETE FROM plugin_meta WHERE key LIKE 'plus:profile-feed:%' OR key LIKE 'plus:profile-plan:%' OR key LIKE 'plus:profile-work:%'").run();
     storage.db.prepare("DELETE FROM plugin_meta WHERE key LIKE 'plus:organizer-%'").run();
     storage.db.prepare("DELETE FROM plugin_meta WHERE key LIKE 'plus:fork-%'").run();
     storage.db.prepare("DELETE FROM plugin_meta WHERE key LIKE 'plus:usage-synced:%' OR key LIKE 'plus:usage-cursor:%'").run();
@@ -93,7 +96,7 @@ async function processOnce(ctx) {
   const mode = ctx.input?.mode || (ctx.input?.dream ? "manual" : "auto");
   // A pending job from an older version can be resumed after an update.
   if (mode === "context-index") return { skipped: true, reason: "requires_dream" };
-  if (!["profiles", "index", "assess", "dream", "manual", "auto"].includes(mode)) throw Error("整理作业目的无效");
+  if (!["observations", "profiles", "index", "assess", "dream", "manual", "auto"].includes(mode)) throw Error("整理作业目的无效");
   if (mode === "profiles") return require("./unified-profile-migration.cjs").classify(ctx, storage, scope);
   if (mode === "index") {
     try {
@@ -104,6 +107,7 @@ async function processOnce(ctx) {
     } catch (error) { put(storage, `plus:indexRetry:${scope.chatId}`, Date.now() + 300000); throw error; }
   }
   const live = state(storage, scope);
+  if (mode === "observations") return profileReview.run(ctx, storage, scope);
   if (mode !== "manual" && scheduling.active(storage, scope)) return { skipped: true, reason: "foreground" };
   if (mode === "assess") return { usage: live.settings.enabled ? await assessment.assess(ctx, storage, scope) : { assessed: 0 } };
   if (ctx.api.conversationForks) return processForks(ctx, storage, scope, mode === "manual");
@@ -154,7 +158,13 @@ async function reviewStartupMemory(ctx, storage, scope) {
 async function processScope(ctx) {
   const { storage, scope } = current(ctx), key = `${storage.root}:${scope.chatId}`;
   if (processing.has(key) || checkpoints.busy(storage, scope)) return { busy: true };
-  const task = processOnce(ctx); processing.set(key, task);
+  const task = (async () => {
+    const result = await processOnce(ctx);
+    if (!(ctx.input?.dream || ctx.input?.mode === "manual") || !get(storage, profileReview.key(scope))?.manual) return result;
+    const observations = await profileReview.run(ctx, storage, scope);
+    return { ...result, observations, saved: (result.saved || 0) + observations.saved, pending: !!(result.pending || observations.pending) };
+  })();
+  processing.set(key, task);
   try { return await task; } finally { processing.delete(key); }
 }
 async function recover(ctx) {
@@ -164,7 +174,14 @@ async function recover(ctx) {
   const offset = get(storage, "plus:poll", 0), selected = scopes.slice(offset, offset + 8);
   for (const { chatId } of selected) {
     const target = { ...scope, chatId }, live = state(storage, target);
-    if (scheduling.active(storage, target) || processing.has(`${storage.root}:${chatId}`) || checkpoints.busy(storage, target)) continue;
+    if (processing.has(`${storage.root}:${chatId}`) || checkpoints.busy(storage, target)) continue;
+    const tick = Math.floor(Date.now() / 60000);
+    const queue = mode => ctx.api.jobs({ action: "start", actionId: "process", chatId,
+      requestKey: `plus:${mode}:${hash(chatId)}:${live.cursor || 0}:${tick}`, input: { chatId, mode } });
+    if (scheduling.active(storage, target)) {
+      if (profileReview.due(storage, target, live)) await queue("observations");
+      continue;
+    }
     await assessment.syncUsage(ctx, storage, target);
     const forks = !!ctx.api.conversationForks;
     const due = await scheduling.due(ctx, storage, target, { forks });
@@ -173,12 +190,10 @@ async function recover(ctx) {
     const sourceChanges = await ctx.api.sources({ action: "changes", chatId, after: get(storage, sourceRetrieval.cursorKey(target), { after: 0 }).after, limit: 1 });
     const sweepDue = Date.now() - get(storage, `plus:sweepAt:${chatId}`, 0) > 3600000
       && storage.db.prepare("SELECT 1 FROM embedding_receipts WHERE chat_id=? AND collection=? LIMIT 1").get(chatId, retrieval.COLLECTION);
-    const tick = Math.floor(Date.now() / 60000);
-    const queue = mode => ctx.api.jobs({ action: "start", actionId: "process", chatId,
-      requestKey: `plus:${mode}:${hash(chatId)}:${live.cursor || 0}:${tick}`, input: { chatId, mode } });
     if (due && (forks || changes?.items.length || live.job || get(storage, `plus:organizer-batch:${chatId}`) || ["scheduled", "maintenance"].includes(due))
       && (forks || (live.failures || 0) < 5 && !(live.retryAt > Date.now()))) await queue("dream");
     if (live.settings.enabled && assessment.pending(storage, target).length) await queue("assess");
+    if (profileReview.shouldQueue(storage, target, live, sourceChanges?.upper)) await queue("observations");
     const indexRetry = get(storage, `plus:indexRetry:${chatId}`, 0);
     const profileDue = require("./unified-profile-migration.cjs").pending(storage, target);
     if (profileDue) await queue("profiles");
@@ -322,6 +337,7 @@ async function manage(ctx) {
   if (input.action === "style") { save(storage, scope, { style: { values: validateStyle(input.values || {}), updatedAt: Date.now() }, styleLocked: input.locked !== false }); return { saved: true }; }
   if (input.action === "run") {
     if (!scope.chatId) throw Error("请选择聊天"); save(storage, scope, { failures: 0, retryAt: 0, maintenanceFailures: 0, maintenanceRetryAt: 0 });
+    profileReview.request(storage, scope);
     return ctx.api.jobs({ action: "start", actionId: "process", chatId: scope.chatId, requestKey: `manual:${hash(scope.chatId)}:${Date.now()}`, input: { chatId: scope.chatId, dream: true, trigger: "manual" } });
   }
   if (input.action === "readRun" || input.action === "readRunEvent") {
