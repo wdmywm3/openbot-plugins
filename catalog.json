@@ -324,7 +324,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -338,7 +338,9 @@
         "state",
         "state:global",
         "model:request",
-        "model:select"
+        "model:select",
+        "conversation",
+        "conversation:notify"
       ],
       "metadata": {
         "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
@@ -347,32 +349,32 @@
           "qqbot"
         ],
         "requirements": [
-          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
+          "请先安装 OpenBot 0.1.113 或更新版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生成图片可在当前聊天交给其他插件使用；区分表情成品和改稿，支持发送后的自动收藏。",
+        "changelog": "支持在同一聊天按编号取图。出图后回传结果，输入框上方可查看排队和运行中的任务。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
+      "ref": "a7ad93e5cad85204d6c87660896283b3e67ffcae",
       "files": [
         {
           "path": "README.md",
-          "size": 8215,
-          "sha256": "bc98eef2f84dd429e19eff16d620fd17ae68f09d41dd2e7b79488fea1f85c11c"
+          "size": 8507,
+          "sha256": "07ea938f133b3951e4e9c198675fdd01019a33dacf0c7e18060dbe0185ff343b"
         },
         {
           "path": "index.js",
-          "size": 39395,
-          "sha256": "32fea4dbb2b650435892c40e196efb7c5fcf8ef3488cbb321426f9b67aae83c8"
+          "size": 39461,
+          "sha256": "6c32e517bbf84856cb295f1f242cda14be8230c52acb100b39001925063683ce"
         },
         {
           "path": "plugin.json",
-          "size": 23234,
-          "sha256": "73c8217062627b5e43a586b807b16414bc640110727f9924ed6472dfc5ed004c"
+          "size": 23379,
+          "sha256": "8453ac6aacc934422377d004e354b2692a7554c77dca4c2095b65354a9635978"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -401,8 +403,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 6803,
-          "sha256": "90a7b72bad52f1f781d5f3afc88d008d4bb2071c2193ed236b30d3dfcb0498e5"
+          "size": 6905,
+          "sha256": "3dd217b5693d3a22b1cc36b77b81e61279b7dc20517b679bdbd8245f8c141c57"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -1356,24 +1358,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.23",
+      "version": "1.1.24",
       "name": "嘻嘻",
       "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 27 张 Q 版专属角色表情。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 602428,
-      "sha256": "b03661705ef5d613cc24985c78137f880a49d117e4e2d0a95253abfffcb6da82",
+      "size": 602663,
+      "sha256": "3e9f3daac3f45a078c9594fbfb2d854a7cd5278ff31c44efb5b5c121e2139833",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19647983,
-        "sha256": "077a67e1906c7670e7094f7cf92f8e0aaf76b968929aeb76b39c260969cec700",
+        "size": 19648218,
+        "sha256": "3cf5a925fc68d8356c5d3cd255600ce03e1362beea6209901e64f2ee626cadb7",
         "count": 27
       },
-      "ref": "8aed396a09c57fde035c467b58a66148481c94b6",
+      "ref": "a7ad93e5cad85204d6c87660896283b3e67ffcae",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
         "size": 2664066,
-        "sha256": "bd37579ed5ffe2864342a316c048c58c5719f8cd9758ed84aae0d723b8e63d6b"
+        "sha256": "943f5eff65b64e8d08ee3735630a5a644c7b6bcd2099aee2d0d0dcf2be2ecfc1"
       },
       "referenceCount": 3
     }
