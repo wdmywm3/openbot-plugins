@@ -15,7 +15,9 @@ function factIdentity(record) {
 }
 function identity(record) {
   const fact = factIdentity(record);
-  return JSON.stringify(stable({ ...(fact ? {} : { content: normalized(record.content), ...(record.nextOffset != null ? { truncated: [record.id, record.revision] } : {}) }), kind: record.kind || "fact", subtype: record.subtype || null,
+  const personalFact = fact?.assertion === "self" && record.subjectRefs?.length === 1 && record.subjectRefs[0] === fact.subjectId
+    && ["fact", "preference"].includes(record.kind) && (!record.category || record.category === "profile");
+  return JSON.stringify(stable({ ...(fact ? {} : { content: normalized(record.content), ...(record.nextOffset != null ? { truncated: [record.id, record.revision] } : {}) }), kind: personalFact ? "personal_fact" : record.kind || "fact", subtype: record.subtype || null,
     subjectRefs: sorted(record.subjectRefs), conditions: sorted(record.conditions), validFrom: record.validFrom || null, validTo: record.validTo || null,
     progress: record.progress || null, fact, nextReviewAt: record.attributes?.nextReviewAt || null,
     reviewIntervalMinutes: record.attributes?.reviewIntervalMinutes || null, reviewOnChange: record.attributes?.reviewOnChange === true,
@@ -40,14 +42,18 @@ function candidates(existing, operations, before, reserved = new Set()) {
   for (const item of existing) {
     const key = identity(item), previous = known.get(key);
     if (!previous || item.status === "active" && previous.status !== "active"
-      || item.status === previous.status && (item.revision || 0) > (previous.revision || 0)) known.set(key, item);
+      || item.status === previous.status && (item.category === "profile" && previous.category !== "profile"
+        || item.category === previous.category && (item.revision || 0) > (previous.revision || 0))) known.set(key, item);
   }
   return record => {
     const key = identity(record), pending = proposed.get(key), old = known.get(key);
     if (old && reserved.has(old.id)) return;
     if (pending) {
       pending.sources = mergeSources(pending.sources, record.sources);
-      if (record.category) pending.category = record.category;
+      if (record.category) {
+        pending.category = record.category;
+        if (!old && record.category === "profile") pending.kind = record.kind;
+      }
       const retention = mergeRetention({ attributes: { ...old?.attributes, ...pending.attributes } }, record);
       if (retention || record.attributes?.profile) pending.attributes = { ...old?.attributes, ...pending.attributes,
         ...(retention ? { retention } : {}), ...(record.attributes?.profile ? { profile: record.attributes.profile } : {}) };

@@ -45,7 +45,7 @@ function experienceRetention(item, materials, scope) {
   supported.attributes.retention.sourceId = purpose.sourceId;
   return supported;
 }
-async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false } = {}) {
+async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [] } = {}) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const memes = parsed.memes ?? [];
   const memeFacts = memePolicy.facts(memes, materials, containsSecret);
@@ -55,7 +55,13 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     : [];
   if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 64)) throw Error("事项条目过多");
   if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 32)) throw Error("事项更新过多");
-  const admittedFacts = [...result.facts, ...validatedMemes].map(item => ({
+  const policy = require("./unified-profile-policy.cjs");
+  const admittedFacts = [...result.facts, ...validatedMemes].map(item => {
+    if (item.profileSection || item.category || item.kind !== "fact" || !["explicit", "stable", "boundary"].includes(item.retention?.basis)) return item;
+    const section = policy.sectionForSelfFact(item.fact);
+    return section && (!item.subjectId || item.subjectId === item.fact.subjectId)
+      ? { ...item, subjectId: item.fact.subjectId, profileSection: section } : item;
+  }).map(item => ({
     item, admitted: retention.admission(item, materials, scope),
   })).filter(value => value.admitted);
   const records = [];
@@ -70,7 +76,7 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     }
   }
   const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
-    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record),
+    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record), ...observedProfiles,
   ]);
   const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
@@ -87,18 +93,22 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
   for (const { item, admitted } of admittedFacts) {
     const sources = proof(item.evidence, materials);
     if (!materialPolicy.factsAllowed(sources, materials)) continue;
+    if ((item.kind === "preference" || item.profileSection) && item.fact?.assertion === "observed") continue;
+    if ((item.kind === "preference" || item.profileSection || item.subjectId || item.fact?.subjectId) &&
+      sources.every(ref => require("./unified-profile-usage.cjs").mediaOnly(ref.quote))) continue;
     const subjectId = item.category === memePolicy.CATEGORY ? ""
       : item.subjectId || item.fact?.subjectId || (item.kind === "preference" ? scope.chatId.split(":private:")[1] : "");
     if (item.fact && subjectId && item.fact.subjectId !== subjectId) throw Error("事实对象与画像对象不一致");
     if (item.kind === "preference" && (!subjectId || sources.some(ref => String(materials.find(source => source.id === ref.id)?.sender?.id || "") !== subjectId))) continue;
     if (item.kind === "preference" && privateChat && subjectId !== scope.chatId.split(":private:")[1]) continue;
     if (item.kind === "preference" && item.fact && item.fact.subjectId !== subjectId) continue;
-    const profile = require("./unified-profile-policy.cjs").profileAttributes({ ...item, subjectId }, sources, materials);
+    const profile = policy.profileAttributes({ ...item, subjectId }, sources, materials);
     add({ content: item.content, kind: item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
       category: item.category || (profile.profile || item.kind === "preference" ? "profile" : ""),
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
       validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(item.fact ? { fact: item.fact } : {}), ...profile } });
   }
+  for (const record of observedProfiles) if (!containsSecret(record.content)) add(record);
   for (const item of result.revisions) {
     const old = known.get(item.supersedes.id);
     if (!old || old.revision !== item.supersedes.revision) throw Error("修订目标版本不在本次读取范围");
@@ -225,6 +235,7 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
   storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(planKey);
   if (prepared.omitted) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify({ code: "retention", count: prepared.omitted }) });
   const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length + (prepared.omitted || 0), runId: job.runId };
+  require("./unified-profile-usage.cjs").save(storage, scope, prepared.usageEntries);
   onReceipt?.(receipt);
   storage.db.exec("RELEASE plus_commit");
   return receipt;

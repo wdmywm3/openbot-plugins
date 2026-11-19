@@ -164,7 +164,7 @@ async function recover(ctx) {
       && (forks || (live.failures || 0) < 5 && !(live.retryAt > Date.now()))) await queue("dream");
     if (live.settings.enabled && !live.paused && assessment.pending(storage, target).length) await queue("assess");
     const indexRetry = get(storage, `plus:indexRetry:${chatId}`, 0);
-    const profileDue = !get(storage, `plus:profile-category:${chatId}`)?.complete;
+    const profileDue = require("./unified-profile-migration.cjs").pending(storage, target);
     if (profileDue) await queue("profiles");
     if ((indexChanges.items.length || sourceChanges.items.length || sweepDue || indexRetry) && indexRetry <= Date.now()) await queue("index");
     await followups.sweep(ctx, storage, target);

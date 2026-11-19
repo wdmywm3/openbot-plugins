@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.4",
+  "version": "2.6.5",
   "description": "为统一记忆提供自动召回、人物画像、唤醒后整理和 Dream，并兼容已有复查。",
   "extensions": {
     "com.openbot": {
@@ -470,7 +470,7 @@
           "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "整理记录分别显示新增记忆、画像条目和更新数。自动保存经历需要已送达的结果和说明后续用途的真人原话，普通答复留在聊天历史。"
+        "changelog": "同一成员的稳定事实和画像共用一条记忆，自动归档可核对的旧副本。根据本人在当前聊天的多次实际发送归纳常用表情与惯用表达，保留原消息依据。"
       }
     }
   }

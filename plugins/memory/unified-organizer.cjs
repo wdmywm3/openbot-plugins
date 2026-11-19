@@ -82,6 +82,8 @@ function normalizeResult(value, batch) {
   const map = new Map(batch.materials.map(item => [`s${item.seq}`, item.id]));
   const evidence = refs => Array.isArray(refs) ? refs.map(ref => ({ ...ref, id: map.get(ref?.id) || ref?.id })) : refs;
   const result = { ...empty(), ...value };
+  result.usages = Array.isArray(value.usages) ? value.usages.slice(0, 24).filter(hint => hint && typeof hint.messageId === "string")
+    .map(hint => ({ ...hint, messageId: map.get(hint.messageId) || hint.messageId })) : [];
   for (const key of ["facts", "memes", "topics", "records", "updates", "revisions", "invalidations"]) {
     if (!Array.isArray(result[key]) || result[key].length > 64) throw Error("整理提案格式无效或条目过多");
     result[key] = result[key].map(item => ({ ...item,
@@ -112,10 +114,11 @@ async function executeTool(ctx, storage, scope) {
     const dream = require("./unified-dream.cjs"), policy = live(ctx, storage, scope, batch);
     if (!policy.job || policy.job.runId !== batch.runId) throw Error("整理作业已变化");
     if (!policy.job.prepared) {
-      const prepared = await dream.plan(ctx, scope, parsed, batch.materials, batch.existing);
+      const usage = await require("./unified-profile-usage.cjs").collect(ctx, storage, scope, batch.materials, parsed.usages, policy.scanStart?.cursor || 0);
+      const prepared = await dream.plan(ctx, scope, parsed, batch.materials, batch.existing, { observedProfiles: usage.records });
       if (prepared.operations.length > 100) throw Error("本批最多提交 100 项变更，请合并同一事实或事项的提案");
       live(ctx, storage, scope, batch);
-      put(storage, `plus:plan:${scope.chatId}`, { ...prepared, runId: batch.runId, after: batch.after });
+      put(storage, `plus:plan:${scope.chatId}`, { ...prepared, usageEntries: usage.entries, runId: batch.runId, after: batch.after });
       batch.commitFingerprint = fingerprint; persist();
       save(storage, scope, { job: { ...policy.job, prepared: true } });
     }

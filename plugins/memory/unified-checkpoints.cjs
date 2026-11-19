@@ -47,6 +47,7 @@ async function startNow(ctx, storage, scope, occupied = () => false) {
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:plan:${start.chatId}`);
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-batch:${start.chatId}`);
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:organizer-session:${start.chatId}`);
+        storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(`plus:profile-usage:${start.chatId}`);
         const forkKey = `plus:fork-plan:${start.chatId}`, fork = get(storage, forkKey);
         if (fork?.runId) storage.dreamRepository.runs.finish(target, fork.runId, "interrupted", "用户更新整理起点，旧批次不再继续");
         storage.db.prepare("DELETE FROM plugin_meta WHERE key=?").run(forkKey);

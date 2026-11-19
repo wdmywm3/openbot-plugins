@@ -15,7 +15,12 @@ function queries(item, scope) {
   if (item.category === CATEGORY && value.subjectId) return [{ kind: value.kind, category: CATEGORY, query: value.subjectId }];
   // Subject-only lookup finds paraphrases whose prose no longer contains the
   // structured attribute/value. Unattributed facts use bounded text queries.
-  if (value.subjectId) return [{ kind: value.kind, subjectId: value.subjectId, query: "" }];
+  if (value.subjectId) {
+    const fact = item.fact || item.attributes?.fact;
+    const personal = ["fact", "preference"].includes(value.kind) && (!item.category || item.category === "profile")
+      && fact?.assertion === "self" && fact.subjectId === value.subjectId;
+    return [{ ...(personal ? {} : { kind: value.kind }), subjectId: value.subjectId, query: "" }];
+  }
   const text = value.content.normalize("NFKC").trim();
   const parts = [...new Set([text.slice(0, 80), ...text.split(/[\s，。！？；：、,.!?;:()（）"“”]+/u).filter(part => part.length >= 2).slice(0, 2)])].filter(Boolean);
   return parts.map(query => ({ kind: value.kind, query: query.slice(0, 500) }));
