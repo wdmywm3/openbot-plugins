@@ -4,12 +4,35 @@ const { identity, factIdentity } = require("./unified-candidates.cjs");
 const { sectionForSelfFact } = require("./unified-profile-policy.cjs");
 const { admit } = require("./unified-material-policy.cjs");
 const key = scope => `plus:profile-category:${scope.chatId}`;
-const VERSION = 2;
+const VERSION = 3;
 const pending = (storage, scope) => {
   const cursor = get(storage, key(scope));
   return cursor?.version !== VERSION || !cursor.complete;
 };
 const sourceKey = ref => JSON.stringify([ref.chatId, ref.id, ref.version, ref.quote || ""]);
+async function classifyGender(ctx, scope, record) {
+  const actor = `plugin:${ctx.plugin?.id || "memory"}`;
+  if (!ctx.api.sources || record.status !== "active" || record.nextOffset != null || record.createdBy !== actor || record.updatedBy !== actor
+    || record.attributes.profile?.field || record.subjectRefs[0] !== record.attributes.fact.subjectId || !record.sources.length || record.sources.length > 10) return;
+  const materials = [];
+  for (const ref of record.sources) {
+    if (ref.chatId !== scope.chatId) return;
+    ctx.signal.throwIfAborted();
+    const { item } = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: ref.id, version: ref.version, limit: 4000 });
+    if (!item || item.id !== ref.id || item.version !== ref.version || String(item.sender?.id) !== record.subjectRefs[0]) return;
+    materials.push(item);
+  }
+  const profile = require("./unified-profile-impressions.cjs").basicGender({ fact: record.attributes.fact }, record.sources, materials);
+  if (!profile) return;
+  const page = await ctx.api.memory({ action: "search", chatId: scope.chatId, spaceId: record.spaceId, category: "profile", subjectId: record.subjectRefs[0], mode: "current", limit: 100 });
+  if (page.nextOffset != null) return;
+  for (const hit of page.items) if (hit.id !== record.id) {
+    const other = (await ctx.api.memory({ action: "read", chatId: scope.chatId, id: hit.id, limit: 1 })).item;
+    if (other?.attributes?.profile?.field === "gender") return;
+  }
+  await ctx.api.memory({ action: "revise", chatId: scope.chatId, id: record.id, expectedRevision: record.revision,
+    requestKey: `profile-gender:${hash([record.id, record.revision])}`, changeType: "edit", patch: { category: "profile", attributes: { ...record.attributes, profile } } });
+}
 async function mergeProfileTwin(ctx, scope, record) {
   const actor = `plugin:${ctx.plugin?.id || "memory"}`, attributes = record.attributes || {};
   if (record.kind !== "fact" || record.createdBy !== actor || record.updatedBy !== actor || record.nextOffset != null
@@ -69,9 +92,12 @@ async function classify(ctx, storage, scope) {
     let record;
     try { record = (await ctx.api.memory({ action: "read", chatId: scope.chatId, id: change.id, mode: "history", limit: 2000 })).item; }
     catch (error) { if (error.code === "MEMORY_NOT_FOUND") continue; throw error; }
-    if (!record || record.category || !["fact", "preference"].includes(record.kind)
+    if (!record || record.category && record.category !== "profile" || !["fact", "preference"].includes(record.kind)
       || record.subjectRefs?.length !== 1 || typeof record.subjectRefs[0] !== "string") continue;
     try {
+      const fact = factIdentity(record);
+      if (fact?.facet === "性别" && fact.assertion === "self") { await classifyGender(ctx, scope, record); continue; }
+      if (record.category) continue;
       if (record.kind === "preference" || record.attributes?.profile) {
         if (record.updatedBy !== record.createdBy) continue;
         await ctx.api.memory({ action: "revise", chatId: scope.chatId, id: record.id, expectedRevision: record.revision,

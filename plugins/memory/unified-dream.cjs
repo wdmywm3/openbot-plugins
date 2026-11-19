@@ -7,6 +7,7 @@ const materialPolicy = require("./unified-material-policy.cjs");
 const retention = require("./unified-retention.cjs");
 const { countChanges } = require("./unified-run-counts.cjs");
 const memePolicy = require("./unified-memes.cjs");
+const impressionPolicy = require("./unified-profile-impressions.cjs");
 const containsSecret = value => /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----|\b(?:sk|sess)-[A-Za-z0-9_-]{20,}|(?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*["']?[^\s"']{12,}/i.test(String(value));
 const reviewPolicy = require("./unified-review-policy.cjs");
 function proof(items, materials) {
@@ -45,7 +46,7 @@ function experienceRetention(item, materials, scope) {
   supported.attributes.retention.sourceId = purpose.sourceId;
   return supported;
 }
-async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [] } = {}) {
+async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [], impressionHistory = [] } = {}) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const memes = parsed.memes ?? [];
   const memeFacts = memePolicy.facts(memes, materials, containsSecret);
@@ -75,8 +76,9 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
       records.push({ item, record: recordFields(item, materials, privateChat, { scope }) });
     }
   }
+  const impressions = impressionPolicy.records(parsed.impressions, scope, materials, impressionHistory).filter(record => !containsSecret(record.content));
   const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
-    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record), ...observedProfiles,
+    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record), ...observedProfiles, ...impressions,
   ]);
   const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
@@ -84,7 +86,10 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     return source?.direction === "in" && !source.sender?.isBot && String(source.sender?.id || source.senderId || "") === subjectId;
   });
   const reserved = new Set([...result.revisions.map(item => item.supersedes.id), ...result.invalidations.map(item => item.id), ...(parsed.updates || []).map(item => item.id)]);
+  for (const edit of result.revisions) if (["gender", "impression"].includes(known.get(edit.supersedes.id)?.attributes?.profile?.field)
+    && !result.invalidations.some(row => row.id === edit.supersedes.id)) reserved.delete(edit.supersedes.id);
   const add = require("./unified-candidates.cjs").candidates(full, operations, before, reserved);
+  const addField = record => impressionPolicy.addField(record, full, operations, before, reserved, `plugin:${ctx.plugin?.id || "memory"}`);
   const validateWatch = async record => {
     const id = record.attributes.watchActivityId; if (!id) return;
     if (!ctx.api.activities) throw Error("当前宿主不支持工作事项订阅");
@@ -103,15 +108,23 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     if (item.kind === "preference" && privateChat && subjectId !== scope.chatId.split(":private:")[1]) continue;
     if (item.kind === "preference" && item.fact && item.fact.subjectId !== subjectId) continue;
     const profile = policy.profileAttributes({ ...item, subjectId }, sources, materials);
-    add({ content: item.content, kind: item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
+    const gender = item.fact?.facet === "性别" && impressionPolicy.basicGender(item, sources, materials);
+    if (!gender && (item.fact?.facet === "性别" || item.profileSection === "identity" && /性别|(?:是|像|自述为?|自称为?)(?:一位|一个|一名)?(?:女生|男生|男性|女性|非二元)/u.test(item.content))) continue;
+    if (gender) profile.profile = gender;
+    const person = gender && materials.find(row => String(row.sender?.id) === subjectId)?.sender;
+    const content = gender ? `${person?.card || person?.name || person?.nickname || subjectId}自述性别为${gender.value}。` : item.content;
+    const fact = gender ? require("./lib/features/channels/channel-memory-write.cjs").factProjection({ ...item.fact, value: gender.value }, content) : item.fact;
+    (gender ? addField : add)({ content, kind: gender ? "fact" : item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
       category: item.category || (profile.profile || item.kind === "preference" ? "profile" : ""),
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
-      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(item.fact ? { fact: item.fact } : {}), ...profile } });
+      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(fact ? { fact } : {}), ...profile } });
   }
   for (const record of observedProfiles) if (!containsSecret(record.content)) add(record);
+  for (const record of impressions) addField(record);
   for (const item of result.revisions) {
     const old = known.get(item.supersedes.id);
     if (!old || old.revision !== item.supersedes.revision) throw Error("修订目标版本不在本次读取范围");
+    if (old.attributes?.profile?.field === "gender" || old.attributes?.profile?.field === "impression") continue;
     if (old.category === memePolicy.CATEGORY) continue;
     const sources = item.reviewStatus === "pending" && !item.evidence?.length ? [] : proof(item.evidence, materials);
     if (["fact", "preference"].includes(old.kind) && sources.length && !materialPolicy.factsAllowed(sources, materials)) continue;
@@ -236,6 +249,7 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
   if (prepared.omitted) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify({ code: "retention", count: prepared.omitted }) });
   const receipt = { completed: !pending, pending, saved: savedCount, skipped: skipped.length + (prepared.omitted || 0), runId: job.runId };
   require("./unified-profile-usage.cjs").save(storage, scope, prepared.usageEntries);
+  impressionPolicy.save(storage, scope, prepared.impressionEntries);
   onReceipt?.(receipt);
   storage.db.exec("RELEASE plus_commit");
   return receipt;
