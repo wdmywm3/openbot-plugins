@@ -42,6 +42,38 @@ const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: 
     assert.equal(restored, body, "paged details preserve the whole original text");
     await assert.rejects(runtime.manage({ ...ctx, input: { ...ctx.input, action: "readRunEvent", runId: saved[1], eventSeq: event.seq } }), /不属于/);
 
+    const mixedScope = { ...scope, chatId: "onebot:group:mixed" }, categories = ["profile", "profile", "profile", ""];
+    const legacyRun = runs.start(mixedScope, { trigger: "boundary", cutoff: Date.now(), upper: 0 });
+    runs.change(mixedScope, legacyRun, { memories: 4 }); runs.finish(mixedScope, legacyRun, "completed");
+    put(storage, `plus:undo:${mixedScope.chatId}:${legacyRun}`, categories.map((_, i) => ({ id: `m${i}`, beforeRevision: null, afterRevision: 1 })));
+    let historicalReads = 0;
+    const mixedCtx = { ...ctx, input: { chatId: mixedScope.chatId, includeChats: false }, api: { ...ctx.api,
+      memory: async request => {
+        historicalReads++; assert.equal(request.chatId, mixedScope.chatId); assert.equal(request.revision, 1);
+        return { item: { id: request.id, revision: 1, category: categories[Number(request.id.slice(1))] } };
+      } } };
+    const split = "新增记忆 1；新增画像条目 3";
+    assert.equal((await runtime.list(mixedCtx)).runs.items[0].summary, split);
+    const past = await runtime.manage({ ...mixedCtx, input: { ...mixedCtx.input, action: "readRun", runId: legacyRun } });
+    const completion = past.events.find(row => row.kind === "completed");
+    assert.equal(completion.text, split);
+    const full = await runtime.manage({ ...mixedCtx, input: { ...mixedCtx.input, action: "readRunEvent", runId: legacyRun, eventSeq: completion.seq } });
+    assert.equal(full.text, split);
+    assert.equal(historicalReads, 4, "the list and details reuse the same historical counts");
+    const { countChanges } = require("../plugins/memory/unified-run-counts.cjs");
+    const operations = [...categories.map(category => ({ action: "create", record: { category } })), { action: "revise" },
+      { action: "transition", patch: { status: "invalidated" } }, { action: "transition", patch: { status: "archived" } }, { action: "create", record: {} }];
+    assert.deepEqual(countChanges(operations, [...operations.slice(0, -1).map(() => ({ ok: true })), { forgotten: true }]),
+      { created: 1, profiles: 3, updated: 1, invalidated: 1, removed: 1 });
+    for (const counts of [{ profiles: 1 }, { updated: 1 }]) {
+      const id = runs.start(mixedScope, { trigger: "scheduled", cutoff: Date.now(), upper: 0 });
+      runs.change(mixedScope, id, counts); runs.finish(mixedScope, id, "completed");
+      assert.equal(runs.list(mixedScope, { meaningfulOnly: true }).items[0].id, id);
+    }
+    const noAudit = runs.start(mixedScope, { trigger: "scheduled", cutoff: Date.now(), upper: 0 });
+    runs.change(mixedScope, noAudit, { memories: 1 }); runs.finish(mixedScope, noAudit, "completed");
+    assert.equal((await runtime.list(mixedCtx)).runs.items[0].summary, "记忆变更（含画像） 1", "old totals without receipts cannot be labeled as creations");
+
     for (let i = 0; i < 25; i++) {
       put(storage, `plus:followup:${i}`, { chatId: scope.chatId, memoryId: String(i), recordRevision: 1, paused: true, report: body });
       put(storage, `plus:maintenance:${i}`, { chatId: scope.chatId, id: String(i), proposalId: String(i), target: "long_term", status: "pending", reason: "有用的长期偏好", privatePayload: body });

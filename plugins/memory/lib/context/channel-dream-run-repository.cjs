@@ -1,7 +1,15 @@
 "use strict";
 const { randomUUID } = require("node:crypto");
 const { encodeRecord, decodeRecord } = require("../plugins/plugin-record-codec.cjs");
-const labels = { materials: "资料片段", memories: "新增记忆", records: "保存事项", topics: "更新话题", assessments: "评估记忆", removed: "清理记忆", invalidated: "撤销记忆", style: "调整交流偏好" };
+const labels = { materials: "资料片段", created: "新增记忆", profiles: "新增画像条目", updated: "更新记录", memories: "记忆变更（含画像）", records: "保存事项", topics: "更新话题", assessments: "评估记忆", removed: "清理记忆", invalidated: "撤销记忆", style: "调整交流偏好" };
+function formatCounts(counts) {
+  const parts = Object.entries(labels).filter(([key]) => counts[key]).map(([key, label]) => `${label} ${counts[key]}`);
+  return parts.length ? parts.join("；") : "本轮没有保存新的记忆或事项";
+}
+function eventText(event, completedSummary) {
+  if (event.kind === "completed" && completedSummary) return completedSummary;
+  return typeof event.text === "string" ? event.text : event.kind;
+}
 
 function createDreamRunRepository(db, now = Date.now) {
   const activity = require("./task-activity-index.cjs").createTaskActivityIndex(db);
@@ -32,13 +40,9 @@ function createDreamRunRepository(db, now = Date.now) {
       db.exec("RELEASE dream_run_event"); return seq;
     } catch (error) { db.exec("ROLLBACK TO dream_run_event; RELEASE dream_run_event"); throw error; }
   }
-  const summary = run => {
-    const counts = Object.entries(labels).filter(([key]) => run.counts[key]).map(([key, label]) => `${label} ${run.counts[key]}`);
-    return counts.length ? counts.join("；") : "本轮没有保存新的记忆或事项";
-  };
   function finish(scope, id, status, error = "") {
     const run = get(scope, id); if (!run) return;
-    run.status = status; run.error = error; run.summary = summary(run);
+    run.status = status; run.error = error; run.summary = formatCounts(run.counts);
     run.endedAt = status === "completed" ? now() : null;
     run.conclusion = { outcome: status, summary: run.summary,
       remaining: status === "completed" ? [] : [error || "本轮进度已保存，稍后继续整理"] };
@@ -62,7 +66,7 @@ function createDreamRunRepository(db, now = Date.now) {
       offset = Math.max(0, Math.floor(Number(offset) || 0)); limit = Math.max(1, Math.min(20, Math.floor(Number(limit) || 20)));
       // Keep the journal for recovery and direct inspection, but do not fill the
       // user-facing list with successful scans that committed no changes.
-      const changed = ["memories", "records", "removed", "invalidated", "style"].map(key => `coalesce(json_extract(value_json,'$.counts.${key}'),0)>0`).join(" OR ");
+      const changed = ["created", "profiles", "updated", "memories", "records", "removed", "invalidated", "style"].map(key => `coalesce(json_extract(value_json,'$.counts.${key}'),0)>0`).join(" OR ");
       const visible = meaningfulOnly ? ` AND (coalesce(json_extract(value_json,'$.status'),'')<>'completed' OR ${changed})` : "";
       const rows = db.prepare(`SELECT value_json FROM channel_dream_runs WHERE channel_id=? AND chat_id=?${visible} ORDER BY rowid DESC LIMIT ? OFFSET ?`)
         .all(...args(scope), Math.max(1, Math.min(20, Number(limit) || 20)) + 1, Math.max(0, Math.floor(Number(offset) || 0)));
@@ -85,10 +89,10 @@ function createDreamRunRepository(db, now = Date.now) {
       const text = JSON.stringify(project(row), null, 2), start = Math.max(0, Math.floor(Number(offset) || 0)), end = Math.min(text.length, start + 6000);
       return { eventSeq: Number(seq), text: text.slice(start, end), nextOffset: end < text.length ? end : null };
     },
-    readEventText(scope, id, seq, offset = 0) {
+    readEventText(scope, id, seq, offset = 0, completedSummary) {
       const row = db.prepare("SELECT * FROM channel_dream_run_events WHERE channel_id=? AND chat_id=? AND run_id=? AND seq=?").get(...args(scope), id, Number(seq));
       if (!row) throw new Error("运行事件不存在或不属于当前聊天");
-      const event = project(row), text = typeof event.text === "string" ? event.text : event.kind;
+      const text = eventText(project(row), completedSummary);
       const start = Math.max(0, Math.floor(Number(offset) || 0)), end = Math.min(text.length, start + 6000);
       return { eventSeq: Number(seq), text: text.slice(start, end), nextOffset: end < text.length ? end : null };
     },
@@ -107,10 +111,10 @@ function createDreamRunRepository(db, now = Date.now) {
     change(scope, id, counts, detail) {
       const run = get(scope, id); if (!run) return;
       for (const [key, count] of Object.entries(counts)) run.counts[key] = (run.counts[key] || 0) + count;
-      run.summary = summary(run); save(scope, run);
+      run.summary = formatCounts(run.counts); save(scope, run);
       if (detail) append(scope, id, "dream_change", { text: detail });
     },
-    events(scope, id, before = 0, after = 0, { previews = false } = {}) {
+    events(scope, id, before = 0, after = 0, { previews = false, completedSummary } = {}) {
       const base = [...args(scope), id], conditions = "channel_id=? AND chat_id=? AND run_id=?";
       const rows = db.prepare(`SELECT * FROM channel_dream_run_events WHERE ${conditions}${after ? " AND seq>?" : before ? " AND seq<?" : ""} ORDER BY seq ${after ? "ASC" : "DESC"} LIMIT 21`)
         .all(...base, ...(after || before ? [after || before] : []));
@@ -124,7 +128,7 @@ function createDreamRunRepository(db, now = Date.now) {
         db.prepare(`SELECT * FROM channel_dream_run_events WHERE ${conditions} AND seq=?`).get(...base, event.callSeq)).filter(Boolean);
       const combined = [...new Map([...events, ...related.map(project)].map(e => [e.id, e])).values()];
       return { events: previews ? combined.map(event => {
-        const text = typeof event.text === "string" ? event.text : event.kind;
+        const text = eventText(event, completedSummary);
         let end = Math.min(500, text.length);
         while (Buffer.byteLength(JSON.stringify(text.slice(0, end))) > 2000) end = Math.floor(end * 0.8);
         return { id: event.id, seq: event.seq, kind: event.kind, createdAt: event.createdAt,
@@ -138,4 +142,4 @@ function createDreamRunRepository(db, now = Date.now) {
     },
   };
 }
-module.exports = { createDreamRunRepository };
+module.exports = { createDreamRunRepository, formatCounts };

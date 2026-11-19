@@ -199,18 +199,24 @@ const empty = () => ({ facts: [], topics: [] });
     const forked = harness("forked");
     forked.add("请记住，接龙截止在每周日晚上。");
     forked.add("有猫饼是有毛病的谐音，常用作玩笑式吐槽。");
-    forked.add("整理结果已经发给大家了。");
+    forked.add("我把报名清单发给大家了，共十二人。");
     forked.add("模型从来没有看到这句话。");
     const [fact, publicMeme, outbound, unseen] = forked.messages;
+    forked.add("下次安排座位要用到今天发的报名人数和名单。");
+    const purpose = forked.messages.at(-1);
     Object.assign(outbound, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
-    const visible = [fact, publicMeme, outbound], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    const visible = [fact, publicMeme, outbound, purpose], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
     const branches = new Map([
       ["facts", { facts: [{ kind: "fact", subjectId: "alice", content: fact.content, evidence: [{ id: fact.id, quote: fact.content }],
         retention: { basis: "explicit", reason: "后续有人问何时结束接龙时使用这个约定。" } },
       { kind: "fact", content: unseen.content, evidence: [{ id: unseen.id, quote: unseen.content }] }] }],
       ["profiles", { facts: [] }],
       ["memes", { memes: [meme(publicMeme, "有猫饼", meaning)] }],
-      ["experience", { records: [{ kind: "experience", content: "我把整理结果发给了群里。", evidence: [{ id: outbound.id, quote: outbound.content }] }] }],
+      ["experience", { records: [
+        { kind: "experience", content: "我把十二人的报名清单发到了群里，供下次排座。", retention: { basis: "ongoing", reason: "下次排座需要核对已公布的报名人数。", sourceId: purpose.id },
+          evidence: [purpose, outbound].map(row => ({ id: row.id, quote: row.content })) },
+        { kind: "experience", content: "我发了一条群消息，已经送达。", evidence: [{ id: outbound.id, quote: outbound.content }] },
+      ] }],
     ]);
     forked.ctx.api.sources = async () => assert.fail("fork extraction must not sweep the raw source feed");
     forked.ctx.api.conversationForks = async request => {
@@ -225,6 +231,7 @@ const empty = () => ({ facts: [], topics: [] });
       if (input.action === "batch") {
         requestKeys.push(input.requestKey);
         if (requestKeys.length === 1) throw Error("write acknowledgement lost");
+        if (requestKeys.length === 2) return { ...result, items: result.items.slice(1) };
       }
       return result;
     };
@@ -237,11 +244,17 @@ const empty = () => ({ facts: [], topics: [] });
     assert.deepEqual(queued.map(item => [item.actionId, item.chatId, item.input.mode]), [["process", forked.scope.chatId, "dream"]]);
     await assert.rejects(runtime.process(forkCtx), /acknowledgement lost/);
     put(storage, forkRetries.key(forked.scope), get(storage, forkRetries.key(forked.scope), []).map(item => ({ ...item, retryAt: 0 })));
+    await assert.rejects(runtime.process(forkCtx), /回执不完整/);
+    put(storage, forkRetries.key(forked.scope), get(storage, forkRetries.key(forked.scope), []).map(item => ({ ...item, retryAt: 0 })));
     await runtime.process(forkCtx);
     assert.equal(captured.length, 1);
     assert.deepEqual(captured[0].branches.map(branch => branch.key), [...branches.keys()]);
-    assert.equal(requestKeys[0], requestKeys[1], "a lost receipt retries the same write without calling the model again");
+    assert.deepEqual(requestKeys, Array(3).fill(requestKeys[0]), "lost or incomplete receipts retry the same write without calling the model again");
     assert.equal(forked.records({ mode: "history" }).length, 3, "valid fact, meme and delivered diary item share one write");
+    assert.deepEqual(storage.dreamRepository.runs.list(forked.scope, { meaningfulOnly: true }).items[0].counts, { created: 3 });
+    const experience = forked.records({ mode: "history", kind: "experience" });
+    assert.equal(experience.length, 1); assert.equal(experience[0].status, "pending"); assert.equal(experience[0].tier, "working");
+    assert.equal(forked.records({ kind: "experience" }).length, 0, "a delivery alone is not a recallable experience");
     assert(!forked.records({ mode: "history" }).some(item => item.content === unseen.content));
     assert.equal(state(storage, forked.scope).cursor, 0, "the raw source cursor does not track model visibility");
 

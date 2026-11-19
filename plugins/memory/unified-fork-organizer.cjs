@@ -46,7 +46,9 @@ ${FACT_PROMPT}
 ${edit}`],
     ["memes", `${human}
 只提取 memes，最多 16 条。${MEMES}`],
-    ["experience", `只提取 records，最多 8 条。记录我已经做过、之后值得记得的事情。用第一人称「我」开头，写清对象、动作和可确认的结果。使用 {kind:"experience",content,evidence}。已送达的公开消息编号为 ${JSON.stringify(outIds)}。每条至少引用一条这里的实际送达记录。普通寒暄、模型草稿、计划、委派受理和失败的动作不写进日记。回复中转述的外部任务结果只记成我转达了报告。没有送达证据就返回 {"records":[]}。`],
+    ["experience", `${human}
+只在真人明确要求记住某次结果（explicit），或真人已经说明某件未完的事将怎样用到这个结果（ongoing）时提取经历。普通问答、能力说明、表情来源和消息送达回执留在聊天记录里。一句“下次有人问可能用得上”不足以保存经历。通常返回 {"records":[]}，最多 8 条。
+使用 {kind:"experience",content,evidence,retention:{basis:"explicit|ongoing",reason:"之后在什么具体事项中用到这次结果",sourceId:"说明这项需要的真人消息编号"}}。evidence 须同时摘录该真人原话和实际送达的结果，已送达消息编号为 ${JSON.stringify(outIds)}。正文以「我」开头，写清对象和结果。转达他人报告时只写我转达了什么。草稿、计划、委派受理、失败的动作都不作为已完成的结果。`],
   ];
   return instructions.map(([key, instruction]) => ({ key, instruction: `${head}\n${instruction}` }));
 }

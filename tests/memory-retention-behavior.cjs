@@ -51,6 +51,21 @@ const current = (who = scope) => repo.memory(actor(who), { action: "search" }).i
       "an older proposal without a retention decision cannot become a permanent fact");
     assert.equal((await extract(proposal(download, downloaded, { basis: "ephemeral", reason: "这只是本次聊天的临时下载进度。" }), download)).operations.length, 0);
     assert.equal(current().length, 0, "ordinary one-off progress stays in searchable source history");
+    const sent = { ...source("我能画图，也能做 GIF。"), direction: "out", networkStatus: "sent", sender: { id: "bot", isBot: true } };
+    const request = source("请记住我们交付的是 GIF，下次修改这份素材时要沿用。");
+    const references = [request, sent].map(row => ({ id: row.id, quote: row.content }));
+    const experience = { kind: "experience", content: "我在群里说明了能画图和做 GIF。", evidence: references.slice(1) };
+    const planExperience = (item, outbound = sent) => dream.plan(context(), scope, { facts: [], topics: [], records: [item] }, [request, outbound], [], { allowExperience: true });
+    assert.equal((await planExperience(experience)).operations.length, 0);
+    const purpose = { basis: "explicit", reason: "下次修改交付素材时要沿用约定的 GIF 格式。", sourceId: request.id };
+    for (const item of [{ ...experience, retention: purpose }, { ...experience, evidence: references, retention: { ...purpose, sourceId: sent.id } },
+      { ...experience, evidence: references, retention: { ...purpose, reason: "以后可能有用" } }]) {
+      assert.equal((await planExperience(item)).operations.length, 0);
+    }
+    const handoff = { ...experience, content: "我在群里确认了后续要沿用的 GIF 格式。", evidence: references, retention: purpose };
+    assert.equal((await planExperience(handoff, { ...sent, networkStatus: "failed" })).operations.length, 0);
+    const remembered = (await planExperience(handoff)).operations[0].record;
+    assert.equal(remembered.status, "active"); assert.equal(remembered.attributes.retention.sourceId, request.id);
     for (const value of [{ basis: "stable", reason: "有原话依据" }, { basis: "stable", reason: "" },
       { basis: "stable", reason: "以后可能有用" }, { basis: "unknown", reason: "后续回答使用这条没有分类的内容。" }]) {
       assert.equal(retention.admission(proposal(download, downloaded, value), [download], scope), null,

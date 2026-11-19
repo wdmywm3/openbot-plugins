@@ -4,6 +4,8 @@ const { validateExtraction, nextRun } = require("./lib/features/channels/channel
 const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-settings.cjs");
 const running = new Map();
 const materialPolicy = require("./unified-material-policy.cjs");
+const retention = require("./unified-retention.cjs");
+const { countChanges } = require("./unified-run-counts.cjs");
 const memePolicy = require("./unified-memes.cjs");
 const containsSecret = value => /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----|\b(?:sk|sess)-[A-Za-z0-9_-]{20,}|(?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*["']?[^\s"']{12,}/i.test(String(value));
 const reviewPolicy = require("./unified-review-policy.cjs");
@@ -34,6 +36,15 @@ function recordFields(item, materials, privateChat, { scope, previous } = {}) {
     progress: item.progress || "active", ...(scope?.chatId ? { subjectRefs: [scope.chatId.split(":private:")[1]] } : {}) } : {}),
     status: "active", tier: "working", sources, attributes };
 }
+function experienceRetention(item, materials, scope) {
+  const purpose = item.retention;
+  if (!/^我/u.test(item.content || "") || !["explicit", "ongoing"].includes(purpose?.basis)
+    || !purpose.sourceId || !Array.isArray(item.evidence)) return null;
+  const supported = retention.admission({ ...item, evidence: item.evidence.filter(ref => ref?.id === purpose.sourceId) }, materials, scope);
+  if (!supported || !item.evidence.some(ref => materials.some(source => source.id === ref?.id && materialPolicy.delivered(source)))) return null;
+  supported.attributes.retention.sourceId = purpose.sourceId;
+  return supported;
+}
 async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false } = {}) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const memes = parsed.memes ?? [];
@@ -45,11 +56,21 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
   if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 64)) throw Error("事项条目过多");
   if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 32)) throw Error("事项更新过多");
   const admittedFacts = [...result.facts, ...validatedMemes].map(item => ({
-    item, admitted: require("./unified-retention.cjs").admission(item, materials, scope),
+    item, admitted: retention.admission(item, materials, scope),
   })).filter(value => value.admitted);
+  const records = [];
+  let omittedExperiences = 0;
+  for (const item of parsed.records || []) {
+    if (item?.kind === "experience") {
+      const policy = allowExperience && experienceRetention(item, materials, scope);
+      if (!policy) { omittedExperiences++; continue; }
+      records.push({ item, record: { ...recordFields(item, materials, privateChat, { scope }), ...policy } });
+    } else if (privateChat) {
+      records.push({ item, record: recordFields(item, materials, privateChat, { scope }) });
+    }
+  }
   const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
-    ...admittedFacts.map(({ item }) => item), ...(parsed.records || []).filter(item => privateChat && item?.kind === "matter"
-      || allowExperience && item?.kind === "experience"),
+    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record),
   ]);
   const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
@@ -108,12 +129,7 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     if ((old.kind === "preference" || old.attributes?.profile) && !selfEvidence(sources, old.subjectRefs?.[0] || old.attributes?.fact?.subjectId)) continue;
     operations.push({ action: "transition", id: old.id, expectedRevision: old.revision, reason: "原始资料明确纠正", patch: { status: "invalidated" } }); before.push({ id: old.id, revision: old.revision });
   }
-  if (parsed.records != null && (!Array.isArray(parsed.records) || parsed.records.length > 64)) throw Error("事项条目过多");
-  for (const item of parsed.records || []) {
-    if (item.kind === "experience" && (!allowExperience || !/^我/u.test(item.content || "")
-      || !proof(item.evidence, materials).some(ref => materialPolicy.delivered(materials.find(entry => entry.id === ref.id))))) continue;
-    if (!privateChat && item.kind === "matter") continue;
-    const record = recordFields(item, materials, privateChat, { scope });
+  for (const { item, record } of records) {
     if (item.relatedIds != null && (!Array.isArray(item.relatedIds) || item.relatedIds.length > 20 || item.relatedIds.some(id => typeof id !== "string" || !known.has(id)))) throw Error("关联记忆不在本次读取范围");
     await validateWatch(record);
     add(record);
@@ -133,8 +149,8 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: "edit",
       patch: { content: record.content, subtype: record.subtype, progress: record.progress, sources: record.sources, attributes: record.attributes } }); before.push({ id: old.id, revision: old.revision });
   }
-  const bounded = await require("./unified-retention.cjs").candidateBudget(ctx, scope, operations, before);
-  return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length + memes.length - admittedFacts.length + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
+  const bounded = await retention.candidateBudget(ctx, scope, operations, before);
+  return { operations: bounded.operations, before: bounded.before, omitted: result.facts.length + memes.length - admittedFacts.length + omittedExperiences + bounded.omitted, style: privateChat && result.style && reviewPolicy.peerEvidence(proof(result.style.evidence, materials), materials, scope) ? result.style : null, topics: result.topics,
     links: (parsed.records || []).filter(item => privateChat && item.kind === "matter").map(item => ({ content: item.content, relatedIds: item.relatedIds || [] })) };
 }
 async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}) {
@@ -164,9 +180,11 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
       catch (error) { if (!obsolete.has(error.code)) throw error; result.items.push(null); skipped.push({ index, code: error.code }); }
     }
   }
-  result.items = (result.items || []).map((item, index) => {
+  if (!Array.isArray(result?.items) || result.items.length !== prepared.operations.length) throw Error("记忆变更回执不完整");
+  result.items = result.items.map((item, index) => {
+    if (item === null && prepared.individual && skipped.some(change => change.index === index)) return null;
     if (item?.forgotten) { skipped.push({ index, code: "forgotten" }); return null; }
-    if (item?.ok === false) throw Error("记忆提交回执无效");
+    if (!item?.ok || !item.id || !Number.isSafeInteger(item.revision)) throw Error("记忆提交回执无效");
     return item;
   });
   // A replayed batch reports ok=false when one of its already committed records was subsequently forgotten.
@@ -200,7 +218,7 @@ async function commit(ctx, storage, scope, job, { onReceipt, fork = false } = {}
     ...(prepared.style && !live.styleLocked ? { style: { ...prepared.style, updatedAt: Date.now() } } : {}) });
   if (!fork || prepared.topics.length) put(storage, `plus:topics:${scope.chatId}`, prepared.topics);
   const savedCount = result.items.filter(Boolean).length;
-  storage.dreamRepository.runs.change(scope, job.runId, { memories: savedCount }, "通过宿主接口提交记忆变更");
+  if (savedCount) storage.dreamRepository.runs.change(scope, job.runId, countChanges(prepared.operations, result.items));
   if (skipped.length) storage.dreamRepository.runs.trace(scope, job.runId, "proposals_skipped", { text: JSON.stringify(skipped) });
   if (!pending) storage.dreamRepository.runs.finish(scope, job.runId, "completed");
   // Never keep a second mutable copy of committed memory bodies in a strategy checkpoint.
