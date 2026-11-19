@@ -3,6 +3,7 @@ const { get, put } = require("./unified-state.cjs");
 const { admit } = require("./unified-material-policy.cjs");
 const { mediaOnly } = require("./unified-profile-usage.cjs");
 
+const { genderValue } = require("./lib/features/channels/channel-member-memory-proof.cjs");
 const DAY = 86400000;
 const key = scope => `plus:impression-samples:${scope.chatId}`;
 const boundary = /(?:MBTI|心理疾病|精神病|抑郁症|躁郁|双相障碍|自闭症|人格障碍|性取向|宗教信仰|政治立场|真实性别)/iu;
@@ -70,15 +71,6 @@ function records(proposals, scope, materials, history) {
     used.add(who);
   }
   return result;
-}
-function genderValue(raw, evidence) {
-  if (typeof raw !== "string" || !raw.trim() || raw.trim().length > 32) return "";
-  const forms = [["男", "男生", "男性", "男的", "男人", "男孩子", "male", "man"], ["女", "女生", "女性", "女的", "女人", "女孩子", "female", "woman"], ["非二元", "非二元性别", "nonbinary", "non-binary"]];
-  const value = raw.trim(), known = forms.find(group => group.includes(value.toLowerCase())), formsForValue = known || [value];
-  const escaped = formsForValue.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length).join("|");
-  const lead = known ? "我是(?:个|一名|一个)?|本人(?:是|为)?|我(?=男的|女的)|I(?: am|['’]m| identify as) (?:a |an )?|" : "";
-  const direct = new RegExp(`(?:^|[，。！？、,;.!?\\s])(?:${lead}我的性别(?:是|为|[：:])|性别[：:]|我认同的性别是)\\s*(?:${escaped})(?:$|[呀啊哦啦呢，。！？、,;.!?\\s])`, "iu");
-  return evidence.some(quote => typeof quote === "string" && direct.test(quote)) ? formsForValue[0] : "";
 }
 function basicGender(item, sources, materials) {
   if (item.fact?.facet !== "性别" || item.fact.assertion !== "self") return null;

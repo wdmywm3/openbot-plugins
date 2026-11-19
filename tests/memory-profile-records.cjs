@@ -179,7 +179,23 @@ async function checkImpressionAndGender() {
   const persisted = search({ category: "profile", subjectId: "guide" });
   assert.deepEqual(read(persisted[0].id).sources.map(r => r.id), days.map(s => s.id));
 }
+async function checkActiveTool() {
+  const runtime = require("../plugins/memory/unified-runtime.cjs"), sender = { id: "active-member", name: "阿晓" };
+  const source = add("我不吃香菜。", -65, { sender });
+  const fields = { category: "profile", kind: "preference", content: "阿晓自述不吃香菜", subjectRefs: [sender.id],
+    attributes: { profile: { section: "habits" }, fact: { subjectId: sender.id, facet: "饮食偏好", value: "不吃香菜", assertion: "self" } } };
+  const call = input => runtime.memory({ ...ctx, dataRoot: temp, message: source, principal: scope, plugin: { id: "memory" }, input });
+  const first = await call({ action: "remember", record: fields, sourceQuote: source.content });
+  assert.equal(read(first.id).category, "profile"); assert.equal(read(first.id).sources[0].quote, source.content);
+  const duplicate = await call({ action: "remember", record: fields, sourceQuote: source.content, requestKey: "another-request" });
+  assert.equal(duplicate.id, first.id);
+  await assert.rejects(call({ action: "remember", record: { ...fields, subjectRefs: ["other"] }, sourceQuote: source.content }), /原话/);
+  await assert.rejects(call({ action: "remember", record: fields, sourceQuote: "我喜欢香菜" }), /原话/);
+  const prepared = await dream.plan(ctx, scope, { facts: [{ kind: "preference", subjectId: sender.id, content: fields.content, fact: fields.attributes.fact,
+    profileSection: "habits", retention: { basis: "stable", reason: "以后在群内推荐饮食时避开香菜。" }, evidence: [{ id: source.id, quote: source.content }] }], topics: [] }, [source], []);
+  assert(!prepared.operations.some(op => op.action === "create"));
+}
 (async () => {
-  try { await checkProfiles(); await checkUsage(); await checkImpressionAndGender(); console.log("Personal memory: shared facts, scoped migration, original sticker use, gender self-report and multi-occasion impressions passed."); }
+  try { await checkProfiles(); await checkUsage(); await checkImpressionAndGender(); await checkActiveTool(); console.log("Personal memory: active tool and organizer share profiles, with sourced sticker use, gender self-report and multi-occasion impressions."); }
   finally { db.close(); close(); fs.rmSync(temp, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

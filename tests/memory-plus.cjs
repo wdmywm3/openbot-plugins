@@ -45,6 +45,8 @@ require("./helpers/organizer-model.cjs").organizerModel(ctx);
     const all = repo.memory(actor, { action: "search" }).items;
     assert.equal(all.length, 1); assert(all.every(item => item.kind !== "experience"));
     const recalled = await runtime.beforeModel(ctx); assert(recalled.contextItems.some(item => all.some(record => record.id === item.memory?.id)));
+    assert.match(recalled.systemPromptAppend, /本轮主动记入画像/);
+    assert.match(recalled.systemPromptAppend, /subjectRefs/);
     ctx.hook = { requestId: "turn-1", answerMessageId: "answer", text: "你喜欢拿铁。" }; await runtime.replyDelivered(ctx);
     const turn = get(storage, `plus:turn:${chatId}:turn-1`); assert.equal(turn.delivered, true); assert.equal(turn.used, undefined);
     await runtime.process(ctx); assert.equal(generated, 2, "actual delivered answer is evaluated once independently of Dream");

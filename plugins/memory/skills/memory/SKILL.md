@@ -21,7 +21,7 @@ description: 使用宿主统一记忆保存、查询和追溯事实、偏好、�
 
 一条记录表达一个可核对的信息；写入前查同一对象与主题的旧记忆。相同信息补充证据，明确纠正使用 correction，现实变化使用 change 并保留生效时间；不以增加重复条目代替更新，也不把过期事项加入稳定画像。证据不足就不提取。
 
-需要记住时调用宿主 memory，action=remember；自动提案使用 create，依据不足时保持 pending。直接写入就是记忆，不创建独立笔记或第二份 Markdown 正文。保留对象、条件和生效时间；来源携带实际读取的 id 与 version，摘录须匹配原文。不要把推测、工具复述或待确认结果当作用户事实。只有返回 ok=true 才确认已记住。
+日常聊天中，本人明确说出以后会用到的稳定资料、偏好、称呼或边界，本轮主动写画像。先按当前聊天的 category="profile" 和 subjectId 查重。明确要求记住用 remember，自然透露的稳定资料用 create。record.category="profile"，subjectRefs=[原始发言人账号]，kind 为 fact 或 preference，status="active"，tier="long_term"。attributes.profile 保存 section 和 basis="self_report"，attributes.fact 保存 subjectId、facet、value、assertion="self"。保留原话和条件，群聊用本轮原消息选择发言人。明确改变或纠正用同一 ID、expectedRevision 和新的原话。性别另填 profile.field="gender"、value。只有回执 ok=true 才能确认写入。
 
 用户纠正旧说法时使用 revise，携带 id、expectedRevision 和稳定 requestKey。changeType 区分 edit、correction 和 change，现实变化明确 validFrom。版本冲突后重新读取，不覆盖人工修改。forget 只用于用户明确要求永久遗忘。
 

@@ -178,7 +178,7 @@
           "scope": "all",
           "permission": "member",
           "mutating": true,
-          "description": "记住、召回、纠正、遗忘或追溯当前聊天的事实。search 可查经历、事项、话题和笔记；read 按返回的 id 读取正文与来源。只有写入返回 ok=true 才能确认已记住。",
+          "description": "记住、核对或纠正当前聊天的记录。remember 支持人物画像，record 填 category=profile、kind、subjectRefs 和 attributes.profile，sourceQuote 摘录对应成员原话。先查同一事实，纠正时修订原条目。只有回执 ok=true 才能确认已记住。",
           "inputSchema": {
             "type": "object",
             "properties": {
@@ -236,6 +236,8 @@
               "sourceQuote": {
                 "type": "string"
               },
+              "record": { "type": "object", "additionalProperties": true, "description": "完整的人物画像或记忆字段，含 content、category、kind、subjectRefs、attributes 和 sources。" },
+              "profileSection": { "type": "string", "enum": ["identity","habits","interests","communication","boundaries","self_description"] },
               "sourceMessageId": {
                 "type": "string"
               },
@@ -470,7 +472,7 @@
           "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "人物画像与记忆库共用条目。基础资料支持本人确认的性别。从多次互动形成有原话依据的聊天印象，并按实际发送归纳常用表情与惯用表达。"
+        "changelog": "聊天中的主动记忆与后台整理共用人物画像。支持本人确认的性别、有原话依据的聊天印象，以及从多次实际发送归纳的常用表情与惯用表达。"
       }
     }
   }
