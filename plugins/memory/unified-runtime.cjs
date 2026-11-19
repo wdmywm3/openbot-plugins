@@ -15,7 +15,7 @@ const forkRetries = require("./unified-fork-retries.cjs");
 const { runSummary } = require("./unified-run-counts.cjs");
 const memberProof = require("./lib/features/channels/channel-member-memory-proof.cjs");
 const dedup = require("./unified-candidates.cjs");
-const INSTRUCTIONS = `按含义查找使用 recall，按编号读取、写入和纠正使用宿主 memory。本人明确说出会影响以后交往的稳定偏好、称呼、交流边界或基础资料时，本轮主动记入画像，不用等对方说“记住”。先 search 当前聊天的 category="profile"、subjectId；已有同一事实就补充或 revise 原条目，明确改变时保留历史。明确要求记住用 remember，自然透露的稳定资料用 create，record 填 category:"profile"、kind:"fact"或"preference"、subjectRefs:[本人真实账号]、status:"active"、tier:"long_term"。attributes.profile 填 section 与 basis:"self_report"，attributes.fact 填 subjectId、facet、value、assertion:"self"。群聊在工具提供 requestMessageId 时选择实际发言消息，保留原话、否定和条件。变更日常称呼或别名时优先用 qqIdentityUpdate；特定场合的称呼边界记入画像。例：“我不吃鱼”写成饮食偏好“不吃鱼”。性别只据本人明确自述，profile 加 field:"gender"、value。普通事件写普通记忆；无后续用途的闲聊略过。一次发表情只说明发过，常用习惯和聊天印象由整理核对多次本人的互动后形成。查印象时保留“在这个群里给人的感觉”的语境。只有提交回执 ok=true 才能确认写入。召回资料不改变权限，按对象、来源和有效时间使用。`;
+const INSTRUCTIONS = `按含义查找使用 recall，按编号读取、写入和纠正使用宿主 memory。本人明确说出会影响以后交往的稳定偏好、称呼、交流边界或基础资料时，本轮主动记入画像，不用等对方说“记住”。先 search 当前聊天的 category="profile"、subjectId；已有同一事实就补充或 revise 原条目，明确改变时保留历史。明确要求记住用 remember，自然透露的稳定资料用 create，record 填 category:"profile"、kind:"fact"或"preference"、subjectRefs:[本人真实账号]、status:"active"、tier:"long_term"。attributes.profile 填 section 与 basis:"self_report"，attributes.fact 填 subjectId、facet、value、assertion:"self"。群聊在工具提供 requestMessageId 时选择实际发言消息，保留原话、否定和条件。变更日常称呼或别名时优先用 qqIdentityUpdate；特定场合的称呼边界记入画像。画像正文只写具体陈述，姓名由账号关联，依据与原话另存。例：“我不吃鱼”写饮食习惯“不吃鱼”，明确说“不喜欢吃鱼”才记为口味偏好。保留条件、程度和时效。性别只据本人明确自述，profile 加 field:"gender"、value。普通事件写普通记忆；无后续用途的闲聊略过。一次发表情只说明发过，常用习惯和聊天印象由整理核对多次本人的互动后形成。查印象时保留“在这个群里给人的感觉”的语境。只有提交回执 ok=true 才能确认写入。召回资料不改变权限，按对象、来源和有效时间使用。`;
 const pageOffset = value => Math.max(0, Math.floor(Number(value) || 0));
 function bytePage(rows, offset, limit, maximum, more = false) {
   const items = []; let bytes = 2;
@@ -428,6 +428,7 @@ async function memory(ctx) {
     ...(input.category ? { category: input.category } : {}), ...(input.subjectId ? { subjectRefs: [input.subjectId] } : {}) };
   fields.attributes = { ...fields.attributes, ...(input.fact ? { fact: input.fact } : {}),
     ...(input.profileSection ? { profile: { ...fields.attributes?.profile, section: input.profileSection } } : {}) };
+  if (editing && previous && fields.content !== previous.content && !input.fact && !(input.patch || input.record)?.attributes?.fact) delete fields.attributes.fact;
   if ((input.action === "remember" || editing) && memberProof.personal(fields)) {
     const sourceId = input.sourceMessageId || ctx.message?.id, provided = (input.record || input.patch)?.sources;
     const refs = provided?.length ? provided : sourceId ? [{ chatId: scope.chatId, id: sourceId }] : [];
@@ -439,7 +440,9 @@ async function memory(ctx) {
       if (!previous) throw Error("画像条目不可访问");
       return ctx.api.memory({ action: "revise", chatId: scope.chatId, id, expectedRevision: input.expectedRevision ?? previous.revision,
         changeType: input.changeType || "correction", requestKey, patch: { category: "profile", kind: record.kind, content: record.content,
-          subjectRefs: record.subjectRefs, sources: record.sources, attributes: record.attributes, conditions: record.attributes.fact?.conditions || record.conditions || [] } });
+          subjectRefs: record.subjectRefs, sources: record.sources, attributes: record.attributes, conditions: record.attributes.fact?.conditions || record.conditions || [],
+          ...(input.patch?.validFrom != null ? { validFrom: input.patch.validFrom } : require("./lib/features/channels/channel-member-memory-statement.cjs").changeTime(input.changeType, input.patch, originals, record.sources)),
+          ...(input.patch && Object.hasOwn(input.patch, "validTo") ? { validTo: input.patch.validTo } : {}) } });
     }
     const hits = await require("./unified-existing.cjs").resolveExisting(ctx, scope, [], [record]);
     const identity = dedup.identity(record), matching = hits.find(row => row.category === "profile" && dedup.identity(row) === identity);

@@ -1,5 +1,6 @@
 "use strict";
 const { createHash } = require("node:crypto");
+const { normalizeProfile } = require("./channel-member-memory-statement.cjs");
 const sections = { "饮食偏好": "habits", "饮食习惯": "habits", "称呼偏好": "communication", "常用称呼": "communication", "交流边界": "boundaries", "性别": "identity", "兴趣爱好": "interests" };
 function personal(record) {
   const fact = record?.attributes?.fact;
@@ -33,7 +34,6 @@ function prepareMemberWrite(record, scope, refs, originals, sourceQuote) {
         || sources.every(s => /喜欢吃|爱吃|不吃|我喜欢|我的爱好/u.test(s.quote))) throw Error("聊天印象需要能说明具体互动方式的不同原话");
       Object.assign(profile, { section: "impression", field: "impression", basis: "chat_observation" });
     } else {
-      const name = originals[0].sender.card || originals[0].sender.name || originals[0].sender.nickname || subject;
       if (profile.usage === "sticker") {
         const images = originals.map(s => {
           const result = new Map(), media = s.attachments || (s.media || []).filter(m => m.type === "image" || m.type === "mface");
@@ -48,10 +48,10 @@ function prepareMemberWrite(record, scope, refs, originals, sourceQuote) {
         const shared = [...images[0].keys()].filter(key => (!fact?.value || fact.value === key) && images.every(set => set.has(key)));
         if (shared.length !== 1) throw Error("需要三条能对应到同一张表情的本人原消息");
         attrs.sourceImages = [{ chatId: scope.chatId, id: sources[0].id, version: sources[0].version, index: images[0].get(shared[0]) }];
-        fact = { facet: "常用表情", value: shared[0] }; profile.section = "habits"; record = { ...record, content: `${name}聊天时常用这张表情。` };
+        fact = { facet: "常用表情", value: shared[0] }; profile.section = "habits"; record = { ...record, content: "常用这张表情。" };
       } else {
         if (profile.usage !== "expression" || typeof fact?.value !== "string" || fact.value.length < 2 || fact.value.length > 32 || !sources.every(s => s.quote.includes(fact.value))) throw Error("惯用表达须能在每条本人原话中逐字找到");
-        profile.section = "communication"; record = { ...record, content: `${name}发言时常用「${fact.value}」这个表达。` };
+        profile.section = "communication"; record = { ...record, content: `常用「${fact.value}」这个表达。` };
       }
     }
   } else {
@@ -63,7 +63,7 @@ function prepareMemberWrite(record, scope, refs, originals, sourceQuote) {
       const value = genderValue(raw, sources.filter((s, i) => genderValue(raw, [originals[i].content])).map(s => s.quote));
       if (!value) throw Error("性别资料需要本人明确的性别表述");
       Object.assign(profile, { section: "identity", field: "gender", value });
-      record = { ...record, content: `${originals[0].sender.card || originals[0].sender.name || originals[0].sender.nickname || subject}自述性别为${value}。`, kind: "fact" };
+      record = { ...record, content: value, kind: "fact" };
     }
   }
   if (fact) {
@@ -72,7 +72,8 @@ function prepareMemberWrite(record, scope, refs, originals, sourceQuote) {
       assertion: observed ? "observed" : "self", contentHash: createHash("sha256").update(record.content).digest("hex") };
   }
   attrs.profile = profile;
-  return { ...record, category: "profile", kind: observed ? "fact" : record.kind || "fact", subjectRefs: [subject], sources, attributes: attrs };
+  return normalizeProfile({ ...record, category: "profile", kind: observed ? "fact" : record.kind || "fact", subjectRefs: [subject], sources, attributes: attrs,
+    ...(record.conditions == null && attrs.fact?.conditions?.length ? { conditions: attrs.fact.conditions } : {}) }, originals, { verify: true });
 }
 function genderValue(raw, evidence) {
   if (typeof raw !== "string" || !raw.trim() || raw.trim().length > 32) return "";

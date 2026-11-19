@@ -63,8 +63,7 @@ function records(proposals, scope, materials, history) {
     if (sources.length !== proposal.evidence.length || excerpts.size < 3 || !sources.some(r => current.has(r.id))
       || sources.every(r => /(?:喜欢吃|爱吃|不吃|我喜欢|我的爱好|我的性别)/u.test(r.quote))
       || !times.every(Number.isFinite) || Math.max(...times) - Math.min(...times) < DAY) continue;
-    const last = rows.get(sources.at(-1).id), name = last.sender.card || last.sender.name || last.sender.nickname || who;
-    const content = `${name}在聊天中${behavior}，给人的印象是${impression}。`;
+    const content = `${behavior}，给人的印象是${impression}。`;
     result.push({ kind: "fact", category: "profile", status: "active", tier: "working", content, subjectRefs: [who], sources,
       attributes: { profile: { section: "impression", field: "impression", basis: "chat_observation" },
         retention: { version: 1, protected: false, basis: "stable", observedAt: Math.max(...times), reason: "理解成员在本聊天中与人交流的方式。" } } });
@@ -99,8 +98,11 @@ function addField(record, existing, operations, before, reserved, actor) {
     if (added.length < 2 || record.content === old.content || record.attributes.retention.observedAt - (old.attributes.retention?.observedAt || 0) < DAY) return;
   }
   reserved.add(old.id);
-  operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: "change", patch: {
-    content: record.content, sources: record.sources, attributes: { ...old.attributes, ...record.attributes } } });
+  const correction = field === "gender" && record.sources.some(ref => /更正|纠正|说错|写错/u.test(ref.quote || ""));
+  const changeType = field === "impression" ? "edit" : correction ? "correction" : "change";
+  operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType, patch: {
+    content: record.content, sources: record.sources, attributes: { ...old.attributes, ...record.attributes },
+    ...(changeType === "change" ? { validFrom: record.validFrom || record.attributes.retention.observedAt } : {}) } });
   before.push({ id: old.id, revision: old.revision });
 }
 module.exports = { prepare, save, prompt, records, basicGender, genderValue, addField };

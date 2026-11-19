@@ -36,7 +36,8 @@ function admission(item, materials, scope, now = Date.now()) {
   // durable request or boundary. Ordinary supported facts can remain candidates.
   if (["explicit", "boundary"].includes(value.basis) && subjectId && !self) return null;
   if (value.basis === "boundary" && !self) return null;
-  const stableProfile = profile && (item.kind === "preference" || ["identity", "communication", "boundaries"].includes(item.profileSection));
+  const dietaryHabit = item.fact?.assertion === "self" && require("./lib/features/channels/channel-member-memory-statement.cjs").facetFor(item.fact, item.content) === "饮食习惯";
+  const stableProfile = profile && (item.kind === "preference" || dietaryHabit || ["identity", "communication", "boundaries"].includes(item.profileSection));
   const immediate = value.basis === "explicit" || value.basis === "boundary" || value.basis === "stable" && stableProfile;
   const observedAt = Math.max(...evidence.map(source => Number(source.createdAt) || 0));
   return { status: immediate ? "active" : "pending", tier: immediate ? "long_term" : "working",

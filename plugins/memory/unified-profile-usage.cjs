@@ -75,7 +75,7 @@ async function collect(ctx, storage, scope, materials, suggestions = [], after =
     if (entry.published || entry.refs.length < 3 || records.length >= 8
       || entry.refs.at(-1).at - entry.refs[0].at < MIN_SPAN || !ctx.api.sources) continue;
     const sources = [], valid = [], titles = new Map(), captions = new Map();
-    let name, image, title = "";
+    let image, title = "";
     for (const ref of entry.refs) {
       const item = await read(ref);
       if (!item || String(item.sender.id) !== entry.subject) continue;
@@ -91,7 +91,6 @@ async function collect(ctx, storage, scope, materials, suggestions = [], after =
         }
         if (attachment.previewAvailable || !image) image = { chatId: scope.chatId, id: ref.id, version: ref.version, index: ref.index };
       } else if (!item.content.includes(entry.value)) continue;
-      name = String(item.sender.card || item.sender.name || item.sender.nickname || entry.subject).slice(0, 80);
       sources.push({ chatId: scope.chatId, id: ref.id, version: ref.version, quote: entry.type === "sticker" ? item.content.slice(0, 100) : entry.value });
       valid.push(ref);
     }
@@ -100,8 +99,8 @@ async function collect(ctx, storage, scope, materials, suggestions = [], after =
     const sticker = entry.type === "sticker";
     title ||= [...titles].find(([, count]) => count >= 2)?.[0] || "";
     const caption = [...captions].find(([, times]) => times.last - times.first >= MIN_SPAN)?.[0];
-    const content = sticker ? `${name}聊天时常用${title ? "「" + title + "」这张表情" : "这张表情"}${caption ? "，常和「" + caption + "」一起发" : ""}。`
-      : `${name}发言时常用「${entry.value}」这个表达。`;
+    const content = sticker ? `常用${title ? "「" + title + "」这张表情" : "这张表情"}${caption ? "，常和「" + caption + "」一起发" : ""}。`
+      : `常用「${entry.value}」这个表达。`;
     const fact = factProjection({ subjectId: entry.subject, facet: sticker ? "常用表情" : "惯用表达", value: entry.value, assertion: "observed" }, content);
     records.push({ content, category: "profile", kind: "fact", tier: "working", status: "active", subjectRefs: [entry.subject], sources,
       attributes: { fact, ...(image ? { sourceImages: [image] } : {}),

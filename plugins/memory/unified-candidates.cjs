@@ -1,5 +1,6 @@
 "use strict";
 const { createHash } = require("node:crypto");
+const { facetFor } = require("./lib/features/channels/channel-member-memory-statement.cjs");
 const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === "object"
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])])) : value;
 const sorted = values => [...new Set(values || [])].sort();
@@ -10,7 +11,8 @@ function factIdentity(record) {
   if (fact.contentHash && fact.contentHash !== createHash("sha256").update(String(record.content || "")).digest("hex")) return null;
   // contentHash proves which prose the projection accompanied; it is not part
   // of the fact itself. A paraphrase must keep the same fact identity.
-  return { subjectId: normalized(fact.subjectId), facet: normalized(fact.facet), value: normalized(fact.value),
+  const facet = fact.assertion === "self" && (!record.category || record.category === "profile") ? facetFor(fact, record.content) : fact.facet;
+  return { subjectId: normalized(fact.subjectId), facet: normalized(facet), value: normalized(fact.value),
     conditions: sorted((fact.conditions || []).map(normalized)), assertion: fact.assertion || "reported" };
 }
 function identity(record) {
@@ -48,6 +50,8 @@ function candidates(existing, operations, before, reserved = new Set()) {
   return record => {
     const key = identity(record), pending = proposed.get(key), old = known.get(key);
     if (old && reserved.has(old.id)) return;
+    if (old?.attributes?.profile?.facet && record.attributes?.profile) record = { ...record, attributes: { ...record.attributes,
+      profile: { ...record.attributes.profile, facet: old.attributes.profile.facet } } };
     if (pending) {
       pending.sources = mergeSources(pending.sources, record.sources);
       if (record.category) {

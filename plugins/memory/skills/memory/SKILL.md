@@ -19,6 +19,8 @@ description: 使用宿主统一记忆保存、查询和追溯事实、偏好、�
 
 可以从本人实际发言归纳常用的表情图、文字表情和有辨识度的惯用表达。整理时通过 usages 提供原消息中的实例，由程序核对当前聊天中相同账号的独立发送记录。使用习惯的 basis 为 observed_use，kind 为 fact。保留可核对的原消息，只说明常怎样发。对某张图、角色或作品的喜爱仍需有本人表达该偏好的原话。
 
+画像的 content 保存具体陈述，subjectRefs 保存成员账号，attributes.profile.basis 保存依据，sources 指向原消息并保留原话。正文省去所属成员的昵称与“自述”，保留涉及的其他人、程度、否定、时效和条件。说“我不吃鱼”写“饮食习惯 · 不吃鱼”，明确说“不喜欢吃鱼”才记录相应的口味偏好。写聊天印象时保留“给人的印象是”等观察语气。资料变化时引用新原话修订已有条目。
+
 一条记录表达一个可核对的信息；写入前查同一对象与主题的旧记忆。相同信息补充证据，明确纠正使用 correction，现实变化使用 change 并保留生效时间；不以增加重复条目代替更新，也不把过期事项加入稳定画像。证据不足就不提取。
 
 日常聊天中，本人明确说出以后会用到的稳定资料、偏好、称呼或边界，本轮主动写画像。先按当前聊天的 category="profile" 和 subjectId 查重。明确要求记住用 remember，自然透露的稳定资料用 create。record.category="profile"，subjectRefs=[原始发言人账号]，kind 为 fact 或 preference，status="active"，tier="long_term"。attributes.profile 保存 section 和 basis="self_report"，attributes.fact 保存 subjectId、facet、value、assertion="self"。保留原话和条件，群聊用本轮原消息选择发言人。明确改变或纠正用同一 ID、expectedRevision 和新的原话。性别另填 profile.field="gender"、value。只有回执 ok=true 才能确认写入。

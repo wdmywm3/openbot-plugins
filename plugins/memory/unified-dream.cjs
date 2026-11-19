@@ -8,6 +8,13 @@ const retention = require("./unified-retention.cjs");
 const { countChanges } = require("./unified-run-counts.cjs");
 const memePolicy = require("./unified-memes.cjs");
 const impressionPolicy = require("./unified-profile-impressions.cjs");
+const { normalizeProfile } = require("./lib/features/channels/channel-member-memory-statement.cjs");
+function profileProposal(record, materials) {
+  try {
+    const originals = record.category === "profile" ? materials.filter(row => record.sources.some(ref => ref.id === row.id && ref.version === row.version)) : [];
+    return normalizeProfile(record, originals, { verify: true });
+  } catch (error) { if (error.code === "PROFILE_EVIDENCE") return null; throw error; }
+}
 const containsSecret = value => /-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----|\b(?:sk|sess)-[A-Za-z0-9_-]{20,}|(?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*["']?[^\s"']{12,}/i.test(String(value));
 const reviewPolicy = require("./unified-review-policy.cjs");
 function proof(items, materials) {
@@ -111,13 +118,14 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     const gender = item.fact?.facet === "性别" && impressionPolicy.basicGender(item, sources, materials);
     if (!gender && (item.fact?.facet === "性别" || item.profileSection === "identity" && /性别|(?:是|像|自述为?|自称为?)(?:一位|一个|一名)?(?:女生|男生|男性|女性|非二元)/u.test(item.content))) continue;
     if (gender) profile.profile = gender;
-    const person = gender && materials.find(row => String(row.sender?.id) === subjectId)?.sender;
-    const content = gender ? `${person?.card || person?.name || person?.nickname || subjectId}自述性别为${gender.value}。` : item.content;
+    if (!profile.profile && item.kind === "preference" && selfEvidence(sources, subjectId)) profile.profile = { basis: "self_report" };
+    const content = gender ? gender.value : item.content;
     const fact = gender ? require("./lib/features/channels/channel-memory-write.cjs").factProjection({ ...item.fact, value: gender.value }, content) : item.fact;
-    (gender ? addField : add)({ content, kind: gender ? "fact" : item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
+    const record = profileProposal({ content, kind: gender ? "fact" : item.kind, tier: admitted.tier, status: admitted.status, expiresAt: admitted.expiresAt,
       category: item.category || (profile.profile || item.kind === "preference" ? "profile" : ""),
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
-      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(fact ? { fact } : {}), ...profile } });
+      validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(fact ? { fact } : {}), ...profile } }, materials);
+    if (record) (gender ? addField : add)(record);
   }
   for (const record of observedProfiles) if (!containsSecret(record.content)) add(record);
   for (const record of impressions) addField(record);
@@ -140,10 +148,13 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     }
     const attributes = { ...old.attributes, ...profile };
     if (item.fact) attributes.fact = item.fact; else delete attributes.fact;
+    const revised = profileProposal({ ...old, category: profileSection || old.kind === "preference" ? "profile" : old.category,
+      content: item.content, sources, attributes, conditions: item.fact?.conditions || old.conditions }, materials);
+    if (!revised) continue;
     operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType: item.changeType,
-      patch: { content: item.content, sources, validFrom: item.validFrom || null, validTo: item.validTo || null,
-        attributes, ...(profileSection || old.kind === "preference" ? { category: "profile" } : {}),
-        ...(item.fact ? { conditions: item.fact.conditions || [] } : {}) } }); before.push({ id: old.id, revision: old.revision });
+      patch: { content: revised.content, ...(revised.kind !== old.kind ? { kind: revised.kind } : {}), sources, validFrom: item.validFrom || null, validTo: item.validTo || null,
+        attributes: revised.attributes, ...(profileSection || old.kind === "preference" ? { category: "profile" } : {}),
+        ...(item.fact ? { conditions: revised.conditions || [] } : {}) } }); before.push({ id: old.id, revision: old.revision });
   }
   for (const item of result.invalidations) {
     const old = known.get(item.id); if (!old || old.revision !== item.revision) throw Error("失效目标版本已变化");
