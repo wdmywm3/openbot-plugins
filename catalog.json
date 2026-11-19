@@ -154,6 +154,72 @@
       ]
     },
     {
+      "id": "computer-use",
+      "name": "电脑操作",
+      "version": "0.1.0",
+      "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "mcp",
+        "assets"
+      ],
+      "metadata": {
+        "usage": "在主人私聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
+        "platforms": [],
+        "requirements": [
+          "Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。",
+          "查看截图需要支持图片的模型。"
+        ],
+        "changelog": "",
+        "homepage": "https://github.com/wdmywm3/openbot-plugins",
+        "components": [
+          "tools",
+          "skills",
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 2218,
+          "sha256": "64abf15911b9ff7bedb30a91ad187817d80b4ac80251a80330b1ed464a65e4a9"
+        },
+        {
+          "path": "desktop_server.py",
+          "size": 21206,
+          "sha256": "a4ac031cbeb8b3987409180f649506098ceb221b797db18a6c62744b8c7a2d90"
+        },
+        {
+          "path": "index.js",
+          "size": 2647,
+          "sha256": "90f53d415e2a1d2eae18d9d942b4e2f771b4458aad8d6f5ba16b4535c23a2ffe"
+        },
+        {
+          "path": "mcp.json",
+          "size": 299,
+          "sha256": "16c64702e019047755d36f996753d04edf0ba2b549d7a7d5f8e6e719def81836"
+        },
+        {
+          "path": "plugin.json",
+          "size": 5645,
+          "sha256": "0febf0929c3c08519528db4916f4c8a0ca47ccb3193979c3c699cc4404c378fc"
+        },
+        {
+          "path": "requirements.lock",
+          "size": 98,
+          "sha256": "19608e47b2066accf50b0a8a0b28c14dd069103c59d47a715c383504b3279be8"
+        },
+        {
+          "path": "skills/computer-use/SKILL.md",
+          "size": 3054,
+          "sha256": "23eb807df200f422853f7e100cdc8f5448f35c95eb2c728eab595c01a61095af"
+        }
+      ]
+    },
+    {
       "id": "content-monitor",
       "name": "内容监控",
       "version": "1.1.0",
@@ -283,6 +349,44 @@
       ]
     },
     {
+      "id": "google-workspace",
+      "name": "Google Workspace",
+      "version": "1.0.0",
+      "description": "连接 Google Workspace 的官方远程 MCP 服务。每个产品单独授权。",
+      "category": "integration",
+      "main": "",
+      "permissions": [
+        "mcp"
+      ],
+      "metadata": {
+        "usage": "在插件详情中选择需要的服务，填写项目中为 AI Agent 登记的 OAuth 客户端。授权服务器使用 https://accounts.google.com。",
+        "platforms": [],
+        "requirements": [
+          "Google Workspace Developer Preview 项目，所需产品 API 已启用。",
+          "每项服务使用对应的 Google OAuth 权限范围。"
+        ],
+        "changelog": "",
+        "homepage": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+        "components": [
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "files": [
+        {
+          "path": "mcp.json",
+          "size": 776,
+          "sha256": "a3a54ae825b855375e149219187446b1bd4f19b320a550f85f0f86d2b5ec6072"
+        },
+        {
+          "path": "plugin.json",
+          "size": 954,
+          "sha256": "4aabe13e4433acf37aaca78d66a3ef2b76f5ed5bf83a2ffb2189f76e3cfb0c3a"
+        }
+      ]
+    },
+    {
       "id": "group-digest",
       "name": "群聊总结",
       "version": "1.0.2",
@@ -324,7 +428,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -352,29 +456,29 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "插件更新后，可以在原聊天补发之前画好的图片，复用原图和原来的显示方式。",
+        "changelog": "生图指南现按画面构图、光影、材质与微表情编写提示词。可在插件设置中上传自己的 Markdown 或 ZIP 指南，也可恢复默认。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "6dfb79fcf688c2a2ccb9d0b25e87503eb046b977",
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
       "files": [
         {
           "path": "README.md",
-          "size": 8781,
-          "sha256": "31f550460e0480e35a84f6ce3ab571651a2709100457433f2f27d2faa767fa34"
+          "size": 9178,
+          "sha256": "c7991ce9897deb4ee91a3df6bc893154fc87b536dbad7f94df60335e82a38803"
         },
         {
           "path": "index.js",
-          "size": 39987,
-          "sha256": "0d54b9e508443e2c7ddbbc3fa05bb084b173e486a5aca4f84d43359a18f7bb05"
+          "size": 40117,
+          "sha256": "aaa63b9e7e02b04b39564ef69aadaa0dbf65119b37ec6d48b1dd21b0024e92ef"
         },
         {
           "path": "plugin.json",
-          "size": 24126,
-          "sha256": "09b7055674be16313a2f45a4de3301b144cfed54e99b9277a99211bc264ba1f8"
+          "size": 24760,
+          "sha256": "b3324a107086b2d717677654ae07c1b806e0f7a912c4ee265a92a49e73a35505"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -383,18 +487,18 @@
         },
         {
           "path": "skills/gpt-image/SKILL.md",
-          "size": 1792,
-          "sha256": "8baa8742e01b0500a0bb1e365ffe2d19dc5151c627993384f06c27df544cf8f5"
+          "size": 1324,
+          "sha256": "ce90e5bb36185ba497196736c71d045bcec4628c5999d4bd7769f940c6230f88"
         },
         {
           "path": "skills/gpt-image/references/prompting.md",
-          "size": 8021,
-          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+          "size": 122,
+          "sha256": "f47b0b9685dd759401f08aaa5da93112fbb1126a78ce5deb743295e3783b6b1d"
         },
         {
           "path": "skills/gpt-image/references/sample-prompts.md",
-          "size": 17057,
-          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+          "size": 127,
+          "sha256": "114f618d3ec7526f884fb086e89c2bddc29254e22ec3fc5afbfe8e6452b5e111"
         },
         {
           "path": "skills/imagegen/LICENSE.txt",
@@ -403,13 +507,13 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 7499,
-          "sha256": "2c838ef9ee9cfa5e29a57abd6651eb81d1b146456aa4290ac34e8d1105f8ca50"
+          "size": 5227,
+          "sha256": "ad8feea308fdf4e38892a7b2c37cd7d513278d6e8b565c0fbc738a56dd03a419"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
-          "size": 8021,
-          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+          "size": 4445,
+          "sha256": "428ef77f75ff2e9bf2bf523dd74e56b7ef831c5e8417a52f7323f608d8a32bb5"
         },
         {
           "path": "skills/imagegen/references/provider-controls.md",
@@ -418,8 +522,13 @@
         },
         {
           "path": "skills/imagegen/references/sample-prompts.md",
-          "size": 17057,
-          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+          "size": 2065,
+          "sha256": "d6c5bb9dffbe88796455e597414456ae9f63f14360507fc380ecaf377a3f19f3"
+        },
+        {
+          "path": "skills/imagegen/references/tool-use.md",
+          "size": 4198,
+          "sha256": "a72ec94a09f61c4178e5bdd451b51cb13903285d99d4801c1c81b4efdcb17512"
         },
         {
           "path": "ui/reference.css",
@@ -570,8 +679,8 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.6",
-      "description": "为统一记忆提供自动召回、人物画像、唤醒后整理和 Dream，并兼容已有复查。",
+      "version": "2.6.7",
+      "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
       "permissions": [
@@ -581,6 +690,7 @@
         "memory:read",
         "memory:write",
         "memory:manage",
+        "memory:automatic",
         "history",
         "retrieval",
         "model",
@@ -602,10 +712,9 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "唤醒期结束整理需要 OpenBot 0.1.110 或更新版本。",
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "人物画像分开保存具体陈述、所属成员和依据，原消息可追溯。主动记忆与自动整理保留否定、条件和时效，区分饮食习惯与口味偏好。旧的有据画像原位更新并保留历史。",
+        "changelog": "新增主题知识与常驻记忆，整理时可核对操作回执，支持把待执行的单次复查移交私人管家。保留成员画像的原话和归属验证。",
         "components": [
           "hooks",
           "tools",
@@ -614,12 +723,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "fbd2e0febcf4e6aeb96b73cb96f91fe865ec1847",
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
       "files": [
         {
           "path": "README.md",
-          "size": 13976,
-          "sha256": "84f134041f99c3dc991dbae014412833780392b435ae781d6337d0925e8b9954"
+          "size": 14779,
+          "sha256": "82b18554c066a7e12f1dc9b57cea3b1421831b5b18e8e76afafb232a32c587ec"
         },
         {
           "path": "followup-runtime.cjs",
@@ -788,8 +897,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14708,
-          "sha256": "ba2a19ac2d13a7ec06e1ebad490220d35a57362657c590105085d5a9788c89dc"
+          "size": 14655,
+          "sha256": "e37657776a1c748099e33501d27eafc40862b4fb1bc19849d5adeaa53a9b3c6b"
         },
         {
           "path": "process.cjs",
@@ -813,8 +922,8 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 8497,
-          "sha256": "5dca809a4a4c50fa800ddc668fd6b308fa4d618192b1c1f768cd903647a4d07b"
+          "size": 9066,
+          "sha256": "f86bc6d4e2733215ae263d390601b775faf9fa3e5de5b8603bc17c469e871e32"
         },
         {
           "path": "source-retrieval.cjs",
@@ -833,8 +942,8 @@
         },
         {
           "path": "ui/app.js",
-          "size": 11258,
-          "sha256": "25ecfee6a40d7a31a486b21283c395663119a1580385e28ac77bd609b64b2afd"
+          "size": 10966,
+          "sha256": "76cc5cd6a2879c8dccab00284b7d6f0ffb0a169bfe5d1dc77e2351f3cc5cb627"
         },
         {
           "path": "ui/details.html",
@@ -848,8 +957,8 @@
         },
         {
           "path": "ui/index.html",
-          "size": 2405,
-          "sha256": "c039d0cdc27a1d53e7a16c8474b85785b1e2060490a9185d0e1a0a66f84e7077"
+          "size": 2246,
+          "sha256": "984cb2d65205602c7145a9129bf94718ad328d19496d2e21d2c2263b25ddda7c"
         },
         {
           "path": "ui/style.css",
@@ -873,8 +982,8 @@
         },
         {
           "path": "unified-checkpoints.cjs",
-          "size": 4620,
-          "sha256": "719ccd7c4a3479d63ec64ba782596bfc22a1f9daaca9d5dfe45a06df0c1c8646"
+          "size": 4632,
+          "sha256": "ba98e3f22f868ae31f488aa268f60f6ccee03bf12be07d5e69072c4d52a71807"
         },
         {
           "path": "unified-dream-prompts.cjs",
@@ -883,8 +992,8 @@
         },
         {
           "path": "unified-dream.cjs",
-          "size": 22740,
-          "sha256": "13b7f3cd7e07d5936793f49c0b023f0ee563c72fa63ee7d423423bea507f36df"
+          "size": 22909,
+          "sha256": "5a8c0c6fd5261d89104f2cecf53832fc575a63f9cd3ab519ef778e05d468f3c6"
         },
         {
           "path": "unified-existing.cjs",
@@ -898,13 +1007,13 @@
         },
         {
           "path": "unified-followup.cjs",
-          "size": 14704,
-          "sha256": "3ed1086d14ed4864110f54103c5982dd53778237d0ad4f107ffc145045a03523"
+          "size": 14079,
+          "sha256": "9b365892957c2428fd723506969ed3911194feba4e14cca9db02103bf9a94c56"
         },
         {
           "path": "unified-fork-organizer.cjs",
-          "size": 16100,
-          "sha256": "73808d1ebe71c0e155903c73d891b66557aff650a1a0044fbe76440e1b263fc8"
+          "size": 17790,
+          "sha256": "57d4dd77c62d6e113fd3a609856d6b971971f01859bbad54aeaccb2d918f211b"
         },
         {
           "path": "unified-fork-retries.cjs",
@@ -918,8 +1027,8 @@
         },
         {
           "path": "unified-maintenance.cjs",
-          "size": 19682,
-          "sha256": "f6857b255b2ec84ff007c425d25ea6851302219d46642c93b4e5d48711194adb"
+          "size": 19706,
+          "sha256": "e6a6d87ef6725272e33cea13129af04b294e5a8d45eacf40d545e4bcbeafdc62"
         },
         {
           "path": "unified-material-policy.cjs",
@@ -937,9 +1046,14 @@
           "sha256": "e0e1496a45a87e95ca62c19fa99765e9a36fd318547a4aeb38e563fbd6718c5d"
         },
         {
+          "path": "unified-operation-checks.cjs",
+          "size": 2428,
+          "sha256": "a4dd2ca671459f5195fba47287c2cfc3c2a5d32270e582250fbcd2a5a833e125"
+        },
+        {
           "path": "unified-organizer.cjs",
-          "size": 18622,
-          "sha256": "b8ee4d325f7db50ab2ce1684a6849014d08b64efa6f15c965384d104543ac288"
+          "size": 18579,
+          "sha256": "b171d4ec8598ac5ac90ee0d2b2159d115b8c3fd2fc74bcd90b08e11a2e153fa4"
         },
         {
           "path": "unified-peer.cjs",
@@ -988,18 +1102,28 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 43444,
-          "sha256": "12dc7a557457b42f39f4551e358b6dce6a094ad702428c0207fbd7b22edc2426"
+          "size": 42564,
+          "sha256": "78b7d042b5fa251deb79d633b059cb7ad6cbf25378d3b1a9856d03bebc61951a"
         },
         {
           "path": "unified-scheduling.cjs",
-          "size": 3428,
-          "sha256": "c57f1a1cade82639c80cefa5a59702403babc7b3a3890ff0e12ad51dcfd6ee6f"
+          "size": 3413,
+          "sha256": "719ec19f9d6a3c1eaf6a9f9450c45e4ade467cfcd0b37daf0bb43853b3e4204c"
+        },
+        {
+          "path": "unified-startup-memory.cjs",
+          "size": 8674,
+          "sha256": "ba282dafb3067e02c64e33bbaa3dafa1ff1ed7f04c51d278856f108c035d688a"
         },
         {
           "path": "unified-state.cjs",
-          "size": 4233,
-          "sha256": "c2f64babced0060d5017f5e7c0fa10bc627a6d3827bc259d8bb30359c92871c5"
+          "size": 4282,
+          "sha256": "86222d33ca86a41a75c4a43f5ff69e03ff94505fa24903cc0bf22985401cd2d4"
+        },
+        {
+          "path": "unified-topics.cjs",
+          "size": 3113,
+          "sha256": "4c5f75e5a46946345570ac575895141d64590b03c8d575d79c000fdbe904e3ea"
         },
         {
           "path": "utterance-recall.cjs",
@@ -1009,9 +1133,44 @@
       ]
     },
     {
+      "id": "notion",
+      "name": "Notion",
+      "version": "1.0.0",
+      "description": "使用 Notion 官方 MCP 搜索和处理账号有权访问的工作区内容。",
+      "category": "integration",
+      "main": "",
+      "permissions": [
+        "mcp"
+      ],
+      "metadata": {
+        "usage": "在插件详情中打开 Notion 服务，点击网页登录，选择要连接的工作区。",
+        "platforms": [],
+        "requirements": [],
+        "changelog": "",
+        "homepage": "https://developers.notion.com/guides/mcp/get-started-with-mcp",
+        "components": [
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "files": [
+        {
+          "path": "mcp.json",
+          "size": 96,
+          "sha256": "89ee654116cdb5097f1c2d7889457336f4b9c1ad6e5aa0c764b55c1d3f403be2"
+        },
+        {
+          "path": "plugin.json",
+          "size": 626,
+          "sha256": "d2f839fd6b33317ae54dd4257014d947ee4871acc64138a0210e2be769fa2adf"
+        }
+      ]
+    },
+    {
       "id": "personal-butler",
       "name": "私人管家",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
       "category": "utility",
       "main": "index.js",
@@ -1027,6 +1186,7 @@
         "conversation:notify",
         "memory:read",
         "memory:write",
+        "skills:propose",
         "hook:messageReceived",
         "hook:replyDelivered",
         "hook:taskFinished"
@@ -1040,7 +1200,7 @@
         "requirements": [
           "QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"
         ],
-        "changelog": "在 QQ 和微信的授权聊天中主动整理线索、继续查证和跟进事项，接收记忆 Plus 的单次复查移交。",
+        "changelog": "保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。",
         "components": [
           "hooks",
           "tools",
@@ -1048,22 +1208,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
       "files": [
         {
           "path": "README.md",
-          "size": 3771,
-          "sha256": "427848daa32802a5f70ad4a9bcffe142f710b710ad68567f5fd6ba5aea5a745d"
+          "size": 4492,
+          "sha256": "f8627b8fae6bf8590a67932813508b292ea1f595ae754703e1a95ffe56c156bb"
         },
         {
           "path": "index.js",
-          "size": 102345,
-          "sha256": "33e90cdf5fda4399d0dba932502099cd4888e85d26f0ff4001ed2960dfbc27ed"
+          "size": 110066,
+          "sha256": "f0af0ac3fa3956044ff8326ab211efff972e6a88c0b5b386812092fc58ab803a"
         },
         {
           "path": "plugin.json",
-          "size": 4935,
-          "sha256": "e2b86df9f75df9bbdf8e66844c8d765c9ac435287187e417e045e20e351d66c0"
+          "size": 5799,
+          "sha256": "f7c8556cc9d737273d79605fa0abe958431f8598f024a1325cb39ced19fa23cf"
         }
       ]
     },
@@ -1110,7 +1270,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
       "category": "utility",
       "main": "index.js",
@@ -1137,7 +1297,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "1f8ed1d9f2cc978143b3ab21d3b4384d12d0b49c",
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
       "files": [
         {
           "path": "README.md",
@@ -1146,13 +1306,13 @@
         },
         {
           "path": "index.js",
-          "size": 22663,
-          "sha256": "1e1c8397792188daa56309aaba80520d53bbe80cca2fa74c8b20dccfdf52baa4"
+          "size": 25451,
+          "sha256": "30ad300824461f9eff0711cbda608786d15633dd9943f6733882075173b52f65"
         },
         {
           "path": "plugin.json",
           "size": 11897,
-          "sha256": "0301993196cb04bc79ea7021ab85ed6d2e5e3634de799c6a157f9e374c8eb431"
+          "sha256": "5870484155d0b23beb414da0b14d7100a0a9c38cbdec2488779029b007374700"
         },
         {
           "path": "skills/search/SKILL.md",
