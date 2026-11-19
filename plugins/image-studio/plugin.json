@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
   "extensions": {
     "com.openbot": {
@@ -34,6 +34,7 @@
         "pluginAdmissionQueue",
         "conditionalGlobalSettings",
         "mediaHandoff",
+        "mediaRepublication",
         "toolCompletionEvents"
       ],
       "networkHosts": [
@@ -469,6 +470,22 @@
             ],
             "additionalProperties": false
           }
+        },
+        {
+          "name": "recover_image",
+          "export": "recover_image",
+          "title": "取回已画的图片",
+          "description": "补发本聊天已生成的画图结果时，传入原任务或会话中记录的完整图片地址，取得当前可发送的地址。复用原图，不消耗生图额度。",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string", "minLength": 1, "maxLength": 128, "description": "原画图结果中的 images[].url。" }
+            },
+            "required": ["url"],
+            "additionalProperties": false
+          }
         }
       ],
       "actions": [
@@ -762,10 +779,10 @@
         ],
         "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
         "requirements": [
-          "请先安装 OpenBot 0.1.113 或更新版本，再更新本插件。",
+          "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "支持在同一聊天按编号取图。出图后回传结果，输入框上方可查看排队和运行中的任务。"
+        "changelog": "插件更新后，可以在原聊天补发之前画好的图片，复用原图和原来的显示方式。"
       }
     }
   }

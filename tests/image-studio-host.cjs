@@ -86,8 +86,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.deepEqual(models.models.map(item => item.id), ["gpt-image-2.6-flare"]);
     const context = { requestId: "draw", purpose: "chat", channelPrincipal: { source: "channel", channelId: channel.id, chatId: "chat", senderId: "member", messageType: "group" } };
     const tool = "plugin__image-studio__draw_image";
-    async function finish(input, requestKey, expectedStatus = "completed", actor = context) {
-      let job = await runtime.runNativePluginTool(tool, { action: "start", requestKey, input }, actor);
+    async function finish(input, requestKey, expectedStatus = "completed", actor = context, toolName = tool) {
+      let job = await runtime.runNativePluginTool(toolName, { action: "start", requestKey, input }, actor);
       for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, actor); }
       assert.equal(job.status, expectedStatus, job.error); return job;
     }
@@ -107,6 +107,20 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       assert.equal(drawn.result.images[0].mimeType, "image/png"); assert(!JSON.stringify(drawn.result).includes(encoded));
       assert(drawn.result.images[0].url.startsWith("openbot-"), "host publishes its opaque media URL");
       const again = await finish({ prompt: "large" }, "single", "completed", owner); assert.equal(again.id, drawn.id); assert.equal(requests.length, 1, "same request key never resubmits chargeable API");
+      const previous = { channelId: channel.id, chatId: "chat", pluginId: plugin.id, authorization: "previous-grant" };
+      const mediaStore = fromHost("plugins/plugin-assets.cjs").createPluginAssets({ root });
+      const { url: originalUrl } = await mediaStore.call(previous, { action: "publish", ref: drawn.result.images[0].assetRef,
+        shareable: true, metadata: { generated: true, purpose: "image", reusable: false } });
+      const recover = "plugin__image-studio__recover_image";
+      const sendImage = url => runtime.resolvePluginMedia(channel, "chat", [{ type: "image", data: { file: url } }]);
+      await assert.rejects(sendImage(originalUrl), /授权已变更/);
+      const deniedRecovery = await finish({ url: originalUrl }, "recover-denied", "failed", context, recover);
+      assert.match(deniedRecovery.error, /只允许主人/);
+      const recovered = await finish({ url: originalUrl }, "recover", "completed", owner, recover);
+      assert.notEqual(recovered.result.images[0].url, originalUrl);
+      assert.equal((await sendImage(recovered.result.images[0].url))[0].data.file, "base64://" + encoded);
+      assert.equal(requests.length, 1, "recovering an existing drawing makes no new generation request");
+      assert.equal(nativeCalls.length, 0);
       plugin.config.allowNonOwnerDrawing = true;
       await finish({ prompt: "edit", references: [{ messageId: "reference" }] }, "edit");
       assert.equal(requests.at(-1).url, "https://api.openai.com/v1/images/edits");

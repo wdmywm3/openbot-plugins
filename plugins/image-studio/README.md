@@ -1,6 +1,6 @@
 # 画图
 
-一个 `draw_image` 工具和专用 Skill，支持 OpenAI Image API、Responses 的 `image_generation`、相应兼容服务，以及 OpenBot 中已配置登录的 Codex 连接。普通生图与角色自拍分别开关，默认开启普通生图、关闭自拍。选择 GPT Image 时另有可选的 `gpt-image` 指南；技能出现在目录中不等于自动加载正文。提示词原则和范例改编自 Codex imagegen，包含在插件中。
+`draw_image` 用于生图，`recover_image` 用于补发旧图。绘图支持 OpenAI Image API、Responses 的 `image_generation`、相应兼容服务，以及 OpenBot 中已配置登录的 Codex 连接。普通生图与角色自拍分别开关，默认开启普通生图、关闭自拍。选择 GPT Image 时另有可选的 `gpt-image` 指南；技能出现在目录中不等于自动加载正文。提示词原则和范例改编自 Codex imagegen，包含在插件中。
 
 普通生图使用 `mode:image`（默认），保留文字绘图和聊天参考图改图。开启“自拍”后，画自己的形象使用 `mode:selfie`。支持人设图的 OpenBot 会提供当前聊天所用角色的人设图，默认优先正面，可用 `selfieView` 选择侧面、背面、Q 版或细节。侧面和背面可同时参考正面。没有可用人设图时，沿用实例在“自拍形象”页签上传的图片。
 
@@ -27,6 +27,8 @@ GIF 动图使用 `format:gif`，默认自动尺寸，可指定 2–16 帧及每�
 从 OpenBot 0.1.113 起，QQ 聊天的画图任务可以逐张提交，输入框上方显示排队和运行状态。每张图有自己的编号。结果生成后回到原聊天，也可在同一聊天按编号取图。取消由提交者操作。更新插件时按提示授权会话通知。
 
 结果先检查 Base64、大小、图片签名和 PNG 尺寸，再保存为当前实例的媒体引用并发布到当前聊天。返回值不包含 API Key、原始参考图或图像 Base64。
+
+0.4.2 支持补发旧图。插件通过 `recover_image` 在原聊天为既有成品获取可发送的地址，保留原图和表情显示方式。补发不调用画图服务，也不计入生图额度。宿主需要支持 `mediaRepublication`。
 
 0.3.1 另要求宿主提供 conditionalGlobalSettings；0.3.0 要求宿主提供 `pluginGlobalSettings`、`globalPluginDatabase`、`pluginAdmissionQueue` 以及原有的画图模型接口；请使用本次配套宿主源码或包含这些接口的更新版本。旧版每实例保存的服务凭据不会自动合并，请在全局设置中重新配置；原实例的设置与固定形象保留。
 

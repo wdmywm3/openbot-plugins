@@ -5,7 +5,7 @@ description: 用户要求生图、GIF 动图、绘画、改图、角色自拍、
 
 # Imagegen · 画图
 
-本 Skill 从 Codex 的 imagegen 工作流改写为 OpenBot 画图插件用法。执行入口只有 `draw_image`；插件负责选择已配置的服务、读取参考图、保存结果。不要调用本机命令、其他应用的文件或当前 Codex 会话的 `image_gen` 工具。
+本 Skill 从 Codex 的 imagegen 工作流改写为 OpenBot 画图插件用法。用 `draw_image` 生成图片，用 `recover_image` 补发已有成品。插件负责选择已配置的服务、读取参考图和保存结果。不要调用本机命令、其他应用的文件或当前 Codex 会话的 `image_gen` 工具。
 
 ## 先判断任务
 
@@ -59,7 +59,9 @@ description: 用户要求生图、GIF 动图、绘画、改图、角色自拍、
 用 `action:"start"`、`input` 和稳定的 `requestKey` 启动。用户要几张图，就逐张提交，每张使用自己的 `requestKey` 和简短的 `title`（例如「天使」）。本轮有几条独立画图请求时，用外层 `messageId` 指明这张图对应的原消息。重试原提交沿用原 key。
 
 - `followup:"event"` 表示已提交，`phase:"queued"` 表示排队。可以继续接话，结果会自动回到当前聊天。收到完成事件后，用它提供的图片地址交付。
-- 用户问进度或要取图时，用 `{"action":"result","jobId":"启动回执的 id"}` 读取同一聊天的任务和公开结果。只在 `followup:"poll"` 时，由提交者用 `status` 查询原任务。
+- 用户问进度或要取图时，用 `{"action":"result","jobId":"启动回执的 id"}` 读取同一聊天的任务和公开结果。回执为 `followup:"poll"`，或早期任务只返回完成状态时，由原提交者用 `status` 查询原任务。
+- 补发以前画好的图时，从原任务或当前会话取出图片的完整 URL。用本次补发的 `requestKey` 调用 `recover_image`（`action:"start"`，`input:{"url":"原图片地址"}`）。若还在运行，按它的任务编号查询。用取回结果的 `images[].url` 交付，原图不可用时说明情况。
+- 如果上次已提交回复，先核对发送回执。回执为 `unsent` 时，使用新图片地址和新的回复 `requestKey` 提交补发。重试同一次补发沿用该 key。
 - 通过通用 `plugin` 查询或取消时，加上 `pluginId:"image-studio"`。取消仅限原提交者。失败、超时或取消后先核对原任务，再决定是否重新提交。
 
 `purpose` 根据当前请求和相关前文的用途填写，不能根据文件格式判断。用户明确要表情包，或要一张用于聊天反应的图（如拿来回复“收到”、装委屈、斗图）时传 `purpose:"sticker"`，静态和动图都适用。前文已经在制作表情，本轮只说“让它动起来”，仍沿用表情用途。

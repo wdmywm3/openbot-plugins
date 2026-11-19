@@ -406,12 +406,16 @@ function isOwnerRequest(principal) {
   return !origin || (!origin.unknown && !origin.autonomous && Array.isArray(origin.requesterIds) && origin.requesterIds.length === 1
     && origin.requesterIds[0] === principal.senderId);
 }
-async function currentDrawConfig(ctx, mode) {
+async function authorizedDrawConfig(ctx) {
   check(ctx);
   if (typeof ctx.api.getConfig !== "function") throw Error("当前 OpenBot 不支持实时绘图设置，请更新宿主");
   const config = await ctx.api.getConfig() || {};
   check(ctx);
   if (config.allowNonOwnerDrawing !== true && !isOwnerRequest(ctx.principal)) throw Error("当前实例只允许主人画图。");
+  return config;
+}
+async function currentDrawConfig(ctx, mode) {
+  const config = await authorizedDrawConfig(ctx);
   if (!enabledMode(config, mode)) throw Error(mode === "selfie" ? "自拍已关闭，本次结果未发送" : "普通生图已关闭，本次结果未发送");
   return config;
 }
@@ -546,6 +550,15 @@ module.exports.draw_image = async ctx => {
   if (!["image", "selfie"].includes(mode)) throw Error("绘图方式无效");
   await currentDrawConfig(ctx, mode);
   return watchDrawing(ctx, mode, () => drawImage(ctx, mode));
+};
+
+module.exports.recover_image = async ctx => {
+  const url = ctx.input?.url;
+  if (typeof url !== "string" || !/^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/.test(url)) throw Error("请使用原画图结果中的完整图片地址");
+  await authorizedDrawConfig(ctx);
+  const image = await ctx.api.assets({ action: "republish", url });
+  await authorizedDrawConfig(ctx);
+  return { images: [image] };
 };
 
 module.exports.model_catalog = async ctx => {
