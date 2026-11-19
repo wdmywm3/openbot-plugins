@@ -56,12 +56,11 @@ description: 用户要求生图、GIF 动图、绘画、改图、角色自拍、
 
 用户要 GIF 动图时传 `format:"gif"`，提示词写清主体、动作及是否循环；如用户指定帧数或每帧时长，可传 `frameCount`（2–16）和 `frameDurationMs`（20–2000 毫秒）。未指定尺寸时使用自动尺寸。插件通过所选服务请求支持动图的模型；若账号或服务拒绝，说明当前服务不可用，不自动切换到其他计费服务。自拍动图同样沿用固定形象和自拍开关。
 
-用 `action:"start"`、`input` 和稳定的 `requestKey` 启动。返回 `running` 时，用启动回执的 `id` 填写 `jobId`，继续用启动任务的工具查询。
+用 `action:"start"`、`input` 和稳定的 `requestKey` 启动。用户要几张图，就逐张提交，每张使用自己的 `requestKey` 和简短的 `title`（例如「天使」）。本轮有几条独立画图请求时，用外层 `messageId` 指明这张图对应的原消息。重试原提交沿用原 key。
 
-- 直接用 `draw_image` 启动时，传 `{"action":"status","jobId":"启动回执的 id"}`。
-- 用通用 `plugin` 工具启动时，传 `{"action":"status","pluginId":"image-studio","jobId":"启动回执的 id"}`。查询或取消都带上 `pluginId:"image-studio"`。如果查询提示插件未启用，先检查是否漏传了 `pluginId`，补齐后查询原任务。
-
-`phase:"queued"` 表示正在排队，可以告知用户并继续查询原任务。取消时用 `action:"cancel"` 并保留原任务标识。失败、超时或取消后先核对原任务，避免重复提交和计费。
+- `followup:"event"` 表示已提交，`phase:"queued"` 表示排队。可以继续接话，结果会自动回到当前聊天。收到完成事件后，用它提供的图片地址交付。
+- 用户问进度或要取图时，用 `{"action":"result","jobId":"启动回执的 id"}` 读取同一聊天的任务和公开结果。只在 `followup:"poll"` 时，由提交者用 `status` 查询原任务。
+- 通过通用 `plugin` 查询或取消时，加上 `pluginId:"image-studio"`。取消仅限原提交者。失败、超时或取消后先核对原任务，再决定是否重新提交。
 
 `purpose` 根据当前请求和相关前文的用途填写，不能根据文件格式判断。用户明确要表情包，或要一张用于聊天反应的图（如拿来回复“收到”、装委屈、斗图）时传 `purpose:"sticker"`，静态和动图都适用。前文已经在制作表情，本轮只说“让它动起来”，仍沿用表情用途。
 
@@ -69,6 +68,6 @@ description: 用户要求生图、GIF 动图、绘画、改图、角色自拍、
 
 ## 核对与交付
 
-只有 `completed.result.images` 才代表生成成功。查看生成图是否符合主体、构图、文字、参考图身份与用户的硬性要求；若不符，说明具体差异，再按用户意愿进行一次有针对性的改图。发送时使用 `images[].url`，后续普通改图或交给其他插件处理时使用 `images[].url`。没有图片结果时不要声称已经出图。
+收到任务完成事件，或按编号查到 `status:"completed"` 且 `result.images` 有图片时，才确认生成成功。查看图是否符合用户的硬性要求。发送、改图或交给其他插件处理都使用 `images[].url`。结果发过就不重复发；需要回复失败或等待时，用一句日常聊天的话说对方关心的情况。
 
 本 Skill 的提示词范例和原则改编自 Codex imagegen Skill，许可证见 `LICENSE.txt`。

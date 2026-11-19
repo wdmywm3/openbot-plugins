@@ -538,6 +538,7 @@ async function drawImage(ctx, mode) {
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   return { mode, provider, ...(snapshot?.manual ? { selfieReferenceRevision: snapshot.manual.revision } : {}), images: [{ assetRef: stored.ref, url: published.url, mimeType }],
+    publicResult: { images: [{ url: published.url, mimeType }] },
     attachments: [{ assetRef: stored.ref, caption: "本次生成的图片" }], ...(picture.revisedPrompt ? { revisedPrompt: picture.revisedPrompt } : {}) };
 }
 module.exports.draw_image = async ctx => {
