@@ -477,7 +477,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.5",
+      "version": "0.6.0",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -505,19 +505,19 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "多帧 GIF 和 WebP 可作为动作参考图，支持为首帧、动作拼图与其他参考图指定顺序。此功能需要 OpenBot 0.1.119 或更高版本。",
+        "changelog": "0.6.0 支持按实例自定义画图服务和输出设置，或跟随插件默认配置。需要 OpenBot 0.1.120 或更高版本。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "6f8b9c171f21a3faea6cb736c7c12c024aaadae6",
+      "ref": "69ee5c1e677d100d8733a809e15820764866d72b",
       "files": [
         {
           "path": "README.md",
-          "size": 9658,
-          "sha256": "1e5b574c2d39f951f4d0273d974bfa3daae803fb3614c896b73003238d437538"
+          "size": 9860,
+          "sha256": "c6068d465102e6b2faafd62b887194f04861ebc3ce912cd9c7fa07a2610be69c"
         },
         {
           "path": "index.js",
@@ -526,8 +526,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 25593,
-          "sha256": "69c4df91be55d69c2462fd14a38fa98fc9d53ae98318566e9977cc74bf51d250"
+          "size": 26791,
+          "sha256": "3efa4719c91070f6b084d7c2a3cd95009814c603b1187d79e727564848c79300"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -1329,7 +1329,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
@@ -1349,22 +1349,22 @@
           "qqbot"
         ],
         "requirements": [
-          "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
+          "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "0.2.0 新增 OpenAI 原生网页和图片搜索，支持从网页取得参考图并交给画图工具。",
+        "changelog": "0.3.0 网页搜索和以图搜图可分别跟随插件默认配置，也可为实例单独配置服务商和凭据。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "bfd4ad2ccf46515f1ad14c4bea2c962c2024abc7",
+      "ref": "69ee5c1e677d100d8733a809e15820764866d72b",
       "files": [
         {
           "path": "README.md",
-          "size": 1503,
-          "sha256": "b87dcb871051b6853c5ed6a92f6b8806926670850983daca8a3e2028f05b6db3"
+          "size": 1602,
+          "sha256": "bb1c9e6ac658d42f6875b2fc5b5b88d265de84a51075e5c284ba71008edd53a0"
         },
         {
           "path": "index.js",
@@ -1373,8 +1373,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 13198,
-          "sha256": "7142f9e6d4631e2eb267909869683aac64a2437fc76deb13883080ff02b066f3"
+          "size": 14393,
+          "sha256": "22d0047fde58c3b89f76ed06a525b49ba85f54bacb657886f1f5b50910b8a4c3"
         },
         {
           "path": "skills/search/SKILL.md",
