@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "2.5.1",
+      "version": "2.5.2",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "ai",
       "main": "index.js",
@@ -29,7 +29,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "探索经验接入共享混合检索，复用宿主模型并核对当前经验版本。",
+        "changelog": "按实际失败原因显示提示。探索经验接入共享混合检索，复用宿主模型并核对当前经验版本。",
         "components": [
           "commands",
           "hooks",
@@ -39,17 +39,17 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "index.js",
-          "size": 49504,
-          "sha256": "1856e6bbbf5648702b6b1ed25b5786cad5f00fa0cc5c17cb4e708217f7e1eb1f"
+          "size": 49692,
+          "sha256": "1cfa4d5c1c5a1d04e7c230bf24757326cf0f75f803cf62ac72f5bf102d85ca02"
         },
         {
           "path": "plugin.json",
-          "size": 15891,
-          "sha256": "8673917c08d155b3375ce0be589bf7c1f8ffa705421fbe6edfba7f4594151038"
+          "size": 15927,
+          "sha256": "dec23fefbcf2e067d099504f76844b3a23af810415921850d6107d3234bfa2d6"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
@@ -61,7 +61,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.1",
+      "version": "1.16.2",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -89,7 +89,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。",
+        "changelog": "按实际失败原因显示提示。阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。",
         "components": [
           "commands",
           "hooks",
@@ -99,7 +99,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "MEDIA.md",
@@ -108,8 +108,8 @@
         },
         {
           "path": "index.js",
-          "size": 229640,
-          "sha256": "56844865c1576d964c4d090e9ac4f9e4520a8d9e7ad8efbc8f1404e2c5ddf38c"
+          "size": 230059,
+          "sha256": "95badde507f804669a4910975174d5155e274a6ec527391732c98ff5a839ea34"
         },
         {
           "path": "media-mcp/launch.py",
@@ -128,8 +128,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 58630,
-          "sha256": "84129fed712abd1b018f4d3df9641c88d2ce0fae3ca44a8ef0e94dfef46c07d1"
+          "size": 58666,
+          "sha256": "7f0bbc830affca308f0fe3919debdec4d4ebd8f3597ba8360f7211b6da512a49"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -428,7 +428,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -456,14 +456,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。",
+        "changelog": "按实际失败原因显示提示。生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "d7d6b41bdebd9ccd99ad3d2862a1aedc5db10330",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "README.md",
@@ -472,13 +472,13 @@
         },
         {
           "path": "index.js",
-          "size": 42550,
-          "sha256": "b943e8a40efd4a8793631d5d28cc845375111b75ef10af66b227507010abdb4d"
+          "size": 42921,
+          "sha256": "78b7ff63a885e49f22c8ceb3c7cce4711a730a831830a6aa6e463770b175bd02"
         },
         {
           "path": "plugin.json",
-          "size": 25056,
-          "sha256": "78f297f3aa3fced05f0fc13d6e58555aa8b8a80857c98dc06cc4cfb9a20281ee"
+          "size": 25092,
+          "sha256": "903f2c2a410353e2c9b5d81efc9ea053a40199c2a7bef1f8aed242138c5445de"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -550,7 +550,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -586,7 +586,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "修复自制表情收藏后停在待识别的问题，成品发出后会自动识图并建立索引。",
+        "changelog": "按实际失败原因显示提示。修复自制表情收藏后停在待识别的问题，成品发出后会自动识图并建立索引。",
         "components": [
           "commands",
           "hooks",
@@ -597,7 +597,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b10db60697e7cdb1d1d3e36b477b20210c10af7a",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "README.md",
@@ -616,8 +616,8 @@
         },
         {
           "path": "engine/server.cjs",
-          "size": 15302,
-          "sha256": "92d4878d3eb16fac7e90f5de68ca4a971370a7db93d6fed9ad46683693db45ee"
+          "size": 15367,
+          "sha256": "f75015288694dfc08503b069be7a50515baec075712578632a3debdba224bd36"
         },
         {
           "path": "index.js",
@@ -641,8 +641,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 22997,
-          "sha256": "57efb501004b21bd19728e416c109d31a8f7619ed87b03b83a4556ab7dd829c9"
+          "size": 23033,
+          "sha256": "37bc40bca43f87fce2fbaa80d34cecd2346330a55d3c5c8d55dc813b637cd425"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -679,7 +679,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -702,7 +702,7 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "changelog": "修复词库后台更新时，新消息偶尔无法回复的问题。",
+        "changelog": "按实际失败原因显示提示。修复词库后台更新时，新消息偶尔无法回复的问题。",
         "components": [
           "commands",
           "hooks",
@@ -712,7 +712,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2b962e8d115965e8490c3b65b866f0663b049fc7",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "LICENSE",
@@ -746,8 +746,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 7946,
-          "sha256": "fedf3acd6e812e0ffb132d94dc01f43dd4a1e550cab52f1db5e6bb7d402535ef"
+          "size": 7982,
+          "sha256": "d1cb727763ace6b6c84af087d812519013adfa2fe86168007d032aa40dcb6c43"
         },
         {
           "path": "requirements.lock",
@@ -756,20 +756,20 @@
         },
         {
           "path": "tools/library.py",
-          "size": 11873,
-          "sha256": "257fc26942f5fbcdd3244ea3fbed5eaf611f40dfe2bd6d90cc5b99b8740de370"
+          "size": 11981,
+          "sha256": "1875de777d4133b5cc419fb929ad30fdf02f7fc071c3a81164d62c17022a2ea2"
         },
         {
           "path": "tools/server.py",
-          "size": 5328,
-          "sha256": "d79fc82720d2a6b1d1439984e7955f8d166ed527d1290b1ac3965119d20537d7"
+          "size": 5567,
+          "sha256": "32d4d4e4154e3eb0c3fdb2f53e37c149eccd0eb5523e5af1b289e87deb342460"
         }
       ]
     },
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.10",
+      "version": "2.6.11",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -804,7 +804,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "记忆索引会跳过同一消息版本中已丢失、为空或超出读取上限的附件，继续索引文字和其他图片。临时故障延迟重试。",
+        "changelog": "按实际失败原因显示提示。记忆索引会跳过同一消息版本中已丢失、为空或超出读取上限的附件，继续索引文字和其他图片。临时故障延迟重试。",
         "components": [
           "hooks",
           "tools",
@@ -813,7 +813,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "0b65e3472e78506fb4881c4c635f19fe393b02f2",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "README.md",
@@ -827,8 +827,8 @@
         },
         {
           "path": "image-indexing.cjs",
-          "size": 4442,
-          "sha256": "558850c25834782c8fd8311541bd215742a6fe7e588604b9157ea4aec248f9f1"
+          "size": 4504,
+          "sha256": "bb5172fc510ef9978653e4f14ac53eb0af2db0b8da1d0af9140ada75d49c0183"
         },
         {
           "path": "index.js",
@@ -882,8 +882,8 @@
         },
         {
           "path": "lib/features/channels/channel-dream-analysis.cjs",
-          "size": 14878,
-          "sha256": "e0233295084a0d75b50bcae7dd19844fabd05e4855d822ce6f048e732de1ff99"
+          "size": 15004,
+          "sha256": "cda6b7b5cc02afb0aebc78244bee8301602355ad1856604f88ae8eae8b72e0a7"
         },
         {
           "path": "lib/features/channels/channel-dream-coordinator.cjs",
@@ -987,8 +987,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14644,
-          "sha256": "37d19f00b4ca8df976fc9639c5e05dbc4a25671ab5039d001fc1a0a74e0c5933"
+          "size": 14680,
+          "sha256": "b9a8fb1f9d8470612aaee9faee2b9b9ece2537910a1a5169d3d6b02554bbde0a"
         },
         {
           "path": "process.cjs",
@@ -1481,7 +1481,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.1",
+      "version": "0.11.2",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1502,7 +1502,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。",
+        "changelog": "按实际失败原因显示提示。已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。",
         "components": [
           "tools",
           "skills",
@@ -1510,7 +1510,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
       "files": [
         {
           "path": "README.md",
@@ -1539,8 +1539,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 12926,
-          "sha256": "20b7d6a7028966cc44958350a9a8cd034a147e0e7d083486a5c5958d64a2c26b"
+          "size": 12962,
+          "sha256": "8ba4b9d1bd1bb98c3745d8c7198c048e19cde9172257d301d83326c6efed823c"
         },
         {
           "path": "requirements-asr.txt",
@@ -1569,8 +1569,8 @@
         },
         {
           "path": "tools/browser_media.py",
-          "size": 14943,
-          "sha256": "68333991eb29251745cbe4497d942a8d2a1b37ed1c940065b9b72f3d858d0188"
+          "size": 15163,
+          "sha256": "d47410ab84399ac640e90c95d19f54540849a529f54f496e82b3231f1c8ec6f4"
         },
         {
           "path": "tools/common.py",
@@ -1579,13 +1579,13 @@
         },
         {
           "path": "tools/download.py",
-          "size": 4043,
-          "sha256": "1a1f1fa2491439d65991495c6be73ab8299585b3e3d93c98a1d89f7442741fa4"
+          "size": 4246,
+          "sha256": "9f437302a60635a4adf5afd4654da0c7c73439e9ed6093e77bf2bd039309dbdf"
         },
         {
           "path": "tools/download_info.py",
-          "size": 4443,
-          "sha256": "37cdc8d47bb376c21803a0f09a940b8aa26b409e263bc4b00b18f0d5aae40acf"
+          "size": 4513,
+          "sha256": "f5c72ca5c64099716ce17d38bd331aa1d3ea8eea7ba52bcbe6d25723bba34e79"
         },
         {
           "path": "tools/ingest.py",
@@ -1594,38 +1594,38 @@
         },
         {
           "path": "tools/jobs.py",
-          "size": 21452,
-          "sha256": "e1e853b4fa4139dc89e7cd41b0f7b1d216a53e1ff20ba7dfafd08167fc9ddca6"
+          "size": 21461,
+          "sha256": "c839cd8a101cfe7bf55d197b3477bad38dd009018ba751f7f8fb3e41acd413a9"
         },
         {
           "path": "tools/media.py",
-          "size": 33689,
-          "sha256": "b816124654a50fa74ffcd1c12dba0b1c14bca5568b491af49c975bcb45517585"
+          "size": 33980,
+          "sha256": "c42914b0a930eb563e3470a7397e806273b3b65cb4963fdeff682e4572fc6491"
         },
         {
           "path": "tools/media_bridge.py",
-          "size": 5900,
-          "sha256": "cfda8cd725c1117f2280833171347d2204b220910fb514e04f5092fd2b312397"
+          "size": 5879,
+          "sha256": "b5b5a7c50cde4b181b6bdc7e50fe1ccdf903b9bc4c1559dec454b7c49bd15b78"
         },
         {
           "path": "tools/preview.py",
-          "size": 9164,
-          "sha256": "c686a3cf0c0b5cd19985ee5639c04ad38b5487b9494e4c06f6c78c2c1a334584"
+          "size": 9233,
+          "sha256": "6321a3d99ba2dded34c32a164793308dd2babbfa22c226d769340a038f3b0525"
         },
         {
           "path": "tools/server.py",
-          "size": 16375,
-          "sha256": "ff4780d1021b3b43c99e4a41479cbd046834b7a9997bc8de9df4f260b9742e00"
+          "size": 16514,
+          "sha256": "186a10b99623fa3f816a203e1aab5e4dbee69c4f3e3c908e8431916dc5b02aff"
         },
         {
           "path": "tools/setup_asr.py",
-          "size": 4225,
-          "sha256": "af5adadb5c88421ad3bd38b06dc4f05c1e81637934a42854a6c6c7b0f05ea24a"
+          "size": 4237,
+          "sha256": "20ebfaa74e3efa97045103c1881ad449abed0f922d72118b7ba0094683f3addd"
         },
         {
           "path": "tools/sources.py",
-          "size": 5194,
-          "sha256": "5186147c267647a2efaad60f3b619533349fbacedd1e1dc8b24faf0e275ffc42"
+          "size": 5134,
+          "sha256": "8718591587781ab8a65c9e8bc6aea1c4277afedb0f4e0f0d4b86f49e71c2e9ee"
         },
         {
           "path": "tools/storyboard.py",
