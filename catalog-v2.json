@@ -428,7 +428,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.4",
+      "version": "0.5.5",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -456,29 +456,29 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "指定的聊天参考图已缺失时，结束本次绘图。",
+        "changelog": "多帧 GIF 和 WebP 可作为动作参考图，支持为首帧、动作拼图与其他参考图指定顺序。此功能需要 OpenBot 0.1.119 或更高版本。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
+      "ref": "6f8b9c171f21a3faea6cb736c7c12c024aaadae6",
       "files": [
         {
           "path": "README.md",
-          "size": 9593,
-          "sha256": "43b35d164b4a7ed0a13974e04d1e3d109c4579b9338a5d60ad85ec90c47ef5d8"
+          "size": 9658,
+          "sha256": "1e5b574c2d39f951f4d0273d974bfa3daae803fb3614c896b73003238d437538"
         },
         {
           "path": "index.js",
-          "size": 43308,
-          "sha256": "3bb3309250fb1946f6a84e197f81978c848ec87bb1d57cf65a908c2a454f84a7"
+          "size": 45649,
+          "sha256": "be5bb58d82c9bed03d106a1b9a12bf8dd122b4c0ace45a5d2dfbd54645fae816"
         },
         {
           "path": "plugin.json",
-          "size": 24931,
-          "sha256": "49c82f88aaa1fcefeb7c8c571ef62dd7e6ace473a133ceaa0b3a734e54ff65e0"
+          "size": 25593,
+          "sha256": "69c4df91be55d69c2462fd14a38fa98fc9d53ae98318566e9977cc74bf51d250"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -507,8 +507,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5347,
-          "sha256": "449c68d34ad8b7f4b5b66bb66dfb81ea1de2071cad7be59bf7cb826ec77066ac"
+          "size": 5520,
+          "sha256": "5a27b4681df0f5e99445e3c9948d0da326000c0d6a04c0f03b0e923459be9033"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -527,8 +527,8 @@
         },
         {
           "path": "skills/imagegen/references/tool-use.md",
-          "size": 4292,
-          "sha256": "024be71b729c54dd57b25f0724bfde43640623a25d0de25630d6fc3918daac04"
+          "size": 4555,
+          "sha256": "f5263d75810748bcd3b757c792c684d2a1c067c77667210bda0a782222e5b2e0"
         },
         {
           "path": "ui/reference.css",
