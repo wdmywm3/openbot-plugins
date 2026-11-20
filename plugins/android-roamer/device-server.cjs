@@ -10,7 +10,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   try { msg = JSON.parse(line); } catch { return; }
   if (msg.method === "notifications/cancelled") { active.get(msg.params?.requestId)?.abort(); return; }
   if (msg.id == null) return;
-  if (msg.method === "initialize") return send(msg.id, { protocolVersion: msg.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "bphone", version: "3.0.0" } });
+  if (msg.method === "initialize") return send(msg.id, { protocolVersion: msg.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "bphone", version: "3.0.1" } });
   if (msg.method === "tools/list") return send(msg.id, { tools: [tool] });
   if (msg.method === "ping") return send(msg.id, {});
   if (msg.method !== "tools/call" || msg.params?.name !== tool.name) {

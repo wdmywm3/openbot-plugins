@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
   "extensions": {
     "com.openbot": {
@@ -19,7 +19,6 @@
         "mcp",
         "assets",
         "model",
-        "resource:android",
         "push",
         "state:global"
       ],
@@ -497,7 +496,6 @@
                   "save",
                   "update",
                   "remove",
-                  "legacy",
                   "transfer",
                   "activity",
                   "pick",
@@ -623,32 +621,13 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "设备连接、扫描预览和手机任务由 bPhone 管理。"
+        "changelog": "移除宿主旧版设备导入，设备绑定由 bPhone 独立管理。"
       },
       "dependencies": {
         "node": {
           "lockfile": "package-lock.json"
         }
       },
-      "resources": [
-        {
-          "type": "android",
-          "settingsFields": [
-            "useEnabled",
-            "autonomyEnabled",
-            "interests",
-            "prohibitions",
-            "shareDiscoveries",
-            "screenshots",
-            "allApps",
-            "playApps",
-            "autonomyRestMinutes",
-            "autonomyMeanMinutes",
-            "autonomyDailyLimit",
-            "maxSteps"
-          ]
-        }
-      ],
       "requiredFeatures": [
         "instanceSettingsViews",
         "mediaHandoff"

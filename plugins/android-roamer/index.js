@@ -124,16 +124,6 @@ async function manageDevices(ctx) {
     if (!row) throw Error("设备已移除");
     return { device:row };
   }
-  if (input.op === "legacy") {
-    const old = await ctx.api.listAgentResources("android");
-    const rows = await editDevices(ctx, saved => {
-      const added = old.filter(item => item.connection && !saved.some(row => row.deviceId === item.deviceId));
-      return [...saved, ...added.map(item => ({ deviceId: item.deviceId, name: item.name, connection: item.connection,
-        deviceRevision: item.deviceRevision || 1, isDefault: !!item.isDefault && !saved.some(row => row.isDefault),
-        paused: !!(item.deviceStatus?.paused || item.deviceStatus?.suspended), effectiveSettings: item.settings || {} }))];
-    });
-    return { devices: rows };
-  }
   if (!/^[A-Za-z0-9:_-]{1,128}$/.test(id)) throw Error("设备编号无效");
   if (input.op === "scan" || input.op === "preview") {
     return driver(ctx, { op:input.op,deviceId:id,host:input.host,port:input.port,adbPath:input.adbPath });
