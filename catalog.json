@@ -109,7 +109,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.2",
+      "version": "1.16.3",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -147,7 +147,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "MEDIA.md",
@@ -176,8 +176,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 58666,
-          "sha256": "7f0bbc830affca308f0fe3919debdec4d4ebd8f3597ba8360f7211b6da512a49"
+          "size": 69757,
+          "sha256": "b9a56cafc96788787590dbc123333aee16776cc56d850391e7a32fddf25ae36d"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -204,7 +204,7 @@
     {
       "id": "computer-use",
       "name": "电脑操作",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
       "category": "utility",
       "main": "index.js",
@@ -228,7 +228,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -252,8 +252,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 5645,
-          "sha256": "0febf0929c3c08519528db4916f4c8a0ca47ccb3193979c3c699cc4404c378fc"
+          "size": 5824,
+          "sha256": "6832270da2ff64459639377aac5dd64af9ae6e0ce25ec7a783eaa3db86937cab"
         },
         {
           "path": "requirements.lock",
@@ -270,7 +270,7 @@
     {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
       "category": "subscription",
       "main": "index.js",
@@ -296,7 +296,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -305,15 +305,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 6313,
-          "sha256": "babc532c557ed5a62f66947391cfc34b431842def85d71911e87a153d3004fd8"
+          "size": 6927,
+          "sha256": "63698c4b3b3a455a78f4582697aa22edc2b9101ec229f0a28d4338bb2e8de981"
         }
       ]
     },
     {
       "id": "daily-checkin",
       "name": "每日签到",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "按群或私聊记录每日签到、连续天数和积分排行",
       "category": "community",
       "main": "index.js",
@@ -336,7 +336,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -345,15 +345,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 2015,
-          "sha256": "5598f4f2ffcc53d272d6a83987403c3d6062d96d410e310cd381ffbca62a4d8f"
+          "size": 2925,
+          "sha256": "9eaf1b38d4bb771a4ff5a3b0179b9d1b85a11d81f069dac73aee38d533c171e9"
         }
       ]
     },
     {
       "id": "dice-maiden",
       "name": "骰娘",
-      "version": "1.3.3",
+      "version": "1.3.4",
       "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
       "category": "entertainment",
       "main": "index.js",
@@ -377,7 +377,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -391,8 +391,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 6098,
-          "sha256": "cd0d5cd194d85abe95d9b8b3452b3dbdec058246f7a0868f6b405f610b6f608e"
+          "size": 7604,
+          "sha256": "78c564b2857bc794e069eb3a349faa35e965619d4595abee106c942158809678"
         }
       ]
     },
@@ -437,7 +437,7 @@
     {
       "id": "group-digest",
       "name": "群聊总结",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "调用机器人 Agent 总结当前群聊中的近期消息",
       "category": "ai",
       "main": "index.js",
@@ -459,7 +459,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -468,15 +468,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 1637,
-          "sha256": "860c408a7d6ff5a82b81857dacc27f0cbbd0b2f584ab93861c141502434f4e3d"
+          "size": 2315,
+          "sha256": "f32f35ff6824bd5fc4bce8088ddd43528e1fe8464299c59b1d9809b1c26f4eaa"
         }
       ]
     },
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -511,7 +511,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "69ee5c1e677d100d8733a809e15820764866d72b",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -525,8 +525,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 26791,
-          "sha256": "3efa4719c91070f6b084d7c2a3cd95009814c603b1187d79e727564848c79300"
+          "size": 27093,
+          "sha256": "92ec3dd77df7ee5fcdd9b4193099d7282fc06dd320af86312acd8fd3f8e657de"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -598,7 +598,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.3",
+      "version": "2.6.4",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -645,7 +645,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -669,8 +669,8 @@
         },
         {
           "path": "index.js",
-          "size": 78118,
-          "sha256": "29c807f8aed60e8a6fef1ce2222dcbfa56339c5b01ac914152e62820b4e794b1"
+          "size": 78406,
+          "sha256": "ec526d7f70aa64a9bc92c38cdc7f31c389c6ecdf675a64034e41461628963ad0"
         },
         {
           "path": "mcp.json",
@@ -689,8 +689,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 22949,
-          "sha256": "9d4fd58ad2eac0394ca5067ce306c300a72157d21b580f150db71b23a43cfac9"
+          "size": 23926,
+          "sha256": "03fe61f4270641f850b5c2cb6f99c2226c56dd0718d0b0e247ac3535a0e22717"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -714,8 +714,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 17633,
-          "sha256": "959e277ea0c8232373888b4b5bee1ad414e1e40dc510972937014767eb6ac778"
+          "size": 17896,
+          "sha256": "451b755bbe8254ea5adc29aec394bed601396e695a783f10f1e10e4deeeb343a"
         },
         {
           "path": "ui/style.css",
@@ -727,7 +727,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.12",
+      "version": "2.6.13",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -771,7 +771,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -945,8 +945,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14581,
-          "sha256": "2ddfd23cb66b216f39511bca9f6e7d8e88dc33c3da28ad758b97aff9e05c8c8a"
+          "size": 15775,
+          "sha256": "d190126cbe4a0dc30a4ca523ff7f49c69143148396040175ec0a5b7d0ab4bd9e"
         },
         {
           "path": "process.cjs",
@@ -1228,7 +1228,7 @@
     {
       "id": "personal-butler",
       "name": "私人管家",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
       "category": "utility",
       "main": "index.js",
@@ -1266,7 +1266,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -1280,15 +1280,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 5799,
-          "sha256": "f7c8556cc9d737273d79605fa0abe958431f8598f024a1325cb39ced19fa23cf"
+          "size": 5990,
+          "sha256": "d27c952ee8ce9d8d3e5178264e73e303fbad265f41cd7606e9daecbf202ee6aa"
         }
       ]
     },
     {
       "id": "random-toolbox",
       "name": "随机工具箱",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "description": "抛硬币、随机数、选项抽取和群成员抽取",
       "category": "entertainment",
       "main": "index.js",
@@ -1311,7 +1311,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -1320,15 +1320,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 2271,
-          "sha256": "8d672ad43114522ee4a1c21d3b1e999d711d400d673cf76f949e8de16d88ad6f"
+          "size": 3065,
+          "sha256": "aed6f253ba2d7c7ec7d96178f0d187bf1c87f10e894dfaa8384dd95ea5530bb5"
         }
       ]
     },
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
@@ -1358,7 +1358,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "69ee5c1e677d100d8733a809e15820764866d72b",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -1372,8 +1372,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14393,
-          "sha256": "22d0047fde58c3b89f76ed06a525b49ba85f54bacb657886f1f5b50910b8a4c3"
+          "size": 14567,
+          "sha256": "ac837a80a298841f872cea4d6aabc35c23101c2ed2780c1353fbe5ded8a0dd04"
         },
         {
           "path": "skills/search/SKILL.md",
@@ -1385,7 +1385,7 @@
     {
       "id": "tool-workshop",
       "name": "工具工坊",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "让 Bot 编写、试运行并保存可重复调用的 JavaScript 工具。",
       "category": "utility",
       "main": "index.js",
@@ -1415,7 +1415,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -1429,8 +1429,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 5949,
-          "sha256": "d6fcd456c689d9f2abce061e780976d0b00d6ada5d318ed596c180b3384d8317"
+          "size": 6143,
+          "sha256": "c2861408eab9448ec73af13efeb18305df78ec6a897d67bb39667d676efd719f"
         },
         {
           "path": "skills/tool-workshop/SKILL.md",
@@ -1442,7 +1442,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.3",
+      "version": "0.11.4",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1471,7 +1471,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -1500,8 +1500,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 12880,
-          "sha256": "ecf3d84782b48a608ab4448843cc13f5c19a7d71a48af8c9d89b863277cfa400"
+          "size": 14112,
+          "sha256": "0f01231126e9617323d6a8036847ada91b0e48a7712414a4c0b424f92d7fdecd"
         },
         {
           "path": "requirements-asr.txt",
