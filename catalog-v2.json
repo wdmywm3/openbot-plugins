@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "3.0.2",
+      "version": "3.0.3",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "ai",
       "main": "index.js",
@@ -31,7 +31,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "移除宿主旧版设备导入，设备绑定由 bPhone 独立管理。",
+        "changelog": "模型回复格式有误时重新请求一次。手机活动中断时显示出错的阶段，并保留已完成的设备步骤。",
         "components": [
           "commands",
           "hooks",
@@ -42,12 +42,12 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "0c048691156a2957ca11774d4efc5557010f1db5",
+      "ref": "322d5d07889bed0a8bbeae7393952bbebe517765",
       "files": [
         {
           "path": "device-driver.cjs",
-          "size": 11641,
-          "sha256": "f101b4186010deb98c67317796e2b06787125fe0569286cf19c35510e1f01924"
+          "size": 12519,
+          "sha256": "2e400e82a19d78c46603db61b6cb5c6580ed833ee87e9ef909adce89ddcef23e"
         },
         {
           "path": "device-server.cjs",
@@ -61,8 +61,8 @@
         },
         {
           "path": "index.js",
-          "size": 62826,
-          "sha256": "b03cd36ca462170e72696a5d079bd849f22455d0b512c6626f9e2cf77bc0af49"
+          "size": 65492,
+          "sha256": "23fa64f2ebc277aa6710ce4571a33ca3c4c0240c907a0067cc7b681a470a7572"
         },
         {
           "path": "mcp.json",
@@ -72,17 +72,17 @@
         {
           "path": "package-lock.json",
           "size": 20673,
-          "sha256": "89a7cd3f374bebd5fc97f7d7dad094ad881d40164b766261206607119553fd53"
+          "sha256": "f0afd6a30c646dcd8648bb9449b2e80b0cb4d00a22103d1274302989dbe93ea6"
         },
         {
           "path": "package.json",
           "size": 209,
-          "sha256": "6d28f69689b7c4c16476ba644fedcf8a5900a0f4249eb8cfe3714211a45c8157"
+          "sha256": "f65ca81ae7cbdfc7890b3a37c83218ed9199e535595ef15e706eb8dcc09be087"
         },
         {
           "path": "plugin.json",
-          "size": 19103,
-          "sha256": "3904dea88892b1b69bc925878e29756637096f7b532c906ef1ba1d09619c8ab4"
+          "size": 19161,
+          "sha256": "35568da37dd5097da9cecef89fadcd0802f05b4239cd2868e4323dbc88bab266"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
