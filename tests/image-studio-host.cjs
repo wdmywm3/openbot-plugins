@@ -188,6 +188,26 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let denied = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "denied", input: { prompt: "denied" } }, context);
     for (let i = 0; denied.status === "running" && i < 500; i++) { await delay(20); denied = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: denied.id }, context); }
     assert.equal(denied.status, "failed"); assert(!JSON.stringify(denied).includes("fixture-key"));
+    plugin.config.provider = "codex";
+    fs.writeFileSync(sourceFile, gif); // QQ can preserve a PNG-looking filename for GIF bytes.
+    const motionRefs = [{ messageId: "reference" }, { assetRef: drawn.result.images[0].assetRef },
+      { url: nativeGif.result.images[0].url }];
+    let ticks = 0;
+    const duringDecode = setInterval(() => ticks++, 5);
+    try {
+      await finish({ prompt: "match motion", references: motionRefs }, "motion-refs", "completed", owner);
+    } finally { clearInterval(duringDecode); }
+    assert(ticks > 0);
+    const [instruction, first, still, otherFirst, sheet, otherSheet] = nativeCalls.at(-1).input[0].content;
+    assert.equal(nativeCalls.at(-1).input[0].content.length, 6);
+    assert.match(instruction.text, /图4是图1的动作参考/);
+    assert.match(instruction.text, /图5是图3的动作参考/);
+    assert.equal(still.image_url, "data:image/png;base64," + encoded);
+    for (const image of [first, otherFirst, sheet, otherSheet]) assert.match(image.image_url, /^data:image\/png;base64,/);
+    assert.notEqual(first.image_url, sheet.image_url);
+    fs.writeFileSync(sourceFile, Buffer.from("unsupported"));
+    const invalid = await finish({ prompt: "invalid", references: [{ messageId: "reference" }] }, "bad-reference", "failed", owner);
+    assert.match(invalid.error, /图片格式不受支持，请使用 PNG、JPEG、WebP 或 GIF/);
     plugin.enabled = false;
     await assert.rejects(Promise.resolve().then(() => runtime.runNativePluginTool(tool, { prompt: "revoked" }, context)), /不可用/);
     console.log(`Image studio host: installed/authorized; >1 MiB SSE; reference edit; Responses/native models; permission denial; dedup; scoped media; 429; cancellation; heartbeat ${maxGap} ms passed`);

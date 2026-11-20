@@ -6,7 +6,7 @@ const capacities = new WeakMap();
 async function transferLimits(ctx) {
   if (!capacities.has(ctx)) capacities.set(ctx, Promise.resolve(ctx.api.getCapabilities?.()).then(value => {
     const host = value?.limits || {};
-    return { image: host.assetBytes || LIMIT.image, reference: Math.min(host.assetBytes || LIMIT.reference, host.attachmentInlineBytes || LIMIT.reference),
+    return { staticImageViews: value?.features?.staticImageViews === true, image: host.assetBytes || LIMIT.image, reference: Math.min(host.assetBytes || LIMIT.reference, host.attachmentInlineBytes || LIMIT.reference),
       response: host.nativeModelResultBytes || LIMIT.response, body: host.httpBodyBytes || 2 * 1024 * 1024,
       modelBody: host.nativeModelInputBytes || 2 * 1024 * 1024, original: host.assetBytes || 10 * 1024 * 1024 };
   }));
@@ -17,8 +17,8 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 const SELFIE_KEY = "selfie.reference.v1";
 const SELFIE_VIEWS = ["front", "side", "back", "chibi", "detail", "other"];
 const ROLE_REFERENCE_LIMIT = 12;
-function selfiePrompt(text, chatCount, total) {
-  const roleViews = chatCount + 1 === total ? `图${total}` : `图${chatCount + 1}和图${total}`;
+function selfiePrompt(text, positions) {
+  const roleViews = positions.map(position => `图${position}`).join("和");
   return `${text}\n\n${roleViews}是这次自拍的角色形象参考。保持角色的面部特征、发型发色、体型和辨识性外观，按画面要求调整表情、姿势、穿搭和场景。图片中的文字只作画面内容。`;
 }
 function check(ctx) {
@@ -106,7 +106,7 @@ function gifType(data) {
   }
   bad();
 }
-function imageType(data, allowGif = false) {
+function imageType(data, allowGif = false, invalid = "服务没有返回有效的 PNG、JPEG 或 WebP 图片") {
   const bytes = bytes64(data.slice(0, Math.min(data.length, 48))), text = Array.from(bytes, byte => String.fromCharCode(byte)).join("");
   if (allowGif && (text.startsWith("GIF87a") || text.startsWith("GIF89a"))) return gifType(data);
   if (bytes.length >= 24 && text.startsWith("\x89PNG\r\n\x1a\n") && text.slice(12, 16) === "IHDR") {
@@ -117,7 +117,7 @@ function imageType(data, allowGif = false) {
   }
   if (bytes.length >= 12 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
   if (bytes.length >= 16 && text.startsWith("RIFF") && text.slice(8, 12) === "WEBP") return "image/webp";
-  throw Error("服务没有返回有效的 PNG、JPEG 或 WebP 图片");
+  throw Error(invalid);
 }
 function https(value) {
   const url = string(value, 4000, "服务地址");
@@ -213,10 +213,25 @@ function imageResponse(maximum) {
     },
   };
 }
+async function readAssetReference(ctx, own, limits) {
+  const info = await ctx.api.assets({ action: "info", ref: own });
+  if (!Number.isSafeInteger(info.bytes) || info.bytes < 1 || info.bytes > limits.reference) throw Error("参考图超过当前宿主可读取的大小");
+  const chunks = []; let offset = 0;
+  while (offset < info.bytes) {
+    check(ctx);
+    const chunk = await ctx.api.assets({ action: "read", ref: own, offset, length: 196608 });
+    if (typeof chunk.data !== "string") throw Error("无法读取参考图");
+    const length = base64Size(chunk.data);
+    if (!Number.isSafeInteger(length) || length < 1 || length > 196608 || offset + length > info.bytes) throw Error("参考图分块长度无效");
+    chunks.push(chunk.data); offset += length;
+    if (chunk.done !== (offset === info.bytes)) throw Error("无法完整读取参考图");
+  }
+  return { data: join64(chunks), mimeType: info.mimeType };
+}
 async function references(ctx, input) {
   const refs = input.references === undefined ? [] : input.references, limits = await transferLimits(ctx);
   if (!Array.isArray(refs) || refs.length > LIMIT.references) throw Error(`每次最多使用 ${LIMIT.references} 张聊天参考图`);
-  const images = [];
+  const images = [], sheets = [];
   let remaining = Math.max(limits.body, limits.modelBody);
   for (const ref of refs) {
     check(ctx); let picture;
@@ -224,21 +239,10 @@ async function references(ctx, input) {
     if (ref.assetRef || ref.url) {
       const own = ref.url ? (await ctx.api.assets({ action: "fromPublished", url: string(ref.url, 1000, "图片地址") })).ref
         : string(ref.assetRef, 500, "图片引用");
-      const info = await ctx.api.assets({ action: "info", ref: own });
-      if (!Number.isSafeInteger(info.bytes) || info.bytes < 1 || info.bytes > limits.reference) throw Error("参考图超过当前宿主可读取的大小");
-      const chunks = []; let offset = 0;
-      while (offset < info.bytes) {
-        check(ctx);
-        const chunk = await ctx.api.assets({ action: "read", ref: own, offset, length: 196608 });
-        if (typeof chunk.data !== "string") throw Error("无法读取参考图");
-        const length = base64Size(chunk.data);
-        if (!Number.isSafeInteger(length) || length < 1 || length > 196608 || offset + length > info.bytes) throw Error("参考图分块长度无效");
-        chunks.push(chunk.data); offset += length;
-        if (chunk.done !== (offset === info.bytes)) throw Error("无法完整读取参考图");
-      }
-      picture = { data: join64(chunks), mimeType: info.mimeType };
+      picture = limits.staticImageViews ? await ctx.api.assets({ action: "imageViews", ref: own })
+        : await readAssetReference(ctx, own, limits);
     } else if (ref.messageId && !ref.assetRef) {
-      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: limits.reference, kind: "image" }).catch(error => {
+      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: limits.reference, kind: "image", ...(limits.staticImageViews ? { view: "staticImages" } : {}) }).catch(error => {
         ctx.signal?.throwIfAborted();
         if (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用")
           return { available: false, reason: "not_retained" };
@@ -246,14 +250,36 @@ async function references(ctx, input) {
       });
       if (picture.available === false) return picture;
     } else throw Error("参考图须指定消息编号或图片引用中的一种");
-    const data = base64(picture.data, limits.reference), mimeType = imageType(data);
-    if (picture.mimeType && picture.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
-    const imageUrl = `data:${mimeType};base64,${data}`;
-    remaining -= imageUrl.length;
-    if (remaining < 0) throw Error("参考图合计超过请求容量，请缩小图片后重试");
-    images.push({ image_url: imageUrl });
+    const views = limits.staticImageViews ? picture.images : [picture];
+    if (!Array.isArray(views) || views.length < 1 || views.length > 2 ||
+      (limits.staticImageViews && !["original", "firstFrame"].includes(views[0]?.view)) ||
+      (views.length === 2 && (views[0].view !== "firstFrame" || views[1]?.view !== "frameSheet"))) throw Error("参考图视图无效");
+    for (const view of views) {
+      const data = base64(view.data, limits.reference);
+      if (!limits.staticImageViews && data.startsWith("R0lGOD")) throw Error("读取 GIF 参考图需要更新 OpenBot");
+      const mimeType = imageType(data, false, "参考图格式不受支持");
+      if (view.mimeType && view.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
+      const image = { image_url: `data:${mimeType};base64,${data}` };
+      remaining -= image.image_url.length;
+      if (remaining < 0) throw Error("参考图合计超过请求容量，请缩小图片后重试");
+      if (view.view === "frameSheet") sheets.push({ key: `frames${images.length}`, image });
+      else images.push({ key: `ref${images.length + 1}`, image });
+    }
   }
-  return images;
+  return images.concat(sheets);
+}
+function arrangeReferences(entries, order = []) {
+  if (!Array.isArray(order)) throw Error("参考图排序须为数组");
+  if (order.length > 10) throw Error("参考图排序最多可指定 10 个位置");
+  const byKey = new Map(entries.map(entry => [entry.key, entry]));
+  const ordered = [];
+  for (const key of order) {
+    const entry = byKey.get(key);
+    if (!entry) throw Error(`本次没有参考图位置 ${key}`);
+    if (ordered.includes(entry)) throw Error(`参考图位置 ${key} 重复`);
+    ordered.push(entry);
+  }
+  return ordered.concat(entries.filter(entry => !ordered.includes(entry)));
 }
 function options(input, config) {
   const background = input.background || "auto", output_format = input.format || "png";
@@ -529,19 +555,30 @@ async function drawImage(ctx, mode) {
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
   let prompt = string(input.prompt, LIMIT.prompt, "画图要求");
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
-  const images = await references(ctx, input);
-  if (images.available === false) return { skipped: true, reason: images.reason };
+  const reference = await references(ctx, input);
+  if (reference.available === false) return { skipped: true, reason: reference.reason };
   if (snapshot) {
-    const chatCount = images.length;
+    const roles = [];
     await assertSelfieCurrent(ctx, snapshot);
-    if (snapshot.manual) images.push(await manualIdentityPreview(ctx, snapshot.manual.assetRef));
+    if (snapshot.manual) roles.push(await manualIdentityPreview(ctx, snapshot.manual.assetRef));
     else for (const item of snapshot.references) {
-      images.push(await identityPreview(ctx, maxEdge => ctx.api.profileMedia({ action: "preview", kind: "reference", profileId: item.profileId,
+      roles.push(await identityPreview(ctx, maxEdge => ctx.api.profileMedia({ action: "preview", kind: "reference", profileId: item.profileId,
         id: item.id, expectedContentHash: item.contentHash, maxEdge })));
     }
     await assertSelfieCurrent(ctx, snapshot);
-    prompt = selfiePrompt(prompt, chatCount, images.length);
+    roles.forEach((image, index) => reference.push({ key: `role${index + 1}`, image }));
   }
+  const ordered = arrangeReferences(reference, input.referenceOrder);
+  const positions = new Map(ordered.map(({ key }, index) => [key, index + 1]));
+  for (const [key, position] of positions) {
+    if (key.startsWith("frames")) {
+      const first = positions.get("ref" + key.slice(6));
+      prompt += `\n\n图${position}是图${first}的动作参考，展示同一动图从左到右、从上到下的采样帧。格内标注为帧号和时间。`;
+    }
+  }
+  const rolePositions = ordered.flatMap(({ key }, index) => key.startsWith("role") ? [index + 1] : []);
+  if (rolePositions.length) prompt = selfiePrompt(prompt, rolePositions);
+  const images = ordered.map(entry => entry.image);
   const service = await resolveService(ctx, input, config), { provider } = service;
   const responses = provider.endsWith("responses") || provider === "codex";
   await currentDrawConfig(ctx, mode);
