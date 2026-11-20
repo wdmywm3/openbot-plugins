@@ -2,7 +2,7 @@
 
 const PIXEL_LIMIT = "EMBEDDING_IMAGE_PIXEL_LIMIT";
 const imageFailures = new Set([PIXEL_LIMIT, "EMBEDDING_IMAGE_DECODE"]);
-const attachmentFailures = new Set(["ATTACHMENT_FILE_MISSING", "ATTACHMENT_FILE_EMPTY", "ATTACHMENT_FILE_TOO_LARGE", "ATTACHMENT_FILE_SIZE"]);
+const attachmentFailures = new Set(["ATTACHMENT_FILE_MISSING", "ATTACHMENT_FILE_EMPTY", "ATTACHMENT_FILE_TOO_LARGE", "ATTACHMENT_FILE_SIZE", "ATTACHMENT_SOURCE_UNAVAILABLE", "ATTACHMENT_HTTP_TOO_LARGE"]);
 function attachmentFailureCode(error) {
   if (attachmentFailures.has(error?.code)) return error.code;
   // OpenBot 0.1.116 returns these local file results without a specific error code.

@@ -30,8 +30,10 @@ function string(value, max, label) {
   return value.trim();
 }
 function base64(value, max) {
-  if (typeof value !== "string" || !value.length || value.length > Math.ceil(max / 3) * 4 || value.length % 4
-    || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw Error("图片编码或大小不符合要求");
+  if (typeof value !== "string") throw Error("图片编码必须为文本");
+  if (!value.length) throw Error("图片数据为空");
+  if (value.length > Math.ceil(max / 3) * 4) throw Error(`图片超过 ${max} 字节上限`);
+  if (value.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw Error("图片 Base64 编码无效");
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
   if (value.length / 4 * 3 - padding > max) throw Error("图片过大");
   if (padding && (ALPHABET.indexOf(value[value.length - padding - 1]) & (padding === 2 ? 15 : 3))) throw Error("图片编码无效");
@@ -99,7 +101,8 @@ function gifType(data) {
     if (packed & 128) offset += 3 * (1 << ((packed & 7) + 1));
     if (offset >= bytes.length || bytes[offset] < 2 || bytes[offset] > 8) bad();
     offset++; skipBlocks(true);
-    if (++frames > 16 || width * height * frames > 40000000) throw Error("动图帧数或尺寸超过限制");
+    if (++frames > 16) throw Error("动图超过 16 帧");
+    if (width * height * frames > 40000000) throw Error("动图各帧的总像素数超过 4000 万");
   }
   bad();
 }
@@ -134,8 +137,9 @@ function normalizeApiKey(value, compatible) {
   return key;
 }
 function statusError(status) {
-  if (status === 401 || status === 403) return Error("画图服务拒绝访问，请检查登录或 API Key。");
-  if (status === 429) return Error("画图服务额度不足或请求过于频繁，请稍后再试。");
+  if (status === 401) return Error("画图服务未通过身份验证（HTTP 401）。");
+  if (status === 403) return Error("画图服务拒绝访问（HTTP 403）。");
+  if (status === 429) return Error("画图服务返回 HTTP 429，请稍后再试。");
   return Error(`画图请求失败（HTTP ${status}）。原请求可能已被服务受理，请先核对，勿自动重复提交。`);
 }
 async function readHttp(ctx, url, options, binary = false, mode = "image") {
@@ -172,7 +176,8 @@ function imageResponse(maximum) {
   let final, finishedImage, item, format, pending = "", pendingBytes = 0;
   const apply = value => {
     if (!value || typeof value !== "object") throw Error("画图服务响应格式无效");
-    if (value.error || ["error", "response.failed", "response.incomplete"].includes(value.type)) throw Error("画图服务未完成请求，请检查额度、参数或内容要求。");
+    if (value.type === "response.incomplete") throw Error("画图服务返回的结果不完整。");
+    if (value.error || value.type === "error" || value.type === "response.failed") throw Error("画图服务返回了失败状态。");
     if (value.type === "response.completed") final = value.response;
     if (value.type === "response.output_item.done" && value.item?.type === "image_generation_call") item = value.item;
     if (["image_generation.completed", "image_edit.completed"].includes(value.type)) finishedImage = value;
@@ -280,8 +285,10 @@ async function sharedIdentity(ctx, ref) {
   const info = await ctx.api.assets({ action: "info", ref });
   const limits = await transferLimits(ctx);
   if (info.shared !== true || info.chatId) throw Error("自拍形象必须从设置页面上传，不能使用聊天中的私有图片");
-  if (!["image/png", "image/jpeg", "image/webp"].includes(info.mimeType) || !Number.isSafeInteger(info.bytes)
-    || info.bytes < 1 || info.bytes > limits.original) throw Error("请选择宿主支持大小的 PNG、JPEG 或 WebP 形象图片");
+  if (!["image/png", "image/jpeg", "image/webp"].includes(info.mimeType)) throw Error("形象图片类型不受支持");
+  if (!Number.isSafeInteger(info.bytes) || info.bytes < 0) throw Error("未取得有效的形象图片大小");
+  if (!info.bytes) throw Error("形象图片为空");
+  if (info.bytes > limits.original) throw Error(`形象图片超过 ${limits.original} 字节上限`);
   return info;
 }
 async function identityPreview(ctx, loadPicture) {
@@ -355,7 +362,7 @@ async function assertSelfieCurrent(ctx, snapshot) {
   if (!snapshot.manual) return;
   const current = await readSelfieState(ctx);
   const { revision, assetRef, assetRevision } = snapshot.manual;
-  if (current.revision !== revision || current.assetRef !== assetRef) throw Error("自拍形象已更换或清除，本次结果未发送；请先核对原请求，不要重复提交。");
+  if (current.revision !== revision || current.assetRef !== assetRef) throw Error("自拍形象与请求时不一致，本次结果未发送。");
   const info = await sharedIdentity(ctx, assetRef);
   if (assetRevision && info.revision !== assetRevision) throw Error("自拍形象的可用范围已变化，请重新配置形象");
 }

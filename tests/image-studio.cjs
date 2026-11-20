@@ -170,9 +170,9 @@ function fixture(config = {}, input = {}) {
     return open(url, options);
   };
   await draw(fx.ctx); assert.equal(fx.stored[0].data, png); assert.equal(fx.requests[1].options.headers, undefined, "CDN never receives provider auth");
-  fx = fixture(); fx.state.status = 429; await assert.rejects(draw(fx.ctx), /额度/); assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
+  fx = fixture(); fx.state.status = 429; await assert.rejects(draw(fx.ctx), /HTTP 429/); assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
   fx = fixture(); fx.state.chunks = ["data: {\"type\":\"response.failed\",\"error\":{\"message\":\"fixture-secret\"}}\n\n"];
-  await assert.rejects(draw(fx.ctx), error => /未完成/.test(error.message) && !error.message.includes("fixture-secret")); assert.equal(fx.requests.length, 1);
+  await assert.rejects(draw(fx.ctx), error => /失败状态/.test(error.message) && !error.message.includes("fixture-secret")); assert.equal(fx.requests.length, 1);
   fx = fixture(); fx.state.chunks = ["x".repeat(8 * 1024 * 1024 + 1)]; await assert.rejects(draw(fx.ctx), /过大/); assert.equal(fx.closes.length, 1);
   fx = fixture(); fx.state.payload = { data: [{ b64_json: "AAAA" }] }; await assert.rejects(draw(fx.ctx), /有效/); assert.equal(fx.stored.length, 0);
   fx = fixture(); const tooManyPixels = Buffer.from(png, "base64"); tooManyPixels.writeUInt32BE(100000, 16); tooManyPixels.writeUInt32BE(100000, 20);

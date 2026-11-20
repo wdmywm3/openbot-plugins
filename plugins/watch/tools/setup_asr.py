@@ -82,7 +82,7 @@ def prepare(root, model=None):
             run(directory, audio, Path(temporary) / "result.json")
         receipt_value = asr.signature(root, settings)
         if receipt_value is None:
-            raise WatchError("模型或依赖不完整")
+            raise WatchError("转写环境未通过完整性检查")
         write_json(receipt, receipt_value)
         print("Local transcription ready", flush=True)
 

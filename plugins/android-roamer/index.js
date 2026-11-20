@@ -50,7 +50,8 @@ async function migratePhoneHistory(ctx, privateTask) {
     const value = row.value, id = `legacy:${row.key}`;
     if ((await phoneJournal(ctx, { action: "get", key: id }, privateTask)).record) continue;
     const at = Number(value.updatedAt || row.updatedAt);
-    if (!Number.isSafeInteger(at) || at < 0 || !value.deviceId) throw new Error("旧手机活动缺少时间或设备，原记录已保留");
+    if (!Number.isSafeInteger(at) || at < 0) throw new Error("旧手机活动的时间无效，原记录已保留");
+    if (!value.deviceId) throw new Error("旧手机活动缺少设备编号，原记录已保留");
     await phoneJournal(ctx, { action: "put", key: id, expectedRevision: 0, value: { at, stream: value.deviceId, subject: value.activityId || row.key,
       kind: "legacy_snapshot", status: value.status || "unknown", summary: text(value.report || value.goal, 600), data: value } }, privateTask);
   }
@@ -65,7 +66,9 @@ function phoneTrajectory(value, urls) {
     const result = { step: index + 1 };
     for (const key of ["app", "action", "observation", "outcome", "url"]) {
       const field = step[key] ?? "";
-      if (typeof field !== "string" || field.length > (key === "url" ? 2000 : key === "observation" ? 1200 : 600)) throw new Error("手机轨迹字段无效或过长");
+      if (typeof field !== "string") throw new Error(`手机轨迹字段 ${key} 必须为文本`);
+      const limit = key === "url" ? 2000 : key === "observation" ? 1200 : 600;
+      if (field.length > limit) throw new Error(`手机轨迹字段 ${key} 超过 ${limit} 个字符`);
       result[key] = field;
     }
     if (!result.action.trim() || result.url && !urls.includes(result.url)) throw new Error("手机轨迹须写实际动作，链接须来自本次工具结果");

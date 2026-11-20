@@ -83,7 +83,9 @@ function validateExtraction(raw, messages, containsSecret = () => false) {
     });
   }
   const facts = result.facts.map((fact, index) => {
-    if (typeof fact.content !== "string" || !fact.content.trim() || fact.content.length > 500) throw new DreamOutputError("事实内容过长或为空");
+    if (typeof fact.content !== "string") throw new DreamOutputError("事实内容必须为文本");
+    if (!fact.content.trim()) throw new DreamOutputError("事实内容为空");
+    if (fact.content.length > 500) throw new DreamOutputError("事实内容超过 500 个字符");
     if (containsSecret(fact.content)) return null;
     const proof = evidence(fact.evidence, `第 ${index + 1} 条记忆`);
     let validFrom, validTo;

@@ -25,17 +25,25 @@ for tool in TOOLS:
 
 def call(library, name, args):
     tool = next((t for t in TOOLS if t["name"] == name), None)
-    if not tool or not isinstance(args, dict):
-        raise ValueError("工具或参数无效")
+    if not tool:
+        raise ValueError("工具名称不存在")
+    if not isinstance(args, dict):
+        raise ValueError("工具参数必须为对象")
     shape = tool["inputSchema"]
-    if set(args) - set(shape["properties"]) or any(k not in args for k in shape["required"]):
-        raise ValueError("工具参数缺失或包含未知字段")
+    if set(args) - set(shape["properties"]):
+        raise ValueError("工具参数包含未知字段")
+    for key in shape["required"]:
+        if key not in args:
+            raise ValueError(f"缺少必需参数 {key}")
     for key, value in args.items():
         prop = shape["properties"][key]
         if prop["type"] == "boolean" and not isinstance(value, bool):
             raise ValueError("开关参数须为布尔值")
-        if prop["type"] == "string" and (not isinstance(value, str) or len(value) > prop["maxLength"]):
-            raise ValueError("文本参数无效或过长")
+        if prop["type"] == "string":
+            if not isinstance(value, str):
+                raise ValueError(f"参数 {key} 必须为文本")
+            if len(value) > prop["maxLength"]:
+                raise ValueError(f"参数 {key} 超过 {prop['maxLength']} 个字符")
         if prop["type"] == "integer" and (type(value) is not int or value < prop.get("minimum", 0) or value > prop.get("maximum", 1000000)):
             raise ValueError("分页参数无效")
     if name == "memewiki_card":

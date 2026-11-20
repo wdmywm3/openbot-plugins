@@ -50,8 +50,12 @@ def source(jobs, args):
 def imported_asset(jobs, identity, namespace, kind):
     folder = contained(jobs.root, "uploads", token(identity))
     record = read_json(contained(folder, "upload.json"))
-    if record.get("namespace") != namespace or record.get("kind") != kind or not record.get("result"):
-        raise WatchError("页面媒体尚未完整传入或不属于当前会话")
+    if record.get("namespace") != namespace:
+        raise WatchError("当前会话中找不到此媒体上传记录")
+    if record.get("kind") != kind:
+        raise WatchError("页面媒体上传类型与请求不符")
+    if not record.get("result"):
+        raise WatchError("页面媒体尚未完整传入")
     return contained(folder, "media" + Path(record["name"]).suffix.lower())
 
 
@@ -97,8 +101,10 @@ def finish(jobs, args):
                 raise WatchError("画面时间不属于所选范围")
             original = imported_asset(jobs, row.get("asset_id"), namespace, "image")
             with Image.open(original) as image:
-                if image.format not in {"JPEG", "PNG"} or image.width * image.height > 16_000_000:
-                    raise WatchError("页面图片格式或尺寸无效")
+                if image.format not in {"JPEG", "PNG"}:
+                    raise WatchError("页面图片仅支持 JPEG 和 PNG")
+                if image.width * image.height > 16_000_000:
+                    raise WatchError("页面图片超过 1600 万像素")
                 image.verify()
             target = f"browser-frame-{i:03d}.jpg"
             with Image.open(original) as image:

@@ -171,8 +171,12 @@ class Library:
         return value
 
     def save_entry(self, value):
-        if not value.get("title") or not value.get("slug") or not any(value.get(k) for k in ("usage", "origin", "other", "summary")):
-            raise ValueError("词条缺少标题、来源或正文")
+        if not value.get("title"):
+            raise ValueError("词条缺少标题")
+        if not value.get("slug"):
+            raise ValueError("词条缺少来源标识")
+        if not any(value.get(k) for k in ("usage", "origin", "other", "summary")):
+            raise ValueError("词条缺少正文")
         with self.open_cache() as db:
             db.execute("INSERT OR REPLACE INTO entries VALUES (?,?)", (value["title"], json.dumps(value, ensure_ascii=False)))
 

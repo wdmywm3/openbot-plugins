@@ -30,7 +30,7 @@ def read_media(jobs, args):
             original = dict(record["request"])
             original["source"] = original.get("media_origin", original["source"])
             if original != desired:
-                raise WatchError("媒体回执与当前来源、范围或请求不匹配")
+                raise WatchError("媒体回执不匹配当前请求")
             status = jobs.status(record["job_id"])
         else:
             # Reuse only this caller's ready source. No other chat's bearer
