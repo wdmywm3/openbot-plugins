@@ -19,7 +19,7 @@ async function show(list, selection) {
   $("host").value = row?.connection?.host || "127.0.0.1";
   $("port").value = row?.connection?.port || 16384;
   $("adb").value = row?.connection?.adbPath || "";
-  $("options").hidden = !row; $("legacy").hidden = list.length > 0;
+  $("options").hidden = !row;
   $("default").checked = row?.isDefault === true; $("paused").checked = row?.paused === true;
   $("report").textContent = "";
   const others = Object.entries(instances).filter(([ns])=>ns !== owner);
@@ -115,10 +115,5 @@ $("transfer").onclick = () => run(async () => {
 $("remove").onclick = () => run(async () => {
   if (!await api.ui.confirm({ title:"移除设备", message:"移除「" + selected().name + "」的连接？" })) return;
   const result = await call("remove",{deviceId:id,revision}); await show(result.devices,result.devices[0]?.deviceId);
-});
-$("legacy").onclick = () => run(async () => {
-  const { devices: list } = await call("legacy", {}); await show(list,list[0]?.deviceId);
-  if (!list.length) api.notify("没有可导入的旧版设备","warning");
-  else api.notify("已导入设备，请扫描确认连接","success");
 });
 run(async () => { const state = await call("list",{}); instances=state.instances; owner=state.owner; const list=state.devices; await show(list,(list.find(row => row.isDefault) || list[0])?.deviceId); });
