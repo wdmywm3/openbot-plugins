@@ -428,7 +428,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -456,14 +456,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "按实际失败原因显示提示。生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。",
+        "changelog": "指定的聊天参考图已缺失时，结束本次绘图。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
+      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
       "files": [
         {
           "path": "README.md",
@@ -472,13 +472,13 @@
         },
         {
           "path": "index.js",
-          "size": 42921,
-          "sha256": "78b7ff63a885e49f22c8ceb3c7cce4711a730a831830a6aa6e463770b175bd02"
+          "size": 43308,
+          "sha256": "3bb3309250fb1946f6a84e197f81978c848ec87bb1d57cf65a908c2a454f84a7"
         },
         {
           "path": "plugin.json",
-          "size": 25092,
-          "sha256": "903f2c2a410353e2c9b5d81efc9ea053a40199c2a7bef1f8aed242138c5445de"
+          "size": 24931,
+          "sha256": "49c82f88aaa1fcefeb7c8c571ef62dd7e6ace473a133ceaa0b3a734e54ff65e0"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -550,7 +550,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.2",
+      "version": "2.6.3",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -586,7 +586,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "按实际失败原因显示提示。修复自制表情收藏后停在待识别的问题，成品发出后会自动识图并建立索引。",
+        "changelog": "收藏时遇到已缺失的原图，跳过该附件。",
         "components": [
           "commands",
           "hooks",
@@ -597,7 +597,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
+      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
       "files": [
         {
           "path": "README.md",
@@ -621,8 +621,8 @@
         },
         {
           "path": "index.js",
-          "size": 77765,
-          "sha256": "a3c398c0bcbfec6d47e3d5b047068e846dbe323d9d460fb35ae7906c997ffd72"
+          "size": 78118,
+          "sha256": "29c807f8aed60e8a6fef1ce2222dcbfa56339c5b01ac914152e62820b4e794b1"
         },
         {
           "path": "mcp.json",
@@ -641,8 +641,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 23033,
-          "sha256": "37bc40bca43f87fce2fbaa80d34cecd2346330a55d3c5c8d55dc813b637cd425"
+          "size": 22949,
+          "sha256": "9d4fd58ad2eac0394ca5067ce306c300a72157d21b580f150db71b23a43cfac9"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -769,7 +769,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.11",
+      "version": "2.6.12",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -804,7 +804,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "按实际失败原因显示提示。记忆索引会跳过同一消息版本中已丢失、为空或超出读取上限的附件，继续索引文字和其他图片。临时故障延迟重试。",
+        "changelog": "Dream 跳过已缺失的图片，继续整理同条消息的其他附件和更早的文字。",
         "components": [
           "hooks",
           "tools",
@@ -813,7 +813,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
+      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
       "files": [
         {
           "path": "README.md",
@@ -827,8 +827,8 @@
         },
         {
           "path": "image-indexing.cjs",
-          "size": 4504,
-          "sha256": "bb5172fc510ef9978653e4f14ac53eb0af2db0b8da1d0af9140ada75d49c0183"
+          "size": 4540,
+          "sha256": "6160efcc12900be15a02f1f07501b44a6b7428926e5560a33c19afd2474663f9"
         },
         {
           "path": "index.js",
@@ -987,8 +987,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14680,
-          "sha256": "b9a8fb1f9d8470612aaee9faee2b9b9ece2537910a1a5169d3d6b02554bbde0a"
+          "size": 14581,
+          "sha256": "2ddfd23cb66b216f39511bca9f6e7d8e88dc33c3da28ad758b97aff9e05c8c8a"
         },
         {
           "path": "process.cjs",
@@ -1002,8 +1002,8 @@
         },
         {
           "path": "retrieval.cjs",
-          "size": 12651,
-          "sha256": "27ef9b078114560ebba6727ea9344014774a21b6e56a9fbb75c014d07e290a88"
+          "size": 12835,
+          "sha256": "f6b940b6b3672ed9c9a8397ef04b3477327f586bcfcbc03b4a7e036c67f155c8"
         },
         {
           "path": "runtime.cjs",
@@ -1017,8 +1017,8 @@
         },
         {
           "path": "source-retrieval.cjs",
-          "size": 8851,
-          "sha256": "9b45b77a5b75f3a85d0252dd9c6242b1ab1ad616d178f9bd0f9df2617b79312c"
+          "size": 9041,
+          "sha256": "21a62747b9d4cef105c3b7f61fe6edf619d5044dc58b7f2fe2d123ea3e218723"
         },
         {
           "path": "sources.cjs",
@@ -1142,8 +1142,8 @@
         },
         {
           "path": "unified-organizer.cjs",
-          "size": 17860,
-          "sha256": "b3933f8a111c63965b748d649aa3c087abaa2ef4df446976925642c65fa57fdf"
+          "size": 18654,
+          "sha256": "3604da10e6283f478594a20ec61302cc3937bb1643f417ae3f352c9bc0f890a0"
         },
         {
           "path": "unified-peer.cjs",
@@ -1370,7 +1370,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
       "category": "utility",
       "main": "index.js",
@@ -1390,14 +1390,14 @@
           "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "0.1.0：迁移 AnySearch、Tavily、Exa、Brave 网页搜索及网页读取；增加 Google Cloud Vision 以图搜图。",
+        "changelog": "以图搜图遇到已缺失的聊天图片时，结束该次搜索。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
       "files": [
         {
           "path": "README.md",
@@ -1406,13 +1406,13 @@
         },
         {
           "path": "index.js",
-          "size": 25876,
-          "sha256": "3d7e537a5223071201acbe6953884d638dab4905fb2616999234c486ab980640"
+          "size": 26210,
+          "sha256": "0259feb44c2cebb5c8c022f63e2cc1c9a631ab3d02f930a4172656f0c01b224f"
         },
         {
           "path": "plugin.json",
-          "size": 11897,
-          "sha256": "d5ae564bde9763d9c5cff31e02799281ed43f34a7d4b42e5ce681d5feb82f5f3"
+          "size": 11846,
+          "sha256": "53d8284387af950f4c7a4b973d5e18d5a488c773c18eb8d0fd9328946e66df98"
         },
         {
           "path": "skills/search/SKILL.md",
@@ -1481,7 +1481,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.2",
+      "version": "0.11.3",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1502,7 +1502,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "按实际失败原因显示提示。已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。",
+        "changelog": "导入时遇到已缺失的历史视频，结束该次读取。",
         "components": [
           "tools",
           "skills",
@@ -1510,7 +1510,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "128af4c73c84af9149e174e761214a2f38189f04",
+      "ref": "b906d6b252097071d5c38ec7ba33d1d163afedf1",
       "files": [
         {
           "path": "README.md",
@@ -1529,8 +1529,8 @@
         },
         {
           "path": "index.js",
-          "size": 21727,
-          "sha256": "8b1728d1cb33430855afe69a2bdbd37153f7c6545837dd28c8a6d358fffb6033"
+          "size": 22300,
+          "sha256": "9d097268fb741ff217bb0b7d89011e364f30fbf6d1c0661eea68b08a8189da45"
         },
         {
           "path": "mcp.json",
@@ -1539,8 +1539,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 12962,
-          "sha256": "8ba4b9d1bd1bb98c3745d8c7198c048e19cde9172257d301d83326c6efed823c"
+          "size": 12880,
+          "sha256": "ecf3d84782b48a608ab4448843cc13f5c19a7d71a48af8c9d89b863277cfa400"
         },
         {
           "path": "requirements-asr.txt",
