@@ -48,6 +48,8 @@ const plain = value => JSON.parse(JSON.stringify(value));
   ctx.api.readMessageAttachment = async () => ({ type: "image", mimeType: "image/png", data: "a".repeat(10000000) });
   ctx.api.request = async () => { throw Error("oversized image reached the provider"); };
   await assert.rejects(plugin.search_by_image(ctx), /10 MB/);
+  ctx.api.readMessageAttachment = async () => ({ available: false, reason: "not_retained" });
+  assert.equal((await plugin.search_by_image(ctx)).skipped, true, "a deleted original never reaches the provider");
   ctx.api.readMessageAttachment = readImage;
   ctx.api.getSecret = async () => ""; await assert.rejects(plugin.search_by_image(ctx), /Cloud Vision API Key/);
   ctx.config.webProvider = "anysearch"; ctx.input = { query: "still usable" };

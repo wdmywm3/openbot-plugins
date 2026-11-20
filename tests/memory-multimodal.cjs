@@ -74,7 +74,7 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     const missingCtx = { ...mixedContext, api: { ...mixedContext.api, assets: async input => {
       if (input.action === "fromMessage" && input.index === 1) {
         missingReads++;
-        throw Error("附件超过读取大小限制或文件为空");
+        return { available: false, reason: "not_retained" };
       }
       return mixedContext.api.assets(input);
     } } };

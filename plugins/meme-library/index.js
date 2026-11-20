@@ -455,7 +455,13 @@ module.exports.collect = async ctx => {
   const url = text(ctx.input?.url, 1000);
   if (!!messageId === !!url) throw Error("请选择当前聊天的一条图片消息或工具返回的图片地址");
   const asset = await ctx.api.assets(url ? { action: "fromPublished", url }
-    : { action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 });
+    : { action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 }).catch(error => {
+      ctx.signal?.throwIfAborted();
+      if (messageId && (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用"))
+        return { available: false, reason: "not_retained" };
+      throw error;
+    });
+  if (asset.available === false) return { collected: false, skipped: true, reason: asset.reason };
   const saved = await ingest(ctx, asset.ref, { type: asset.publication?.metadata?.generated ? "generated" : "chat", chatId: ctx.message.chatId,
     ...(url ? { url, pluginId: asset.publication?.pluginId } : { messageId }), automatic: ctx.input?.automatic === true });
   return { collected: true, id: saved.key, processing: saved.value.indexStatus !== "ready" };

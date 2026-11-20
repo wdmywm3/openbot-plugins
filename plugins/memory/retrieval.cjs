@@ -41,6 +41,10 @@ function createRetrieval(ctx, storage, scope) {
           else failed = true;
           continue;
         }
+        if (asset.available === false && asset.reason === "not_retained") {
+          failures.record(photo, current.version, "ATTACHMENT_FILE_MISSING");
+          continue;
+        }
         if (!asset.ref || seen.has(asset.ref)) continue;
         seen.add(asset.ref);
         const id = `${entry.id}@${revision(entry)}:image:${hash(asset.ref).slice(0, 24)}`;

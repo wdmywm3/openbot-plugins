@@ -38,6 +38,10 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
         if (failures.known(photo, model.version)) continue;
         try {
           const asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: id, sourceVersion: item.version, index: image.index, kind: "image" });
+          if (asset.available === false && asset.reason === "not_retained") {
+            failures.record(photo, model.version, "ATTACHMENT_FILE_MISSING");
+            continue;
+          }
           records.push({ id: imageId, revision, text: model.modalities.includes("joint") ? String(item.content || "").slice(0, 768) : "",
             assetRef: asset.ref, metadata: { ...metadata, imageIndex: image.index } });
           images.set(imageId, photo);

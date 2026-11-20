@@ -503,7 +503,13 @@ module.exports.search_by_image = async ctx => {
   const imageChars = limitBytes - JSON.stringify(body).length;
   const host = (await ctx.api.getCapabilities?.())?.limits;
   const maximum = Math.min(host?.attachmentInlineBytes || 6 * 1024 * 1024, Math.floor(imageChars / 4) * 3);
-  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum });
+  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum }).catch(error => {
+    ctx.signal?.throwIfAborted();
+    if (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用")
+      return { available: false, reason: "not_retained" };
+    throw error;
+  });
+  if (attachment.available === false) return { found: false, skipped: true, reason: attachment.reason };
   if (attachment.type !== "image" || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(attachment.mimeType)
     || typeof attachment.data !== "string" || !attachment.data) throw new Error("请选择一张 JPEG、PNG、WebP 或 GIF 图片");
   if (attachment.data.length > imageChars) throw new Error("图片编码后超过 Google Vision 的 10 MB 请求上限");

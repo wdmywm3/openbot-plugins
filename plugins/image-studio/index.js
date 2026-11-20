@@ -238,7 +238,13 @@ async function references(ctx, input) {
       }
       picture = { data: join64(chunks), mimeType: info.mimeType };
     } else if (ref.messageId && !ref.assetRef) {
-      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: limits.reference, kind: "image" });
+      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: limits.reference, kind: "image" }).catch(error => {
+        ctx.signal?.throwIfAborted();
+        if (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用")
+          return { available: false, reason: "not_retained" };
+        throw error;
+      });
+      if (picture.available === false) return picture;
     } else throw Error("参考图须指定消息编号或图片引用中的一种");
     const data = base64(picture.data, limits.reference), mimeType = imageType(data);
     if (picture.mimeType && picture.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
@@ -524,6 +530,7 @@ async function drawImage(ctx, mode) {
   let prompt = string(input.prompt, LIMIT.prompt, "画图要求");
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
   const images = await references(ctx, input);
+  if (images.available === false) return { skipped: true, reason: images.reason };
   if (snapshot) {
     const chatCount = images.length;
     await assertSelfieCurrent(ctx, snapshot);

@@ -19,7 +19,7 @@ function sourceImage(item, attachment) {
 
 function imageFailureStore(storage, scope, markOversized) {
   const { db } = storage, { chatId } = scope;
-  const find = db.prepare("SELECT code FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=? AND source_version=? AND model_version=?");
+  const find = db.prepare("SELECT code FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=? AND source_version=? AND (model_version=? OR code='ATTACHMENT_FILE_MISSING')");
   const clear = db.prepare("DELETE FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=?");
   const prune = db.prepare("DELETE FROM source_image_failures WHERE chat_id=? AND source_id=? AND source_version<>?");
   const save = db.prepare(`INSERT INTO source_image_failures

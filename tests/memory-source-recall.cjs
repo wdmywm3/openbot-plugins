@@ -154,7 +154,7 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     const fileCtx = { ...ctx, api: { ...ctx.api, assets: async input => {
       if (input.action === "fromMessage" && input.messageId === "incomplete") {
         readCounts[input.index]++;
-        if (!recovered && input.index === 0) throw Error("附件文件不可用");
+        if (!recovered && input.index === 0) return { available: false, reason: "not_retained" };
         if (!recovered && input.index === 1) throw Object.assign(Error("large"), { code: "ATTACHMENT_FILE_TOO_LARGE" });
         if (!recovered && input.index === 2) throw Error("temporary read error");
       }
@@ -171,6 +171,14 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     await sources.index(fileCtx, storage, scope);
     assert.deepEqual(readCounts, [1, 1, 2, 2]);
     assert.equal(receipt().retry_at, 0);
+    const organized = await require("../plugins/memory/unified-organizer.cjs").collect(fileCtx, scope, 0, undefined, storage);
+    const retained = organized.materials.find(row => row.id === "incomplete");
+    assert.equal(retained.content, "这条文字仍可索引");
+    const failures = require("../plugins/memory/image-indexing.cjs").imageFailureStore(storage, scope);
+    assert.equal(failures.known({ id: retained.id, version: retained.version, index: 0 }, "another-model"), "ATTACHMENT_FILE_MISSING");
+    assert(!retained.attachments.some(file => file.index === 0 && file.type === "image"));
+    assert(retained.attachments.some(file => file.index === 3 && file.type === "image"));
+    assert(organized.materials.some(row => row.id === "words"), "an unavailable photo does not cut off older text");
     record("incomplete", "更新后的消息", attachments);
     await sources.index(fileCtx, storage, scope);
     assert.deepEqual(readCounts, [2, 2, 3, 3], "a new message version can restore all images");

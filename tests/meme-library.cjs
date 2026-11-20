@@ -183,6 +183,11 @@ async function main() {
   await assert.rejects(plugin.beforeSend({ ...probability.ctx, hook: { replyId: "required", content: requiredSegments } }), /已不可用/,
     "revocation still applies and does not silently leave a dependent text behind");
   drawValue = undefined;
+  const gone = fixture();
+  let reads = 0;
+  gone.ctx.api.assets = async () => { reads++; return { available: false, reason: "not_retained" }; };
+  assert.equal((await plugin.collect({ ...gone.ctx, input: { messageId: "missing" } })).skipped, true);
+  assert.equal(reads, 1);
   const collection = fixture(), generatedUrl = "openbot-asset://plugin-media/" + "d".repeat(64) + "/image";
   collection.publications.set(generatedUrl, { ref: "chat", pluginId: "any-producer", metadata: {
     generated: true, purpose: "sticker", reusable: true, roleProfileId: "p",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "search",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
   "extensions": {
     "com.openbot": {
@@ -395,7 +395,7 @@
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
         "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
-        "changelog": "0.1.0：迁移 AnySearch、Tavily、Exa、Brave 网页搜索及网页读取；增加 Google Cloud Vision 以图搜图。"
+        "changelog": "以图搜图遇到已缺失的聊天图片时，结束该次搜索。"
       }
     }
   }

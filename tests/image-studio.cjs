@@ -57,6 +57,10 @@ function fixture(config = {}, input = {}) {
   assert.equal(fx.publications[0].metadata.reusable, false, "drafts are not marked as reusable outputs");
   fx = fixture({}, { references: [{ url: "openbot-plugin-asset://another-plugin" }] }); await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits", "editing can adopt another plugin's published image");
+  const absent = fixture({}, { references: [{ messageId: "reference" }] });
+  absent.ctx.api.readMessageAttachment = async () => ({ available: false, reason: "not_retained" });
+  assert.equal((await draw(absent.ctx)).skipped, true);
+  assert.equal(absent.requests.length, 0, "do not generate a different image when the required reference is gone");
   fx = fixture({}, { references: [{ messageId: "reference", index: 0 }] }); await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits");
   assert.equal(fx.requests[0].options.body.images[0].image_url, "data:image/png;base64," + png);
