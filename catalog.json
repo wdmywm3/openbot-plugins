@@ -428,8 +428,8 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.1",
-      "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+      "version": "0.5.2",
+      "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
@@ -456,29 +456,29 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生图指南现按画面构图、光影、材质与微表情编写提示词。可在插件设置中上传自己的 Markdown 或 ZIP 指南，也可恢复默认。",
+        "changelog": "生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "d7d6b41bdebd9ccd99ad3d2862a1aedc5db10330",
       "files": [
         {
           "path": "README.md",
-          "size": 9370,
-          "sha256": "949f3fa403bc2ae2d02c58d3d7cb451a22fe9a120f62a4f98dd6c8edd4d7b145"
+          "size": 9593,
+          "sha256": "43b35d164b4a7ed0a13974e04d1e3d109c4579b9338a5d60ad85ec90c47ef5d8"
         },
         {
           "path": "index.js",
-          "size": 42418,
-          "sha256": "9856325d148833104bed01cec61f69a6c2b9ec6352717768e940de1c1c1f48fb"
+          "size": 42550,
+          "sha256": "b943e8a40efd4a8793631d5d28cc845375111b75ef10af66b227507010abdb4d"
         },
         {
           "path": "plugin.json",
-          "size": 24760,
-          "sha256": "94f7a9d37eb3fcfddfaa9f62ee124a7c5a2107e1e3e09fc25618eda71837bf36"
+          "size": 25056,
+          "sha256": "78f297f3aa3fced05f0fc13d6e58555aa8b8a80857c98dc06cc4cfb9a20281ee"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -507,8 +507,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5227,
-          "sha256": "ad8feea308fdf4e38892a7b2c37cd7d513278d6e8b565c0fbc738a56dd03a419"
+          "size": 5347,
+          "sha256": "449c68d34ad8b7f4b5b66bb66dfb81ea1de2071cad7be59bf7cb826ec77066ac"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -517,8 +517,8 @@
         },
         {
           "path": "skills/imagegen/references/provider-controls.md",
-          "size": 2388,
-          "sha256": "0dccdc097ae785286e7cf3f800a547d623c364380b568016cdf9b9293335e396"
+          "size": 2462,
+          "sha256": "36b3506c8ac19556ed97854100f4907ec90043147140ee8585d112734f8f6001"
         },
         {
           "path": "skills/imagegen/references/sample-prompts.md",
@@ -527,8 +527,8 @@
         },
         {
           "path": "skills/imagegen/references/tool-use.md",
-          "size": 4198,
-          "sha256": "a72ec94a09f61c4178e5bdd451b51cb13903285d99d4801c1c81b4efdcb17512"
+          "size": 4292,
+          "sha256": "024be71b729c54dd57b25f0724bfde43640623a25d0de25630d6fc3918daac04"
         },
         {
           "path": "ui/reference.css",
