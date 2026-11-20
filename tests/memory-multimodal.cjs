@@ -70,6 +70,20 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     storage.db.prepare("UPDATE embedding_receipts SET complete=0,cursor=0").run();
     await createRetrieval(mixedContext, storage, scope).index(unified.COLLECTION, [mixed]);
     assert.equal(oversizedAttempts, attempts, "known image failures are not re-embedded during a formal memory retry");
+    let missingReads = 0;
+    const missingCtx = { ...mixedContext, api: { ...mixedContext.api, assets: async input => {
+      if (input.action === "fromMessage" && input.index === 1) {
+        missingReads++;
+        throw Error("附件超过读取大小限制或文件为空");
+      }
+      return mixedContext.api.assets(input);
+    } } };
+    for (let i = 0; i < 2; i++) {
+      storage.db.prepare("UPDATE embedding_receipts SET complete=0,cursor=0").run();
+      await createRetrieval(missingCtx, storage, scope).index(unified.COLLECTION, [mixed]);
+    }
+    assert.equal(missingReads, 1);
+    assert.equal(storage.db.prepare("SELECT 1 FROM embedding_media_retry WHERE id=?").get(mixed.id), undefined);
     console.log("Memory multimodal: transient retry, oversized-image isolation, joint indexing, explicit/automatic recall, source revocation and deletion passed.");
   } finally { close(); db.close(); await models?.pause(); await vectors?.pause(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-plus-multimodal-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
