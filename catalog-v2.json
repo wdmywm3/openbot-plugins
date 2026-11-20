@@ -769,7 +769,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.9",
+      "version": "2.6.10",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -804,7 +804,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "按成员跨分段累计近 90 天的表情和发言。常用表情和聊天印象核对三次相隔至少一天的本人原消息，可在没有新分段时形成，重启后接续。",
+        "changelog": "记忆索引会跳过同一消息版本中已丢失、为空或超出读取上限的附件，继续索引文字和其他图片。临时故障延迟重试。",
         "components": [
           "hooks",
           "tools",
@@ -813,7 +813,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
+      "ref": "0b65e3472e78506fb4881c4c635f19fe393b02f2",
       "files": [
         {
           "path": "README.md",
@@ -827,8 +827,8 @@
         },
         {
           "path": "image-indexing.cjs",
-          "size": 3865,
-          "sha256": "ec5eb33bae41e8cd9aefb7145f86c0ae56d8b9ffed74527932668d2dfbeaccfe"
+          "size": 4442,
+          "sha256": "558850c25834782c8fd8311541bd215742a6fe7e588604b9157ea4aec248f9f1"
         },
         {
           "path": "index.js",
@@ -987,8 +987,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14671,
-          "sha256": "dc3539fc971dccfc5207d739ac48eeda14a5f64b23139088a8fc907236ec158e"
+          "size": 14644,
+          "sha256": "37d19f00b4ca8df976fc9639c5e05dbc4a25671ab5039d001fc1a0a74e0c5933"
         },
         {
           "path": "process.cjs",
@@ -1002,8 +1002,8 @@
         },
         {
           "path": "retrieval.cjs",
-          "size": 12384,
-          "sha256": "13288985c7b23acfd702a2479626359157377918dfe74501ffddf952711c4040"
+          "size": 12651,
+          "sha256": "27ef9b078114560ebba6727ea9344014774a21b6e56a9fbb75c014d07e290a88"
         },
         {
           "path": "runtime.cjs",
@@ -1017,8 +1017,8 @@
         },
         {
           "path": "source-retrieval.cjs",
-          "size": 8638,
-          "sha256": "77edb8a22974a2aab68dca5741d48693e927e6b1dea19554f9f6103154dd8670"
+          "size": 8851,
+          "sha256": "9b45b77a5b75f3a85d0252dd9c6242b1ab1ad616d178f9bd0f9df2617b79312c"
         },
         {
           "path": "sources.cjs",
