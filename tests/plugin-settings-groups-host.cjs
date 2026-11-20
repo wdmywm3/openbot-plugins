@@ -37,8 +37,9 @@ const source = path.resolve(__dirname, "../plugins");
     assert.equal((await binding(a.name)).config.customWeb, true);
     assert.equal((await binding(b.name)).config.customWeb, false);
     assert.equal((await invoke("getPluginGlobalSecretStatus", { pluginId: "search", key: "anysearchKey" })).configured, false);
-    const market = async label => {
+    const market = async (label, capability = "插件") => {
       await page.locator(".openbot-sidebar").getByRole("button", { name: "插件", exact: true }).click();
+      await page.getByRole("tablist", { name: "插件能力" }).getByRole("tab", { name: capability, exact: true }).click();
       await page.getByRole("button", { name: "查看 " + label, exact: true }).click();
     };
     await market("搜索");
@@ -70,6 +71,23 @@ const source = path.resolve(__dirname, "../plugins");
     assert.equal(await page.locator("#customService").inputValue(), "default");
     await page.locator('.instance-plugin-config[aria-busy="false"]').waitFor();
     await page.locator(".openbot-sidebar").getByRole("button", { name: "设置", exact: true }).click();
+    for (const [id, name, allowed, hidden] of [
+      ["group-digest", "群聊总结", "群聊", "私聊"],
+      ["content-monitor", "内容监控", "私聊", "群聊"],
+    ]) {
+      await install(path.join(source, id));
+      await market(name, id === "group-digest" ? "指令" : "插件");
+      await page.getByRole("button", { name: a.name, exact: true }).click();
+      await page.locator(".channel-plugin-detail .channel-detail-heading strong").filter({ hasText: name }).waitFor();
+      const declared = (await invoke("listInstalledChannelPlugins", {})).find(row => row.id === id).definition.ui.chatAudiences;
+      assert(declared?.length, "missing audience in desktop definition: " + id);
+      const scopes = page.locator(".channel-plugin-scope");
+      await scopes.getByRole("group", { name: allowed, exact: true }).waitFor();
+      await scopes.getByRole("group", { name: hidden, exact: true }).waitFor({ state: "hidden" });
+      if (id === "content-monitor") assert.equal(await scopes.getByRole("checkbox").count(), 1);
+      await page.locator(".openbot-sidebar").getByRole("button", { name: "设置", exact: true }).click();
+    }
+    console.log("Desktop: caller selection respects package chat and role declarations;");
     console.log("Desktop: old key-only upgrade, independent instance modes, live default summary, local output and persistence passed.");
   } finally {
     await app?.close();
