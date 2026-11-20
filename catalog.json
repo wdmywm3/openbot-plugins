@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "3.0.1",
+      "version": "3.0.2",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "ai",
       "main": "index.js",
@@ -42,7 +42,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "9ecc704a2518f170b66a8021297d32dcb2b7eeb2",
+      "ref": "0c048691156a2957ca11774d4efc5557010f1db5",
       "files": [
         {
           "path": "device-driver.cjs",
@@ -51,8 +51,8 @@
         },
         {
           "path": "device-server.cjs",
-          "size": 2114,
-          "sha256": "e2ed3fc134533a8041ab828256400e84e854c96f518657b452f2b06847ea246d"
+          "size": 2290,
+          "sha256": "53f003878acf63f233e720c83b89ad0cfb365d1391f05ef724f2e909e36f76fd"
         },
         {
           "path": "device-setup.cjs",
@@ -71,18 +71,18 @@
         },
         {
           "path": "package-lock.json",
-          "size": 20609,
-          "sha256": "30535cc495171c61f7f73092f91268e8f312e35f350fdbc745aa8cec2aca70e2"
+          "size": 20673,
+          "sha256": "89a7cd3f374bebd5fc97f7d7dad094ad881d40164b766261206607119553fd53"
         },
         {
           "path": "package.json",
-          "size": 177,
-          "sha256": "5af8efd0aaf8b6cbeb5893be152a299c791f64787a7250caa60b297b3dbf693e"
+          "size": 209,
+          "sha256": "6d28f69689b7c4c16476ba644fedcf8a5900a0f4249eb8cfe3714211a45c8157"
         },
         {
           "path": "plugin.json",
           "size": 19103,
-          "sha256": "2439bb092c803cd66b8460f643984f739f1061f966542e41139c367bf67c09a4"
+          "sha256": "3904dea88892b1b69bc925878e29756637096f7b532c906ef1ba1d09619c8ab4"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
