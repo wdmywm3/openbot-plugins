@@ -60,6 +60,22 @@ function fixture(config = {}, input = {}) {
   fx = fixture({}, { references: [{ messageId: "reference", index: 0 }] }); await draw(fx.ctx);
   assert.equal(fx.requests[0].url, "https://api.openai.com/v1/images/edits");
   assert.equal(fx.requests[0].options.body.images[0].image_url, "data:image/png;base64," + png);
+  // Insert a valid, non-compressed PNG text chunk before IEND to exercise real file bytes.
+  const original = Buffer.from(png, "base64");
+  const chunk = Buffer.concat([Buffer.from("tEXtComment\0"), Buffer.alloc(6 * 1024 * 1024, 97)]);
+  const length = Buffer.alloc(4), checksum = Buffer.alloc(4);
+  length.writeUInt32BE(chunk.length - 4); checksum.writeUInt32BE(require("node:zlib").crc32(chunk));
+  const largePng = Buffer.concat([original.subarray(0, -12), length, chunk, checksum, original.subarray(-12)]).toString("base64");
+  fx = fixture({}, { references: [{ messageId: "reference" }] });
+  fx.ctx.api.getCapabilities = async () => ({ limits: { assetBytes: 16777216, attachmentInlineBytes: 16777216,
+    nativeModelResultBytes: 25165824, httpBodyBytes: 25165824 } });
+  fx.ctx.api.readMessageAttachment = async ({ maxBytes }) => {
+    assert.equal(maxBytes, 16777216); return { mimeType: "image/png", data: largePng };
+  };
+  fx.state.chunks = [...Array(2001).fill("data: {}\n\n"), "data: " + JSON.stringify({ type: "image_generation.completed", b64_json: largePng }) + "\n\n"];
+  await draw(fx.ctx);
+  assert.equal(fx.requests[0].options.body.images[0].image_url, "data:image/png;base64," + largePng);
+  assert.equal(fx.stored[0].data, largePng);
   fx = fixture({ openaiImageModel: "" });
   await assert.rejects(draw(fx.ctx), /选择画图模型/); assert.equal(fx.requests.length, 0);
   fx = fixture({ provider: "openai-responses", openaiTextModel: "" });

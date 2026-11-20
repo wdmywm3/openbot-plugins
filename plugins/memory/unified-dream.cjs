@@ -84,19 +84,11 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     }
   }
   const impressions = impressionPolicy.records(impressionProposals, scope, materials, impressionHistory).filter(record => !containsSecret(record.content));
-  const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing, [
-    ...admittedFacts.map(({ item }) => item), ...records.map(({ record }) => record),
-  ]);
-  const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
+  const factRecords = [];
   const selfEvidence = (sources, subjectId) => !!subjectId && sources.length > 0 && sources.every(ref => {
     const source = materials.find(item => item.id === ref.id && item.version === ref.version);
     return source?.direction === "in" && !source.sender?.isBot && String(source.sender?.id || source.senderId || "") === subjectId;
   });
-  const reserved = new Set([...result.revisions.map(item => item.supersedes.id), ...result.invalidations.map(item => item.id), ...(parsed.updates || []).map(item => item.id)]);
-  for (const edit of result.revisions) if (["gender", "impression"].includes(known.get(edit.supersedes.id)?.attributes?.profile?.field)
-    && !result.invalidations.some(row => row.id === edit.supersedes.id)) reserved.delete(edit.supersedes.id);
-  const add = require("./unified-candidates.cjs").candidates(full, operations, before, reserved);
-  const addField = record => impressionPolicy.addField(record, full, operations, before, reserved, `plugin:${ctx.plugin?.id || "memory"}`);
   const validateWatch = async record => {
     const id = record.attributes.watchActivityId; if (!id) return;
     if (!ctx.api.activities) throw Error("当前宿主不支持工作事项订阅");
@@ -125,8 +117,17 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
       category: item.category || (profile.profile || item.kind === "preference" ? "profile" : ""),
       subjectRefs: subjectId ? [subjectId] : [], conditions: item.fact?.conditions || [], sources,
       validFrom: item.validFrom || null, validTo: item.validTo || null, attributes: { ...admitted.attributes, ...(fact ? { fact } : {}), ...profile } }, materials);
-    if (record) (gender ? addField : add)(record);
+    if (record) factRecords.push({ record, gender });
   }
+  const full = await require("./unified-existing.cjs").resolveExisting(ctx, scope, existing,
+    [...factRecords, ...records].map(({ record }) => record), { relatedIds: records.flatMap(({ item }) => Array.isArray(item.relatedIds) ? item.relatedIds : []) });
+  const operations = [], before = [], known = new Map(full.map(item => [item.id, item]));
+  const reserved = new Set([...result.revisions.map(item => item.supersedes.id), ...result.invalidations.map(item => item.id), ...(parsed.updates || []).map(item => item.id)]);
+  for (const edit of result.revisions) if (["gender", "impression"].includes(known.get(edit.supersedes.id)?.attributes?.profile?.field)
+    && !result.invalidations.some(row => row.id === edit.supersedes.id)) reserved.delete(edit.supersedes.id);
+  const add = require("./unified-candidates.cjs").candidates(full, operations, before, reserved);
+  const addField = record => impressionPolicy.addField(record, full, operations, before, reserved, `plugin:${ctx.plugin?.id || "memory"}`);
+  for (const { record, gender } of factRecords) (gender ? addField : add)(record);
   if (observedProfiles.length || impressions.length) {
     const history = await require("./unified-existing.cjs").resolveExisting(ctx, scope, [], [...observedProfiles, ...impressions], { profileHistory: true });
     const actor = "plugin:" + (ctx.plugin?.id || "memory");

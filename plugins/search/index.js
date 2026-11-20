@@ -497,12 +497,19 @@ module.exports.search_by_image = async ctx => {
   const key = await secret(ctx, "google");
   if (typeof ctx.api.readMessageAttachment !== "function") throw new Error("请更新 OpenBot，以支持读取图片附件");
   const input = ctx.input || {};
-  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: 6 * 1024 * 1024 });
-  if (attachment.type !== "image" || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(attachment.mimeType)
-    || typeof attachment.data !== "string" || !attachment.data || attachment.data.length > 8 * 1024 * 1024) throw new Error("请选择一张不超过 6 MiB 的 JPEG、PNG、WebP 或 GIF 图片");
+  const limitBytes = 10000000; // Google Vision limits the entire JSON request to 10 MB.
   const count = limit(input.max_results);
-  const raw = await json(ctx, "https://vision.googleapis.com/v1/images:annotate", { requests: [{ image: { content: attachment.data }, features: [{ type: "WEB_DETECTION", maxResults: count }] }] },
-    { "x-goog-api-key": key }, { maxBodyBytes: 10 * 1024 * 1024 });
+  const body = { requests: [{ image: { content: "" }, features: [{ type: "WEB_DETECTION", maxResults: count }] }] };
+  const imageChars = limitBytes - JSON.stringify(body).length;
+  const host = (await ctx.api.getCapabilities?.())?.limits;
+  const maximum = Math.min(host?.attachmentInlineBytes || 6 * 1024 * 1024, Math.floor(imageChars / 4) * 3);
+  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum });
+  if (attachment.type !== "image" || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(attachment.mimeType)
+    || typeof attachment.data !== "string" || !attachment.data) throw new Error("请选择一张 JPEG、PNG、WebP 或 GIF 图片");
+  if (attachment.data.length > imageChars) throw new Error("图片编码后超过 Google Vision 的 10 MB 请求上限");
+  body.requests[0].image.content = attachment.data;
+  const raw = await json(ctx, "https://vision.googleapis.com/v1/images:annotate", body,
+    { "x-goog-api-key": key }, { maxBodyBytes: limitBytes });
   const response = raw?.responses?.[0];
   if (!response || response.error) throw new Error(`Cloud Vision 图片搜索失败${response?.error?.code ? `（${response.error.code}）` : ""}，请检查图片、API 启用状态及额度`);
   const web = response.webDetection || {};

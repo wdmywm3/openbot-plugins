@@ -72,7 +72,7 @@ function sources(left, right) {
 }
 async function workingBudget(ctx, scope, spaceId) {
   let count = 0, characters = 0, continuation = {};
-  for (let page = 0; page < 4; page++) {
+  for (;;) {
     ctx.signal.throwIfAborted();
     const result = await ctx.api.memory({ action: "search", chatId: scope.chatId, spaceId, mode: "history", status: "active", tier: "working", limit: 50, ...continuation });
     for (const item of result.items || []) {
@@ -80,12 +80,12 @@ async function workingBudget(ctx, scope, spaceId) {
       ctx.signal.throwIfAborted();
       if (record?.spaceId !== spaceId || !own(ctx, record)) continue;
       count++; characters += record.contentLength ?? record.content?.length ?? 0;
-      if (count > retention.LIMITS.workingCount || characters > retention.LIMITS.workingCharacters) return { count, characters, complete: true };
+      if (count > retention.LIMITS.workingCount || characters > retention.LIMITS.workingCharacters) return { count, characters };
     }
-    if (result.nextOffset == null) return { count, characters, complete: true };
+    if (result.nextOffset == null) return { count, characters };
+    if (!Number.isSafeInteger(result.nextOffset) || result.nextOffset <= (continuation.offset || 0)) throw Error("工作记忆分页没有前进");
     continuation = { offset: result.nextOffset, snapshot: result.snapshot, at: result.at };
   }
-  return { count, characters, complete: false };
 }
 async function apply(ctx, storage, scope, cycle) {
   let changed = 0, budget;
@@ -102,7 +102,7 @@ async function apply(ctx, storage, scope, cycle) {
         const needsBudget = record.status === "pending" && tier === "working";
         if (needsBudget && !budget) budget = await workingBudget(ctx, scope, cycle.spaceId);
         if ((record.status !== "active" || record.tier !== tier || record.expiresAt != null)
-          && (!needsBudget || budget.complete && budget.count < retention.LIMITS.workingCount && budget.characters + record.content.length <= retention.LIMITS.workingCharacters)) {
+          && (!needsBudget || budget.count < retention.LIMITS.workingCount && budget.characters + record.content.length <= retention.LIMITS.workingCharacters)) {
           operations = [{ action: "revise", id: record.id, expectedRevision: record.revision, changeType: "edit", patch: { status: "active", tier, expiresAt: null,
             attributes: { ...record.attributes, retention: { ...record.attributes?.retention, version: 1, basis: decision.basis, reason: decision.reason,
               protected: protectedRecord(record), reviewedAt: Date.now() } } } }];

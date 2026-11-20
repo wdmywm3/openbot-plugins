@@ -83,6 +83,57 @@ async function main() {
     assert.equal(nativeStatus.status, "ready", JSON.stringify(nativeStatus));
     assert.ok((await call("watch_frames", { job_id: nativeJob.job_id })).content.some(b => b.type === "image"));
   }
+  // A genuine MP4 with a legal padding box crosses both the former IPC and
+  // QQ cache limits. Only bounded pages should reach the JS plugin and MCP.
+  {
+    const { PLUGIN_LIMITS } = hostRequire("./electron/lib/config/limits.cjs");
+    const { createChannelOneBotApiSupport } = hostRequire("./electron/lib/features/channels/channel-onebot-api-support.cjs");
+    const { readMessageAttachment } = hostRequire("./electron/lib/plugins/plugin-message-attachment.cjs");
+    const { createIsolatedBackgroundPool } = hostRequire("./electron/lib/app/isolated-background-pool.cjs");
+    const { executePluginWorker, shutdownPluginWorkers } = hostRequire("./electron/lib/features/channels/plugin-worker-pool.cjs");
+    const pool = createIsolatedBackgroundPool({ entry: path.join(host, "electron/lib/plugins/plugin-code-worker.cjs") });
+    const fileName = "large.mp4", file = path.join(work, fileName);
+    fs.copyFileSync(video, file);
+    const padding = 64 * 1024 * 1024, header = Buffer.alloc(8);
+    header.writeUInt32BE(padding); header.write("free", 4);
+    fs.appendFileSync(file, header); fs.truncateSync(file, bytes.length + padding);
+    const channel = { id: "bot", platform: "qq" };
+    const gateway = createChannelOneBotApiSupport({ fs, path, store: { root: work }, channelVisualPersistence: Symbol(),
+      MAX_CHANNEL_VIDEO_BYTES: 50 * 1024 * 1024, CHANNEL_IMAGE_DOWNLOAD_TIMEOUT_MS: 15000,
+      safeError: error => error.message, hydrateChannelConfig: x => x, channelProvider: () => "napcat-onebot",
+      channelStorageRepository: { saveChannelAsset() { assert.fail("large videos should stream to storage"); } },
+      oneBot: { call: async () => ({ data: { file, file_name: fileName } }) },
+      guardedFetch: async () => new Response(require("node:stream").Readable.toWeb(fs.createReadStream(file))) });
+    const message = { id: "large", chatId: "fixture" };
+    let pages = 0, maxGap = 0, last = performance.now();
+    const heartbeat = setInterval(() => { const now = performance.now(); maxGap = Math.max(maxGap, now-last); last = now; }, 10);
+    try {
+      message.media = await gateway.persistChannelMediaForSession("session", [{ type: "video", fileId: "test-file", name: fileName }], channel);
+      assert.equal(message.media[0].downloadError, undefined);
+      assert.equal(message.media[0].size, bytes.length + padding);
+      const [download] = await gateway.persistChannelMediaForSession("session", [{ type: "video", url: "https://video.invalid/test.mp4" }], channel);
+      assert.equal(download.downloadError, undefined); assert.equal(download.assetRef, message.media[0].assetRef);
+      const job = await executePluginWorker({ code: fs.readFileSync(pkg.scriptPath, "utf8"), filename: pkg.scriptPath,
+        owner: "watch", exportName: "watch_start", executionTimeoutMs: 90000,
+        context: { plugin: nativeCtx.plugin, message, config: {}, input: { message_id: message.id, frame_count: 2, sampling: "uniform" } },
+        api: { callTool: nativeCall, getCapabilities: async () => ({ limits: PLUGIN_LIMITS }), readMessageAttachment: async input => {
+          assert(input.maxBytes <= PLUGIN_LIMITS.attachmentPageBytes); pages++;
+          return readMessageAttachment({ root: work, channel: { id: "bot" }, chatId: message.chatId, input,
+            resolveMessage: () => message, background: (method, args) => pool.call(method, args, { owner: "watch" }) });
+        } } });
+      assert(pages > 1);
+      const until = Date.now() + 30000;
+      let result;
+      do {
+        result = (await call("watch_status", { job_id: job.job_id })).structuredContent;
+        if (["ready", "failed"].includes(result.status)) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } while (Date.now() < until);
+      assert.equal(result.status, "ready", JSON.stringify(result));
+      assert((await call("watch_frames", { job_id: job.job_id })).content.some(b => b.type === "image"));
+      console.log(`Large cached group video: ${message.media[0].size} bytes, ${pages} page reads, decoded frames, max timer gap ${Math.round(maxGap)} ms`);
+    } finally { clearInterval(heartbeat); await pool.pause(); await gateway.pauseSnowLumaMediaPersistence(); shutdownPluginWorkers(); }
+  }
   // Explicit local acceptance input; read existing cached media without modifying it.
   if (process.env.WATCH_TEST_ATTACHMENT_REF && process.env.WATCH_TEST_ATTACHMENT_ROOT) {
     const fixture = JSON.parse(fs.readFileSync(process.env.WATCH_TEST_ATTACHMENT_REF, "utf8"));

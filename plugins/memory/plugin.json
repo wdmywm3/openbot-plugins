@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.8",
+  "version": "2.6.9",
   "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
   "extensions": {
     "com.openbot": {

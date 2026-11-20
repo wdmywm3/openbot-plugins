@@ -2726,8 +2726,9 @@ function createActivityLearning(database, vectorIndex) {
     return { saved, issues };
   }
   async function retrieve(query, sourceIds = [], limit = 6) {
-    const tokens = words(query), scored = []; let cursor;
-    for (let page = 0; page < 10; page++) {
+    const tokens = words(query), seen = new Set(), maximum = Math.min(10, limit);
+    let cursor, scored = [], multipleBatches = false;
+    for (;;) {
       const result = await database({ action: "query", collection: "lessons", limit: 50, ...(cursor ? { cursor } : {}) });
       for (const row of result.records) {
         if (row.value.status !== "active") continue;
@@ -2737,15 +2738,26 @@ function createActivityLearning(database, vectorIndex) {
           application: value.application, uncertainty: value.uncertainty, evidence: value.evidence, relevance, at: row.updatedAt || value.changedAt });
       }
       cursor = result.nextCursor; if (!cursor) break;
+      if (seen.has(cursor)) throw new Error("经验记录分页没有前进");
+      seen.add(cursor);
+      if (scored.length >= 500) {
+        multipleBatches = true;
+        // Carry the strongest candidates into the next ranking; never delete
+        // the rest of the collection while synchronizing a partial batch.
+        scored = await rank(scored, false, true);
+      }
     }
-    if (vectorIndex && String(query || "").trim() && scored.length) try {
-      const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
-      try { await vectorIndex({ action: "sync", records, complete: !cursor }); } catch { /* Read-only invocations can still search already indexed sources. */ }
-      const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: Math.min(10, limit), threshold: 0.7, timeoutMs: 15000 });
-      const byId = new Map(scored.map(row => [row.id, row]));
-      if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => ({ ...byId.get(hit.id), relevance: hit.score }));
-    } catch { /* Shared model unavailable: retain lexical matching. */ }
-    return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, Math.min(10, limit));
+    return rank(scored, !multipleBatches);
+    async function rank(scored, complete, carry = false) {
+      if (vectorIndex && String(query || "").trim() && scored.length) try {
+        const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
+        try { await vectorIndex({ action: "sync", records, complete }); } catch { /* Read-only invocations can still search already indexed sources. */ }
+        const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: maximum, threshold: 0.7, timeoutMs: 15000 });
+        const byId = new Map(scored.map(row => [row.id, row]));
+        if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => carry ? byId.get(hit.id) : { ...byId.get(hit.id), relevance: hit.score });
+      } catch { /* Shared model unavailable: retain lexical matching. */ }
+      return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, maximum);
+    }
   }
   async function retract(id, expectedRevision) {
     const row = await read(id);

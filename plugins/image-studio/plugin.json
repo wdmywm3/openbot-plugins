@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
   "extensions": {
     "com.openbot": {

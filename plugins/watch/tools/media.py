@@ -224,7 +224,7 @@ def acquire(source, directory, root, runner, stage, source_type="auto", transcri
     if not remote_source(source):
         source_file = configured_local_file(source, root)
         if source_file.suffix.lower() not in MEDIA_EXTENSIONS or not 0 < source_file.stat().st_size <= MAX_MEDIA:
-            raise WatchError("请选择不超过 256 MiB 的视频文件")
+            raise WatchError(f"请选择不超过 {MAX_MEDIA // (1024 * 1024)} MiB 的视频文件")
         target = directory / ("media" + source_file.suffix.lower())
         shutil.copyfile(source_file, target)
         manifest = {"file": target.name, "title": source_file.name[:300], "source_type": "local"}
@@ -302,7 +302,7 @@ def acquire(source, directory, root, runner, stage, source_type="auto", transcri
                               "-o", prefix + "/media.%(ext)s", *from_info], 600)
             files = [p for p in directory.glob("media.*") if p.suffix in MEDIA_EXTENSIONS and not re.search(r"\.f\d+\.", p.name)]
             if len(files) != 1 or not 0 < files[0].stat().st_size <= MAX_MEDIA:
-                raise WatchError("没有取得完整媒体文件，或文件超过 256 MiB 限制")
+                raise WatchError(f"没有取得完整媒体文件，或文件超过 {MAX_MEDIA // (1024 * 1024)} MiB 限制")
             video = files[0]
         except Cancelled:
             raise

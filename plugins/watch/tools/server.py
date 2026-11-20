@@ -9,7 +9,7 @@ from pathlib import Path
 import signal
 import sys
 
-from common import VERSION, WatchError, contained
+from common import UPLOAD_BASE64_CHARS, MCP_LINE_BYTES, VERSION, WatchError, contained
 from jobs import Jobs, import_video
 
 
@@ -66,7 +66,7 @@ TOOLS.append({"name": "watch_ingest", "description": "宿主原生插件的附�
               "inputSchema": schema({"action": {"type": "string", "enum": ["begin", "append", "finish", "discard", "local"]},
                   "namespace": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "size": {"type": "integer"},
                   "name": {"type": "string"}, "request_id": {"type": "string"}, "source_id": {"type": "string"}, "kind": {"type": "string", "enum": ["video", "image", "audio"]},
-                  "upload_id": {"type": "string"}, "offset": {"type": "integer"}, "base64": {"type": "string", "maxLength": 48000},
+                  "upload_id": {"type": "string"}, "offset": {"type": "integer"}, "base64": {"type": "string", "maxLength": UPLOAD_BASE64_CHARS},
                   "source": {"type": "string"}, "roots": {"type": "array", "items": {"type": "string"}}}, ["action", "namespace"])})
 TOOLS.append({"name": "watch_browser", "description": "插件内部的浏览器资料接口。",
               "inputSchema": schema({"action": {"type": "string", "enum": ["plan", "finish", "source"]}, "namespace": {"type": "string"},
@@ -197,13 +197,13 @@ def serve(root, host_bridge=False):
         jobs.host_bridge = host_bridge
         try:
             while True:
-                line = sys.stdin.buffer.readline(65537)
+                line = sys.stdin.buffer.readline(MCP_LINE_BYTES + 1)
                 if not line:
                     break
-                if len(line) > 65536:
+                if len(line) > MCP_LINE_BYTES:
                     # A malformed giant request must not be parsed in fragments.
                     while line and not line.endswith(b"\n"):
-                        line = sys.stdin.buffer.readline(65537)
+                        line = sys.stdin.buffer.readline(MCP_LINE_BYTES + 1)
                     reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Request too large"}}
                 else:
                     try:
