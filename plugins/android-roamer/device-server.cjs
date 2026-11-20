@@ -1,6 +1,9 @@
 "use strict";
 const readline = require("node:readline");
 const { createDriver } = require("./device-driver.cjs");
+if (process.platform === "win32" && process.arch === "x64") {
+  require.resolve("@mobilenext/mobilecli-windows-amd64/mobilecli-windows-amd64.exe");
+}
 const call = createDriver(process.argv[2]);
 const tool = { name: "bphone_device", description: "bPhone 设备操作", inputSchema: { type: "object", required: ["op"], properties: { op: { type: "string" } }, additionalProperties: true } };
 const active = new Map();
@@ -10,7 +13,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   try { msg = JSON.parse(line); } catch { return; }
   if (msg.method === "notifications/cancelled") { active.get(msg.params?.requestId)?.abort(); return; }
   if (msg.id == null) return;
-  if (msg.method === "initialize") return send(msg.id, { protocolVersion: msg.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "bphone", version: "3.0.1" } });
+  if (msg.method === "initialize") return send(msg.id, { protocolVersion: msg.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "bphone", version: require("./package.json").version } });
   if (msg.method === "tools/list") return send(msg.id, { tools: [tool] });
   if (msg.method === "ping") return send(msg.id, {});
   if (msg.method !== "tools/call" || msg.params?.name !== tool.name) {
