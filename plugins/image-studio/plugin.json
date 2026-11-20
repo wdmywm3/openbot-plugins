@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.5.1",
-  "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+  "version": "0.5.2",
+  "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
   "extensions": {
     "com.openbot": {
       "displayName": "画图",
@@ -326,7 +326,7 @@
           "title": "画图",
           "completion": "chat",
           "successLabel": "生成成功",
-          "description": "生成一张图片或 GIF 动图。拟写提示词前按当前可用的 image-studio:imagegen 指南构图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取当前角色的人设图，也可指定视角。两种方式分别启用。返回可发送的图片地址。",
+          "description": "生成一张图片或 GIF 动图。拟写提示词前按当前可用的 image-studio:imagegen 指南构图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取角色形象图，可另传聊天参考图或指定视角。两种方式分别启用。返回可发送的图片地址。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -426,7 +426,8 @@
               },
               "references": {
                 "type": "array",
-                "maxItems": 2,
+                "maxItems": 4,
+                "description": "普通生图、改图和自拍均可传入最多四张图，静态和 GIF 均适用。按传入顺序在提示词里称图1、图2等，并写清各图用途。自拍的角色形象图由插件另外附上。",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -788,7 +789,7 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生图指南现按画面构图、光影、材质与微表情编写提示词。可在插件设置中上传自己的 Markdown 或 ZIP 指南，也可恢复默认。"
+        "changelog": "生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。"
       }
     }
   }

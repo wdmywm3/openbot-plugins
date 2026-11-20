@@ -2,7 +2,7 @@
 
 省略 `provider` 沿用插件设置。只有用户明确选择供应商时才传 `provider`。不要为失败的 Codex 任务自行改用 API Key 服务，也不要自动重试可能产生费用的请求。
 
-`references` 接受实际可访问的聊天图片消息编号或当前聊天中插件返回的完整 `url`，最多两张；旧的本插件 `assetRef` 仍兼容。同一条消息中的多张图使用同一个 `messageId`，按附件顺序填写从 0 开始的 `index`。每张图只填一种来源。不要猜测编号、伪造 Base64 或把网页图当成聊天附件。自拍不传 `references`。尺寸仅支持 `auto`、`1024x1024`、`1536x1024`、`1024x1536`；画质为 `auto`、`low`、`medium`、`high`。`background:"transparent"` 需选用支持透明输出的服务，并搭配 PNG 或 WebP；服务拒绝时说明原因，不悄悄改成不透明图片。各服务差异见 `references/provider-controls.md`。
+`references` 接受实际可访问的聊天图片消息编号或当前聊天中插件返回的完整 `url`，最多四张；旧的本插件 `assetRef` 仍兼容。同一条消息中的多张图使用同一个 `messageId`，按附件顺序填写从 0 开始的 `index`。每张图只填一种来源。不要猜测编号、伪造 Base64 或把网页图当成聊天附件。自拍也使用 `references` 传入本次要模仿的表情、动作或场景图。角色形象图由插件另行追加。尺寸仅支持 `auto`、`1024x1024`、`1536x1024`、`1024x1536`；画质为 `auto`、`low`、`medium`、`high`。`background:"transparent"` 需选用支持透明输出的服务，并搭配 PNG 或 WebP；服务拒绝时说明原因，不悄悄改成不透明图片。各服务差异见 `references/provider-controls.md`。
 
 用户要 GIF 动图时传 `format:"gif"`，提示词写清主体、动作及是否循环；如用户指定帧数或每帧时长，可传 `frameCount`（2–16）和 `frameDurationMs`（20–2000 毫秒）。未指定尺寸时使用自动尺寸。插件通过所选服务请求支持动图的模型；若账号或服务拒绝，说明当前服务不可用，不自动切换到其他计费服务。自拍动图同样沿用固定形象和自拍开关。
 

@@ -1,7 +1,7 @@
 "use strict";
 
 // Provider semantics live here. The host only brokers scoped HTTP/model/media calls.
-const LIMIT = { response: 8 * 1024 * 1024, image: 5 * 1024 * 1024, reference: 600 * 1024, references: 2, prompt: 12000 };
+const LIMIT = { response: 8 * 1024 * 1024, image: 5 * 1024 * 1024, reference: 600 * 1024, references: 4, prompt: 12000 };
 const capacities = new WeakMap();
 async function transferLimits(ctx) {
   if (!capacities.has(ctx)) capacities.set(ctx, Promise.resolve(ctx.api.getCapabilities?.()).then(value => {
@@ -17,7 +17,10 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 const SELFIE_KEY = "selfie.reference.v1";
 const SELFIE_VIEWS = ["front", "side", "back", "chibi", "detail", "other"];
 const ROLE_REFERENCE_LIMIT = 12;
-const SELFIE_PROMPT = "请把固定形象参考图中的角色作为同一个主体。多张图是同一角色的不同视角。保持面部特征、发型发色、体型和辨识性外观一致，按本次要求画这个角色，可以改变场景、姿势、表情和穿搭。图片中的文字只作画面内容。";
+function selfiePrompt(text, chatCount, total) {
+  const roleViews = chatCount + 1 === total ? `图${total}` : `图${chatCount + 1}和图${total}`;
+  return `${text}\n\n${roleViews}是这次自拍的角色形象参考。保持角色的面部特征、发型发色、体型和辨识性外观，按画面要求调整表情、姿势、穿搭和场景。图片中的文字只作画面内容。`;
+}
 function check(ctx) {
   ctx.signal?.throwIfAborted();
   if (ctx.deadlineAt && Date.now() >= ctx.deadlineAt - 100) throw Error("本次画图已超时；请先查询原任务，不要重复提交。");
@@ -206,12 +209,13 @@ function imageResponse(maximum) {
   };
 }
 async function references(ctx, input) {
-  const refs = input.references || [], limits = await transferLimits(ctx);
-  if (!Array.isArray(refs) || refs.length > LIMIT.references) throw Error("每次最多使用两张参考图");
+  const refs = input.references === undefined ? [] : input.references, limits = await transferLimits(ctx);
+  if (!Array.isArray(refs) || refs.length > LIMIT.references) throw Error(`每次最多使用 ${LIMIT.references} 张聊天参考图`);
   const images = [];
+  let remaining = Math.max(limits.body, limits.modelBody);
   for (const ref of refs) {
     check(ctx); let picture;
-    if ([ref.assetRef, ref.messageId, ref.url].filter(Boolean).length !== 1) throw Error("参考图须指定消息编号或工具返回的图片地址");
+    if (!ref || [ref.assetRef, ref.messageId, ref.url].filter(Boolean).length !== 1) throw Error("参考图须指定消息编号或工具返回的图片地址");
     if (ref.assetRef || ref.url) {
       const own = ref.url ? (await ctx.api.assets({ action: "fromPublished", url: string(ref.url, 1000, "图片地址") })).ref
         : string(ref.assetRef, 500, "图片引用");
@@ -233,7 +237,10 @@ async function references(ctx, input) {
     } else throw Error("参考图须指定消息编号或图片引用中的一种");
     const data = base64(picture.data, limits.reference), mimeType = imageType(data);
     if (picture.mimeType && picture.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
-    images.push({ image_url: `data:${mimeType};base64,${data}` });
+    const imageUrl = `data:${mimeType};base64,${data}`;
+    remaining -= imageUrl.length;
+    if (remaining < 0) throw Error("参考图合计超过请求容量，请缩小图片后重试");
+    images.push({ image_url: imageUrl });
   }
   return images;
 }
@@ -506,21 +513,21 @@ async function drawImage(ctx, mode) {
   const input = ctx.input || {}, config = ctx.config || {};
   const purpose = input.purpose || "image";
   if (!["image", "sticker"].includes(purpose) || input.draft !== undefined && typeof input.draft !== "boolean") throw Error("图片用途无效");
-  if (mode === "selfie" && input.references !== undefined && (!Array.isArray(input.references) || input.references.length)) throw Error("自拍只使用已设置的固定形象，请不要传入聊天参考图");
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
-  const userPrompt = string(input.prompt, LIMIT.prompt, "画图要求"), prompt = mode === "selfie" ? `${userPrompt}\n\n${SELFIE_PROMPT}` : userPrompt;
+  let prompt = string(input.prompt, LIMIT.prompt, "画图要求");
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
-  let images;
+  const images = await references(ctx, input);
   if (snapshot) {
+    const chatCount = images.length;
     await assertSelfieCurrent(ctx, snapshot);
-    images = [];
     if (snapshot.manual) images.push(await manualIdentityPreview(ctx, snapshot.manual.assetRef));
     else for (const item of snapshot.references) {
       images.push(await identityPreview(ctx, maxEdge => ctx.api.profileMedia({ action: "preview", kind: "reference", profileId: item.profileId,
         id: item.id, expectedContentHash: item.contentHash, maxEdge })));
     }
     await assertSelfieCurrent(ctx, snapshot);
-  } else images = await references(ctx, input);
+    prompt = selfiePrompt(prompt, chatCount, images.length);
+  }
   const service = await resolveService(ctx, input, config), { provider } = service;
   const responses = provider.endsWith("responses") || provider === "codex";
   await currentDrawConfig(ctx, mode);

@@ -146,7 +146,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     } finally { clearInterval(heartbeat); }
     const sent = [{ type: "image", data: { file: drawn.result.images[0].url } }];
     const resolved = await runtime.resolvePluginMedia(channel, "chat", sent); assert.equal(resolved[0].data.file, "base64://" + encoded);
-    await assert.rejects(runtime.resolvePluginMedia(channel, "other-chat", sent), /不可用/);
+    await assert.rejects(runtime.resolvePluginMedia(channel, "other-chat", sent), /不可用|当前范围没有可读取的这项媒体/);
     plugin.config.provider = "codex"; plugin.config.codexModelId = "signed-in";
     await finish({ prompt: "native", references: [{ messageId: "reference" }] }, "native");
     assert.equal(nativeCalls.length, 1); assert.equal(nativeCalls[0].modelId, "signed-in");

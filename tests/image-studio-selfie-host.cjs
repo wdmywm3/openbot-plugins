@@ -9,6 +9,7 @@ const { createChannelPluginRegistryService } = fromHost("features/channels/chann
 const { createChannelPluginRuntimeService, shutdownPluginWorkers } = fromHost("features/channels/channel-plugin-runtime-service.cjs");
 const { pluginAuthorization, decidePluginAuthorization } = fromHost("plugins/plugin-authorization.cjs");
 const { createPluginAssets } = fromHost("plugins/plugin-assets.cjs");
+const { sessionAssetWritePath, sessionAssetRef } = fromHost("context/session-asset-paths.cjs");
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
@@ -17,7 +18,9 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
   let runtime, media, pluginData;
   try {
     const channel = { id: "selfies", enabled: true, config: { ownerUsers: ["owner"] } };
-    const store = { root, data: { channels: [channel], models: [{ id: "signed-in", provider: "codex", codexProfileId: "fixture", enabled: true }] }, save() {}, async flush() {} };
+    const chatA = "onebot:group:a", chatB = "onebot:private:b", tool = "plugin__image-studio__draw_image";
+    const store = { root, data: { channels: [channel], models: [{ id: "signed-in", provider: "codex", codexProfileId: "fixture", enabled: true }],
+      sessions: [{ id: "session", channelId: channel.id, channelChatId: chatA }] }, save() {}, async flush() {} };
     const arrays = name => store.data[name] ||= [];
     const installer = createPluginCommands({ fs, path, getStore: () => store, getCommands: () => ({}), ensureStoreArray: arrays });
     const installed = await installer.importPluginFromPath({ pluginPath: path.resolve(__dirname, "../plugins/image-studio") });
@@ -34,6 +37,11 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     const sharp = hostRequire("sharp");
     const png = await sharp({ create: { width: 60, height: 80, channels: 3, background: "red" } }).png().toBuffer();
     const second = await sharp({ create: { width: 60, height: 80, channels: 3, background: "green" } }).png().toBuffer();
+    const message = { id: "expression-and-scene", chatId: chatA, media: [png, second].map((bytes, index) => {
+      const fileName = `ref-${index}.png`;
+      fs.writeFileSync(sessionAssetWritePath({ path, root, sessionId: "session", kind: "images", fileName }), bytes);
+      return { type: "image", assetRef: sessionAssetRef("session", "images", fileName) };
+    }) };
     media = createPluginAssets({ root }); const background = media.background;
     const actor = { channelId: channel.id, pluginId: plugin.id, chatId: "", desktop: true };
     const scope = { signal: new AbortController().signal, assertActive() {} };
@@ -45,6 +53,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     const preview = await background.call(actor, { action: "preview", ref: first.ref, maxEdge: 1024 }, scope);
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays,
       resolveChannel: id => id === channel.id ? channel : null,
+      channelEventByReference: (_channel, chat, id) => chat === chatA && id === message.id ? message : null,
       botPluginsFor: (_channel, chatId) => [{ ...plugin, config: { ...plugin.config, ...(overrides.get(chatId) || {}) } }],
       pluginData: { database: (...args) => pluginData.database(...args) },
       makeId: () => crypto.randomUUID(), safeError: String, isNapCatOneBotChannel: () => false,
@@ -66,7 +75,6 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     });
     const context = chat => ({ purpose: "chat", channelPrincipal: { source: "channel", channelId: channel.id, chatId: chat,
       senderId: "member", messageType: chat.includes(":group:") ? "group" : "private" } });
-    const chatA = "onebot:group:a", chatB = "onebot:private:b", tool = "plugin__image-studio__draw_image";
     const start = (chat, key, input = { mode: "selfie", prompt: "在公园拍照" }) => runtime.runNativePluginTool(tool, { action: "start", input, requestKey: key }, context(chat));
     async function finish(job, chat = chatA) {
       for (let i = 0; job.status === "running" && i < 500; i++) { await delay(10); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, context(chat)); }
@@ -92,7 +100,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
       job = await finish(await start(chat, "shared-reference-" + chat), chat); assert.equal(job.status, "completed", job.error);
       assert.equal(job.result.selfieReferenceRevision, 1);
       const content = calls.at(-1).input[0].content;
-      assert(content[0].text.includes("请把固定形象参考图中的角色作为同一个主体"));
+      assert(content[0].text.includes("图1是这次自拍的角色形象参考"));
       assert.equal(content[1].image_url, "data:image/jpeg;base64," + preview.data, "only the globally shared identity crosses chats");
       assert.equal(calls.at(-1).tools[0].action, "edit");
     }
@@ -123,6 +131,15 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     job = await finish(await start(chatA, "role-back", { mode: "selfie", selfieView: "back", prompt: "从背面画我" }));
     assert.equal(job.status, "completed", job.error);
     assert.deepEqual(lastImages(), [backUrl, frontUrl]);
+    const mixed = { mode: "selfie", selfieView: "back", purpose: "sticker", prompt: "模仿图1的惊叫表情，沿用图2的背景",
+      references: [0, 1].map(index => ({ messageId: message.id, index })) };
+    job = await finish(await start(chatA, "mixed-selfie", mixed));
+    assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(lastImages(), ["data:image/png;base64," + png.toString("base64"), "data:image/png;base64," + second.toString("base64"), backUrl, frontUrl]);
+    assert.match(calls.at(-1).input[0].content[0].text, /图3和图4是这次自拍的角色形象参考/);
+    const beforeForeignChat = calls.length;
+    job = await finish(await start(chatB, "foreign-selfie-references", mixed), chatB);
+    assert.equal(job.status, "failed"); assert.equal(calls.length, beforeForeignChat);
 
     let ticks = 0, largestGap = 0, previousTick = performance.now();
     const heartbeat = setInterval(() => {
