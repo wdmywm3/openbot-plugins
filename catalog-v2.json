@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "2.5.0",
+      "version": "2.5.1",
       "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
       "category": "ai",
       "main": "index.js",
@@ -39,17 +39,17 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "index.js",
-          "size": 48959,
-          "sha256": "152ac9d1096336ceb7618717d3b7534f745445cfc642f8bbaa9a67a0a3a7d1aa"
+          "size": 49504,
+          "sha256": "1856e6bbbf5648702b6b1ed25b5786cad5f00fa0cc5c17cb4e708217f7e1eb1f"
         },
         {
           "path": "plugin.json",
           "size": 15891,
-          "sha256": "7e3b37817028e01d651f3a48345519247a313c6a5c629225a43ef4bd6854698e"
+          "sha256": "8673917c08d155b3375ce0be589bf7c1f8ffa705421fbe6edfba7f4594151038"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
@@ -61,7 +61,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.0",
+      "version": "1.16.1",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -99,7 +99,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "MEDIA.md",
@@ -108,8 +108,8 @@
         },
         {
           "path": "index.js",
-          "size": 229095,
-          "sha256": "3de0c5df4c076e147111ff4a8b6e922352627789a308b8e058bbd08bc9f60830"
+          "size": 229640,
+          "sha256": "56844865c1576d964c4d090e9ac4f9e4520a8d9e7ad8efbc8f1404e2c5ddf38c"
         },
         {
           "path": "media-mcp/launch.py",
@@ -129,7 +129,7 @@
         {
           "path": "plugin.json",
           "size": 58630,
-          "sha256": "0f99a1be205c08fe2afd70378b9892dd07404168929a13c1617ae54708c5b4a8"
+          "sha256": "84129fed712abd1b018f4d3df9641c88d2ce0fae3ca44a8ef0e94dfef46c07d1"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -428,7 +428,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
       "category": "utility",
       "main": "index.js",
@@ -463,22 +463,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "README.md",
-          "size": 9178,
-          "sha256": "c7991ce9897deb4ee91a3df6bc893154fc87b536dbad7f94df60335e82a38803"
+          "size": 9370,
+          "sha256": "949f3fa403bc2ae2d02c58d3d7cb451a22fe9a120f62a4f98dd6c8edd4d7b145"
         },
         {
           "path": "index.js",
-          "size": 40117,
-          "sha256": "aaa63b9e7e02b04b39564ef69aadaa0dbf65119b37ec6d48b1dd21b0024e92ef"
+          "size": 42418,
+          "sha256": "9856325d148833104bed01cec61f69a6c2b9ec6352717768e940de1c1c1f48fb"
         },
         {
           "path": "plugin.json",
           "size": 24760,
-          "sha256": "b3324a107086b2d717677654ae07c1b806e0f7a912c4ee265a92a49e73a35505"
+          "sha256": "94f7a9d37eb3fcfddfaa9f62ee124a7c5a2107e1e3e09fc25618eda71837bf36"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -517,8 +517,8 @@
         },
         {
           "path": "skills/imagegen/references/provider-controls.md",
-          "size": 2345,
-          "sha256": "d26c92f98a4028df04c86f73176099177b512245a9d07cdd08616208c327a164"
+          "size": 2388,
+          "sha256": "0dccdc097ae785286e7cf3f800a547d623c364380b568016cdf9b9293335e396"
         },
         {
           "path": "skills/imagegen/references/sample-prompts.md",
@@ -769,7 +769,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.8",
+      "version": "2.6.9",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -813,7 +813,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "73ef3aab54c32fcd526e78a640c071d56a6338bf",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "README.md",
@@ -988,7 +988,7 @@
         {
           "path": "plugin.json",
           "size": 14671,
-          "sha256": "f01e4a4a65061f60a5895283633708866290f52a6e4ee33aae17857988054bbc"
+          "sha256": "dc3539fc971dccfc5207d739ac48eeda14a5f64b23139088a8fc907236ec158e"
         },
         {
           "path": "process.cjs",
@@ -1082,13 +1082,13 @@
         },
         {
           "path": "unified-dream.cjs",
-          "size": 24050,
-          "sha256": "a0e102f22629dc37a7cd33a44bd8baaaf510e392385bb19ff785b40345704215"
+          "size": 24233,
+          "sha256": "e03748e62f4e4f19f1f86b85383f9cd5725f5ecca408396c08c4e677e4a234bf"
         },
         {
           "path": "unified-existing.cjs",
-          "size": 5926,
-          "sha256": "58be4d0f97289b7e4f163293854ef01865adb21c36f8eefb222c291d78f71ccf"
+          "size": 6462,
+          "sha256": "f897f3687e49f46453ab36f48ad8e1bc8889190199e8e91605d7dc1379876368"
         },
         {
           "path": "unified-followup-activity.cjs",
@@ -1117,8 +1117,8 @@
         },
         {
           "path": "unified-maintenance.cjs",
-          "size": 19706,
-          "sha256": "e6a6d87ef6725272e33cea13129af04b294e5a8d45eacf40d545e4bcbeafdc62"
+          "size": 19726,
+          "sha256": "3fb51e7dea61b339daf7920ca2eecf4d6ef9aa5c1fea125eea8ac3718ade55e4"
         },
         {
           "path": "unified-material-policy.cjs",
@@ -1370,7 +1370,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
       "category": "utility",
       "main": "index.js",
@@ -1397,22 +1397,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "README.md",
-          "size": 1153,
-          "sha256": "5637c99f1685dd047120f11d098afd490656a700790809a109ab03bc5cb7ab2e"
+          "size": 1269,
+          "sha256": "fbc52b9e72a18206d43146aed071c41a0a3d03ce206f72250cab19bff9cb8e65"
         },
         {
           "path": "index.js",
-          "size": 25451,
-          "sha256": "30ad300824461f9eff0711cbda608786d15633dd9943f6733882075173b52f65"
+          "size": 25876,
+          "sha256": "3d7e537a5223071201acbe6953884d638dab4905fb2616999234c486ab980640"
         },
         {
           "path": "plugin.json",
           "size": 11897,
-          "sha256": "5870484155d0b23beb414da0b14d7100a0a9c38cbdec2488779029b007374700"
+          "sha256": "d5ae564bde9763d9c5cff31e02799281ed43f34a7d4b42e5ce681d5feb82f5f3"
         },
         {
           "path": "skills/search/SKILL.md",
@@ -1481,7 +1481,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.0",
+      "version": "0.11.1",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1510,12 +1510,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "48f145a88917ed801292dc004c06ec6db14f450a",
       "files": [
         {
           "path": "README.md",
-          "size": 22261,
-          "sha256": "e1e57de60fe9349066d03fbfa732b3d1144b23f6e92796e1073af4aa0d8c0284"
+          "size": 22124,
+          "sha256": "be91a6d3b4d0a253e67a37124fe4e63a6ebd74a7ab0ac248ffb3c41f300fb07c"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
@@ -1529,8 +1529,8 @@
         },
         {
           "path": "index.js",
-          "size": 20077,
-          "sha256": "54c46a73a752309066425d7dcaa096cb574676fd7c176539a52d47234eafcdcd"
+          "size": 21727,
+          "sha256": "8b1728d1cb33430855afe69a2bdbd37153f7c6545837dd28c8a6d358fffb6033"
         },
         {
           "path": "mcp.json",
@@ -1540,7 +1540,7 @@
         {
           "path": "plugin.json",
           "size": 12926,
-          "sha256": "199546534d549567a8bae2f143b33f9dfd27542d4380f5c2c5641249333488db"
+          "sha256": "20b7d6a7028966cc44958350a9a8cd034a147e0e7d083486a5c5958d64a2c26b"
         },
         {
           "path": "requirements-asr.txt",
@@ -1559,8 +1559,8 @@
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 17255,
-          "sha256": "2633ffb628ae907cc9b4ece819d43d32158e3424da2540d746e61cfb6db1049b"
+          "size": 17263,
+          "sha256": "77dc9ea0e1c925aea0fa43821e9882174b2d73cb789468977e39fbf202f6b7be"
         },
         {
           "path": "tools/asr.py",
@@ -1574,13 +1574,13 @@
         },
         {
           "path": "tools/common.py",
-          "size": 7735,
-          "sha256": "16e5d012a08b85b2c7c8432c3d3a85fd043c9536995c2d060331885dc63015cd"
+          "size": 7870,
+          "sha256": "74791f2ec0b243ded4c7ad6714112be63d89e0f08f452c720d2ea8b0d0cd186e"
         },
         {
           "path": "tools/download.py",
-          "size": 3991,
-          "sha256": "08aefa7d6cc30d8dbe772dbc87c3a796fa187f09f8f1943ecf785976fe164424"
+          "size": 4043,
+          "sha256": "1a1f1fa2491439d65991495c6be73ab8299585b3e3d93c98a1d89f7442741fa4"
         },
         {
           "path": "tools/download_info.py",
@@ -1589,18 +1589,18 @@
         },
         {
           "path": "tools/ingest.py",
-          "size": 7029,
-          "sha256": "073a138ad7acacfc82827851ecbad219a428d8e8378bb3e1681b016a1b754a81"
+          "size": 7154,
+          "sha256": "221db66125007fd65073070d554d1638613cb67f3d6c04b3c38d3e50d310cb5a"
         },
         {
           "path": "tools/jobs.py",
-          "size": 21426,
-          "sha256": "aeca2d656da4340c8aefa14e4ccbe08c07fcef4e18b4150aeca15f53575bc653"
+          "size": 21452,
+          "sha256": "e1e853b4fa4139dc89e7cd41b0f7b1d216a53e1ff20ba7dfafd08167fc9ddca6"
         },
         {
           "path": "tools/media.py",
-          "size": 33637,
-          "sha256": "f78f553eed172e9f78d2fd9ed55a61a7823f20f7b4677ed0438106ecc48f2da7"
+          "size": 33689,
+          "sha256": "b816124654a50fa74ffcd1c12dba0b1c14bca5568b491af49c975bcb45517585"
         },
         {
           "path": "tools/media_bridge.py",
@@ -1614,8 +1614,8 @@
         },
         {
           "path": "tools/server.py",
-          "size": 16289,
-          "sha256": "da37634a52eec7f4a8b398884db93e02ebe1ccb44cf4162749ff5a9b22cebb3c"
+          "size": 16375,
+          "sha256": "ff4780d1021b3b43c99e4a41479cbd046834b7a9997bc8de9df4f260b9742e00"
         },
         {
           "path": "tools/setup_asr.py",
