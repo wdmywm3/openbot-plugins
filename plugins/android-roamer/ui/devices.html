@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>设备</title><link rel="stylesheet" href="devices.css"></head>
+<body><main>
+<label>设备<select id="device"></select></label>
+<label>名称<input id="name" maxlength="100"></label>
+<label for="adb">ADB 路径</label><div class="picker"><input id="adb" placeholder="自动检测，或填写 adb.exe 的完整路径"><button id="pick">选择文件</button></div>
+<div class="address"><label>地址<input id="host" value="127.0.0.1"></label><label>端口<input id="port" type="number" min="1" max="65535" value="16384"></label></div>
+<div class="actions"><button id="scan">扫描设备</button><button id="save" class="primary" disabled>保存连接</button></div>
+<p id="status" role="status"></p><ul id="results"></ul>
+<button id="legacy" hidden>导入旧版设备</button><details id="options" hidden><summary>设备设置</summary><label><input type="checkbox" id="default"> 默认设备</label><label><input type="checkbox" id="paused"> 暂停任务</label><div id="overrides"></div><div class="actions"><button id="update">保存设备设置</button><button id="activity">查看近况</button><button id="history">操作记录</button><button id="remove">移除设备</button></div><p id="report"></p><label id="transfer-field">转移到实例<select id="target"></select></label><button id="transfer">转移设备</button></details>
+</main><script src="devices.js"></script></body></html>

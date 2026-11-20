@@ -1,0 +1,18 @@
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--text-primary); background: var(--bg-primary); font: 14px/1.5 system-ui, sans-serif; }
+main { display: grid; gap: 12px; max-width: 42rem; padding: 12px; }
+label { display: grid; gap: 4px; }
+input, select, button { font: inherit; color: inherit; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; max-width: 100%; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+button.primary, button[aria-pressed=true] { border-color: var(--accent-primary); }
+.address { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+ul { margin: 0; padding: 0; display: grid; gap: 6px; list-style: none; }
+li button { display: grid; width: 100%; grid-template-columns: 1fr 1fr; align-items: center; text-align: left; overflow-wrap: anywhere; }
+li img { max-height: 155px; max-width: 100%; justify-self: center; }
+p { margin: 0; color: var(--text-secondary); }
+p:empty, [hidden] { display: none; }
+details label { margin: 8px 0; } details label:has(input[type=checkbox]) { display: flex; gap: 5px; }
+
+.picker { display: flex; gap: 8px; } .picker input { flex: 1; min-width: 0; } #report { white-space: pre-line; }

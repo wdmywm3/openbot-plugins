@@ -5,24 +5,24 @@ const {memoryDatabase}=require('./helpers/memory-database.cjs');
 const BV='BV1234567890';
 (async()=>{
  const phone=phoneFixture(),plugin=loadPhone();memoryDatabase(phone.ctx);phone.ctx.tool='use';phone.ctx.input={goal:'观察星图'};
- const baseRun=phone.ctx.api.runAgent;phone.ctx.api.runAgent=async request=>{
-   if(!request.resource)return baseRun(request);phone.calls.push(structuredClone(request));
-   const activityId=/本次笔记 activityId：([^；]+)/.exec(request.prompt)[1];
+ phone.ctx.api.generate=async request=>{
+   phone.calls.push(structuredClone(request));
+   const {activityId}=JSON.parse(request.prompt);
    return{text:JSON.stringify({report:'星图可切换观测时间',activity:{progress:'找到了时间选择器',next:'核对明日星空',benefit:.8,enjoyment:.5},reflections:[{topic:'星图观测时间',understanding:'观测时间会改变星空位置',application:'观星前先确认时间',evidence:[{sourceId:activityId,quote:'星图可切换观测时间'}]}],questions:[{sourceId:activityId,question:'能否查看明日星空？'}]})};
  };
  await plugin.agentTool(phone.ctx);assert.equal(phone.activity().status,'completed');
  const learned=await plugin.agentTool({...phone.ctx,tool:'learning',input:{query:'星图'}});assert.equal(learned.lessons.length,1);
- await plugin.agentTool(phone.ctx);assert.match(JSON.stringify(phone.calls[1].externalContent),/观星前先确认时间/);
+ await plugin.agentTool(phone.ctx);assert.match(JSON.stringify(phone.calls[1].prompt),/观星前先确认时间/);
  await assert.rejects(plugin.agentTool({...phone.ctx,tool:'learning',input:{action:'retract',id:learned.lessons[0].id,expectedRevision:learned.lessons[0].revision}}),/主人/);
  const privatePhone=phoneFixture();memoryDatabase(privatePhone.ctx);privatePhone.ctx.tool='use';privatePhone.ctx.input={goal:'PRIVATE_TASK',private:true};
- privatePhone.ctx.api.runAgent=phone.ctx.api.runAgent;await plugin.agentTool(privatePhone.ctx);
+ privatePhone.ctx.api.generate=phone.ctx.api.generate;await plugin.agentTool(privatePhone.ctx);
  assert.equal((await plugin.agentTool({...privatePhone.ctx,tool:'learning',input:{query:'星图'}})).lessons.length,0);
  assert.equal((await plugin.agentTool({...privatePhone.ctx,tool:'learning',input:{query:'星图',private:true}})).lessons.length,1);
  privatePhone.ctx.message.chatId='other-owner-chat';assert.equal((await plugin.agentTool({...privatePhone.ctx,tool:'learning',input:{private:true}})).lessons.length,0);
  const choice=phoneFixture(),choiceDb=memoryDatabase(choice.ctx);choice.ctx.config.autonomyEnabled=true;choice.ctx.message.chatId='';
  for(const [id,goal] of [['phone:phone-one:a','观察星图'],['phone:phone-one:b','练习游戏']])await choiceDb({name:'phone-activities',scope:'channel',action:'put',collection:'activities',key:id,expectedRevision:0,value:{activityId:id,deviceId:'phone-one',goal,progress:'已开始',next:'下一步',status:'active'}});
  const chosenRun=choice.ctx.api.runAgent;choice.ctx.api.runAgent=async request=>request.taskId.startsWith('phone-choice-')?{text:JSON.stringify({activityId:'phone:phone-one:b',rest:false})}:chosenRun(request);
- await plugin.poll(choice.ctx);assert.equal(choice.activity().activityId,'phone:phone-one:b');assert.match(JSON.stringify(choice.calls[0].externalContent),/练习游戏/);
+ await plugin.poll(choice.ctx);assert.equal(choice.activity().activityId,'phone:phone-one:b');assert.match(JSON.stringify(choice.calls[0].prompt),/练习游戏/);
  const bili=biliFixture();memoryDatabase(bili.ctx);const normal=bili.ctx.api.runAgent;
  bili.ctx.api.runAgent=async request=>request.taskId.startsWith('explore-')?{toolCalls:1,observedUrls:[`https://www.bilibili.com/video/${BV}`],text:JSON.stringify({candidate:null,inspected:[{bvid:BV,part:1,title:'样本',summary:'本实验只有十人参与'}],reflections:[{topic:'实验样本',understanding:'样本量较小',application:'引用结论前检查规模',evidence:[{sourceId:`${BV}:p:1`,quote:'只有十人参与'}]}]})}:normal(request);
  await bili.poll();const lessons=await bili.tool('learning',{public:true,query:'样本'});assert.equal(lessons.lessons.length,1);
