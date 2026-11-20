@@ -1,7 +1,7 @@
 {
   "id": "daily-checkin",
   "name": "每日签到",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "metadata": {
     "platforms": [
       "napcat",
@@ -52,28 +52,42 @@
         "title": "时区偏移（分钟）",
         "minimum": -720,
         "maximum": 840,
-        "default": 480
+        "default": 480,
+        "scope": "global",
+        "chatOverride": true
       },
       "minPoints": {
         "type": "integer",
         "title": "单次最少积分",
         "minimum": 0,
         "maximum": 10000,
-        "default": 5
+        "default": 5,
+        "scope": "global",
+        "chatOverride": true
       },
       "maxPoints": {
         "type": "integer",
         "title": "单次最多积分",
         "minimum": 0,
         "maximum": 10000,
-        "default": 15
+        "default": 15,
+        "scope": "global",
+        "chatOverride": true
       },
       "rankSize": {
         "type": "integer",
         "title": "排行显示人数",
         "minimum": 1,
         "maximum": 20,
-        "default": 10
+        "default": 10,
+        "scope": "global",
+        "chatOverride": true
+      },
+      "checkinRules": {
+        "type": "boolean",
+        "title": "签到规则",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -85,14 +99,41 @@
         "id": "settings",
         "title": "设置",
         "fields": [
+          "checkinRules"
+        ],
+        "widgets": []
+      }
+    ],
+    "chatAudiences": [
+      "group:member",
+      "group:owner",
+      "private:member",
+      "private:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "checkinRulesDefaults",
+        "title": "签到规则",
+        "fields": [
           "timezoneOffsetMinutes",
           "minPoints",
           "maxPoints",
           "rankSize"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "checkinRules",
+        "sections": [
+          "checkinRulesDefaults"
         ],
-        "widgets": []
+        "summary": "timezoneOffsetMinutes"
       }
     ]
   },
-  "category": "community"
+  "category": "community",
+  "requiredFeatures": [
+    "pluginSettingScopes"
+  ]
 }

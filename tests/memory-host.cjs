@@ -27,9 +27,10 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
       modalities: ["text"], ready: () => true, create: () => createLocalEmbeddingIndex(root, { embed: async input => Array.from({ length: 768 }, (_, i) => i === (/拿铁|咖啡|饮品/.test(input.text) ? 0 : 1) ? 1 : 0) }) } } });
     vectors = createVectorCollections({ root, models });
     const retrieval = createPluginRetrieval({ retrieval: { models, vectors } });
-    processRuntime = createPluginProcessRuntime({ storeRoot: root, resolveLaunch: request => ({ command: process.execPath, args: request.args, runtimeEnv: {}, runtimePath: process.env.PATH }) });
+    processRuntime = createPluginProcessRuntime({ storeRoot: root });
     const raw = require(path.join(packageRoot, "plugin.json")), manifest = raw.extensions["com.openbot"];
     const plugin = { id: "memory", basePath: packageRoot, packageHash: "test-package", permissions: manifest.permissions, dependencies: manifest.dependencies, execution: manifest.execution };
+    await require(path.join(host, "electron/lib/plugins/plugin-environment.cjs")).prepareEnvironment(root, plugin);
     let generationStarted, finishGeneration, gate, generated = 0;
     const started = new Promise(resolve => { generationStarted = resolve; });
     gate = new Promise(resolve => { finishGeneration = resolve; });

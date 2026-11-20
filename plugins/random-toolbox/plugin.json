@@ -1,8 +1,11 @@
 {
   "id": "random-toolbox",
   "name": "随机工具箱",
-  "version": "1.0.3",
-  "requiredFeatures": ["qqGateway"],
+  "version": "1.0.4",
+  "requiredFeatures": [
+    "qqGateway",
+    "pluginSettingScopes"
+  ],
   "metadata": {
     "platforms": [
       "napcat",
@@ -71,19 +74,30 @@
         "title": "最多选项数",
         "minimum": 2,
         "maximum": 100,
-        "default": 30
+        "default": 30,
+        "scope": "global",
+        "chatOverride": true
       },
       "maxRange": {
         "type": "integer",
         "title": "随机数最大跨度",
         "minimum": 1,
         "maximum": 1000000000,
-        "default": 1000000
+        "default": 1000000,
+        "scope": "global",
+        "chatOverride": true
       },
       "allowPickMember": {
         "type": "boolean",
         "title": "允许抽取群成员",
-        "default": true
+        "default": true,
+        "scope": "instance"
+      },
+      "randomLimits": {
+        "type": "boolean",
+        "title": "随机范围",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -95,11 +109,35 @@
         "id": "settings",
         "title": "设置",
         "fields": [
-          "maxOptions",
-          "maxRange",
-          "allowPickMember"
+          "allowPickMember",
+          "randomLimits"
         ],
         "widgets": []
+      }
+    ],
+    "chatAudiences": [
+      "group:member",
+      "group:owner",
+      "private:member",
+      "private:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "randomLimitsDefaults",
+        "title": "随机范围",
+        "fields": [
+          "maxOptions",
+          "maxRange"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "randomLimits",
+        "sections": [
+          "randomLimitsDefaults"
+        ],
+        "summary": "maxOptions"
       }
     ]
   },

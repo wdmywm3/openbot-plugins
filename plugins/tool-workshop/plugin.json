@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tool-workshop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "让 Bot 编写、试运行并保存可重复调用的 JavaScript 工具。",
   "extensions": {
     "com.openbot": {
@@ -10,7 +10,8 @@
       "icon": "wrench",
       "apiVersion": 1,
       "requiredFeatures": [
-        "scriptExecution"
+        "scriptExecution",
+        "pluginSettingScopes"
       ],
       "main": "index.js",
       "permissions": [
@@ -36,17 +37,20 @@
           "allowNetwork": {
             "type": "boolean",
             "title": "允许工具联网",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "allowModelRequests": {
             "type": "boolean",
             "title": "允许工具调用模型",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "allowMedia": {
             "type": "boolean",
             "title": "允许工具保存媒体",
-            "default": false
+            "default": false,
+            "scope": "instance"
           }
         },
         "additionalProperties": false
@@ -64,6 +68,9 @@
             ],
             "widgets": []
           }
+        ],
+        "chatAudiences": [
+          "private:owner"
         ]
       },
       "tools": [

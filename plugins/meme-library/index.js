@@ -50,7 +50,8 @@ async function all(ctx, includeDeleted = false) {
   return includeDeleted ? rows : rows.filter(row => !row.value.deleted);
 }
 async function settings(ctx, chatId = ctx.message?.chatId || "") {
-  return { ...DEFAULTS, ...(await db(ctx, "settings", "default")).record?.value,
+  return { ...DEFAULTS, frequency: ctx.config?.frequency ?? DEFAULTS.frequency, cooldownSeconds: ctx.config?.cooldownSeconds ?? DEFAULTS.cooldownSeconds,
+    ...(await db(ctx, "settings", "default")).record?.value,
     ...(chatId ? (await db(ctx, "settings", chatId)).record?.value : {}) };
 }
 async function retrievalStatus(ctx, config = {}) {
@@ -584,6 +585,7 @@ module.exports.saveSettings = async ctx => {
     if (!model.modalities?.includes("image")) throw Error("请选择支持图片的检索模型");
   }
   if (key === "default") {
+    if (p.inherit === true) { delete value.frequency; delete value.cooldownSeconds; }
     value.visionModelId = text(p.visionModelId, 200);
   }
   await db(ctx, "settings", key, "put", { value, expectedRevision: row?.revision || 0 });
@@ -631,7 +633,7 @@ module.exports.list = async ctx => {
     counts: { total: rows.length, ready: rows.filter(r => r.value.indexStatus === "ready").length,
       searchable: rows.filter(r => r.value.analysisStatus === "ready").length, failed: rows.filter(r => r.value.error).length },
     retrievalStatus: await ctx.api.getState("retrievalStatus", "channel"),
-    inherited: !!(input.settingsChatId ?? input.chatId) && !pref,
+    inherited: input.settingsChatId || input.chatId ? !pref : pref?.value?.frequency == null && pref?.value?.cooldownSeconds == null,
     preferences: { ...await settings(ctx, input.settingsChatId ?? input.chatId ?? ""), revision: pref?.revision || 0 },
     contexts: { ...contexts, chats: contexts.chats.map(chat => ({ ...chat, name: contextChatLabel(chat) })) },
     models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,

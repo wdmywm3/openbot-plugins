@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.12",
+  "version": "2.6.13",
   "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
   "extensions": {
     "com.openbot": {
@@ -29,7 +29,8 @@
         "agentContinuations",
         "memoryCategories",
         "conversationForks",
-        "automaticMemoryIndex"
+        "automaticMemoryIndex",
+        "pluginSettingScopes"
       ],
       "permissions": [
         "process",
@@ -108,19 +109,29 @@
           "retrievalModelId": {
             "type": "string",
             "title": "检索模型",
-            "default": ""
+            "default": "",
+            "scope": "global"
           },
           "semanticThreshold": {
             "type": "number",
             "title": "语义匹配下限",
             "default": 0.45,
             "minimum": 0,
-            "maximum": 1
+            "maximum": 1,
+            "scope": "global",
+            "chatOverride": true
           },
           "skipOversizedSourceImages": {
             "type": "boolean",
             "title": "标记跳过的超大图片",
             "description": "标记像素数超过索引上限的图片，方便按原消息查找。",
+            "default": false,
+            "scope": "instance"
+          },
+          "retrievalSettings": {
+            "type": "boolean",
+            "title": "检索偏好",
+            "scope": "instance",
             "default": false
           }
         }
@@ -467,6 +478,41 @@
             "choiceGroup": "placement",
             "choice": "category",
             "choiceLabel": "新建记忆 Plus 分类"
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
+        ],
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "skipOversizedSourceImages",
+              "retrievalSettings"
+            ]
+          }
+        ],
+        "globalSections": [
+          {
+            "id": "retrievalSettingsDefaults",
+            "title": "检索偏好",
+            "fields": [
+              "retrievalModelId",
+              "semanticThreshold"
+            ]
+          }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "retrievalSettings",
+            "sections": [
+              "retrievalSettingsDefaults"
+            ],
+            "summary": "retrievalModelId"
           }
         ]
       },

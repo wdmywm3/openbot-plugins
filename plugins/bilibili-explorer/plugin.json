@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.16.2",
+  "version": "1.16.3",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -153,12 +153,14 @@
           "targetChat": {
             "type": "string",
             "title": "分享会话（留空自动选择）",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "interests": {
             "type": "string",
             "title": "感兴趣的话题",
-            "default": ""
+            "default": "",
+            "scope": "global"
           },
           "tools": {
             "type": "array",
@@ -166,21 +168,24 @@
             "default": [],
             "ui": {
               "widget": "tools"
-            }
+            },
+            "scope": "instance"
           },
           "intervalMinutes": {
             "type": "integer",
             "title": "探索间隔（分钟）",
             "minimum": 10,
             "maximum": 1440,
-            "default": 60
+            "default": 60,
+            "scope": "global"
           },
           "minimumScore": {
             "type": "integer",
             "title": "最低推荐评分",
             "minimum": 0,
             "maximum": 100,
-            "default": 75
+            "default": 75,
+            "scope": "global"
           },
           "accountMode": {
             "type": "string",
@@ -195,22 +200,26 @@
                 "Cookie"
               ]
             },
-            "default": "browser"
+            "default": "browser",
+            "scope": "instance"
           },
           "mainUid": {
             "type": "string",
             "title": "大号 UID",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "browseUid": {
             "type": "string",
             "title": "小号 UID",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "scanFolders": {
             "type": "array",
             "title": "待整理收藏夹 ID",
-            "default": []
+            "default": [],
+            "scope": "instance"
           },
           "folderRules": {
             "type": "array",
@@ -238,7 +247,8 @@
                 "description"
               ],
               "additionalProperties": false
-            }
+            },
+            "scope": "instance"
           },
           "organizeMode": {
             "type": "string",
@@ -253,7 +263,8 @@
                 "移动到目标收藏夹"
               ]
             },
-            "default": "copy"
+            "default": "copy",
+            "scope": "instance"
           },
           "commentMode": {
             "type": "string",
@@ -270,65 +281,76 @@
                 "自动评论与回复"
               ]
             },
-            "default": "off"
+            "default": "off",
+            "scope": "instance"
           },
           "dailyCommentLimit": {
             "type": "integer",
             "title": "每天最多评论与回复总数",
             "minimum": 0,
             "maximum": 20,
-            "default": 3
+            "default": 3,
+            "scope": "instance"
           },
           "autoOrganize": {
             "type": "boolean",
             "title": "按分类规则自动整理收藏",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "organizeChat": {
             "type": "string",
             "title": "整理结果接收会话（主人私聊）",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "organizeIntervalHours": {
             "type": "integer",
             "title": "收藏扫描间隔（小时）",
             "default": 24,
             "minimum": 1,
-            "maximum": 168
+            "maximum": 168,
+            "scope": "instance"
           },
           "commentChat": {
             "type": "string",
             "title": "评论管理会话（主人私聊）",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "autoComment": {
             "type": "boolean",
             "title": "自动评论新发现的视频",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "autoReply": {
             "type": "boolean",
             "title": "自动回复小号收到的评论",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "commentRules": {
             "type": "string",
             "title": "发言要求与禁止事项",
-            "default": ""
+            "default": "",
+            "scope": "instance"
           },
           "commentIntervalMinutes": {
             "type": "integer",
             "title": "自动发言间隔（分钟）",
             "default": 10,
             "minimum": 1,
-            "maximum": 1440
+            "maximum": 1440,
+            "scope": "instance"
           },
           "threadReplyLimit": {
             "type": "integer",
             "title": "每个话题最多自动回复数",
             "default": 3,
             "minimum": 1,
-            "maximum": 10
+            "maximum": 10,
+            "scope": "instance"
           },
           "mediaServices": {
             "type": "object",
@@ -397,8 +419,255 @@
             },
             "scope": "instance",
             "ui": {
-              "widget": "media-services",
+              "widget": "optional-properties",
               "advanced": true
+            },
+            "properties": {
+              "transcribe": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "title": "音频转写",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "title": "实例 MCP 服务"
+                  },
+                  "pluginId": {
+                    "type": "string",
+                    "title": "提供工具的插件"
+                  },
+                  "pluginServer": {
+                    "type": "string",
+                    "title": "插件服务"
+                  },
+                  "toolName": {
+                    "type": "string",
+                    "title": "工具名称"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "title": "调用参数",
+                    "additionalProperties": true
+                  },
+                  "poll": {
+                    "type": "object",
+                    "title": "任务查询",
+                    "properties": {
+                      "toolName": {
+                        "type": "string",
+                        "title": "查询工具"
+                      },
+                      "arguments": {
+                        "type": "object",
+                        "title": "调用参数",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                },
+                "default": {
+                  "pluginId": "watch",
+                  "pluginServer": "watch",
+                  "toolName": "watch_media",
+                  "arguments": {
+                    "kind": "transcribe",
+                    "url": "$url",
+                    "start": "$start",
+                    "end": "$end",
+                    "namespace": "$requestScope",
+                    "request_id": "$requestId"
+                  },
+                  "poll": {
+                    "toolName": "watch_media",
+                    "arguments": {
+                      "kind": "transcribe",
+                      "url": "$url",
+                      "start": "$start",
+                      "end": "$end",
+                      "namespace": "$requestScope",
+                      "request_id": "$requestId",
+                      "job_id": "$jobId"
+                    }
+                  }
+                }
+              },
+              "preview": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "title": "视频预览",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "title": "实例 MCP 服务"
+                  },
+                  "pluginId": {
+                    "type": "string",
+                    "title": "提供工具的插件"
+                  },
+                  "pluginServer": {
+                    "type": "string",
+                    "title": "插件服务"
+                  },
+                  "toolName": {
+                    "type": "string",
+                    "title": "工具名称"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "title": "调用参数",
+                    "additionalProperties": true
+                  },
+                  "poll": {
+                    "type": "object",
+                    "title": "任务查询",
+                    "properties": {
+                      "toolName": {
+                        "type": "string",
+                        "title": "查询工具"
+                      },
+                      "arguments": {
+                        "type": "object",
+                        "title": "调用参数",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                },
+                "default": {
+                  "pluginId": "watch",
+                  "pluginServer": "watch",
+                  "toolName": "watch_preview",
+                  "arguments": {
+                    "url": "$url",
+                    "start": "$start",
+                    "end": "$end"
+                  }
+                }
+              },
+              "frames": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "title": "视频画面",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "title": "实例 MCP 服务"
+                  },
+                  "pluginId": {
+                    "type": "string",
+                    "title": "提供工具的插件"
+                  },
+                  "pluginServer": {
+                    "type": "string",
+                    "title": "插件服务"
+                  },
+                  "toolName": {
+                    "type": "string",
+                    "title": "工具名称"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "title": "调用参数",
+                    "additionalProperties": true
+                  },
+                  "poll": {
+                    "type": "object",
+                    "title": "任务查询",
+                    "properties": {
+                      "toolName": {
+                        "type": "string",
+                        "title": "查询工具"
+                      },
+                      "arguments": {
+                        "type": "object",
+                        "title": "调用参数",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                },
+                "default": {
+                  "pluginId": "watch",
+                  "pluginServer": "watch",
+                  "toolName": "watch_media",
+                  "arguments": {
+                    "kind": "frames",
+                    "url": "$url",
+                    "start": "$start",
+                    "end": "$end",
+                    "namespace": "$requestScope",
+                    "request_id": "$requestId"
+                  },
+                  "poll": {
+                    "toolName": "watch_media",
+                    "arguments": {
+                      "kind": "frames",
+                      "url": "$url",
+                      "start": "$start",
+                      "end": "$end",
+                      "namespace": "$requestScope",
+                      "request_id": "$requestId",
+                      "job_id": "$jobId"
+                    }
+                  }
+                }
+              },
+              "backup": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "title": "视频备份",
+                "properties": {
+                  "serverId": {
+                    "type": "string",
+                    "title": "实例 MCP 服务"
+                  },
+                  "pluginId": {
+                    "type": "string",
+                    "title": "提供工具的插件"
+                  },
+                  "pluginServer": {
+                    "type": "string",
+                    "title": "插件服务"
+                  },
+                  "toolName": {
+                    "type": "string",
+                    "title": "工具名称"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "title": "调用参数",
+                    "additionalProperties": true
+                  },
+                  "poll": {
+                    "type": "object",
+                    "title": "任务查询",
+                    "properties": {
+                      "toolName": {
+                        "type": "string",
+                        "title": "查询工具"
+                      },
+                      "arguments": {
+                        "type": "object",
+                        "title": "调用参数",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                },
+                "default": {
+                  "serverId": "",
+                  "toolName": "",
+                  "arguments": {}
+                }
+              }
             }
           },
           "backupEnabled": {
@@ -420,26 +689,30 @@
             "title": "每个视频最多读取评论数",
             "default": 30,
             "minimum": 0,
-            "maximum": 50
+            "maximum": 50,
+            "scope": "global"
           },
           "likeEnabled": {
             "type": "boolean",
             "title": "允许小号点赞",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "dailyLikeLimit": {
             "type": "integer",
             "title": "每天最多点赞操作数",
             "minimum": 0,
             "maximum": 100,
-            "default": 20
+            "default": 20,
+            "scope": "instance"
           },
           "socialIntervalSeconds": {
             "type": "integer",
             "title": "点赞和私信最短间隔（秒）",
             "minimum": 1,
             "maximum": 3600,
-            "default": 60
+            "default": 60,
+            "scope": "instance"
           },
           "messageMode": {
             "type": "string",
@@ -456,14 +729,16 @@
                 "自动回复"
               ]
             },
-            "default": "off"
+            "default": "off",
+            "scope": "instance"
           },
           "dailyMessageLimit": {
             "type": "integer",
             "title": "每天最多发送私信数",
             "minimum": 0,
             "maximum": 20,
-            "default": 3
+            "default": 3,
+            "scope": "instance"
           },
           "messageAllowedUids": {
             "type": "array",
@@ -474,25 +749,29 @@
               "type": "string",
               "pattern": "^[1-9]\\d{0,29}$",
               "maxLength": 30
-            }
+            },
+            "scope": "instance"
           },
           "messageRules": {
             "type": "string",
             "title": "私信发言要求",
             "default": "",
-            "maxLength": 2000
+            "maxLength": 2000,
+            "scope": "instance"
           },
           "autoLike": {
             "type": "boolean",
             "title": "自主点赞",
             "description": "浏览时可按实际收获决定点赞，仍遵守点赞额度。",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "autoMention": {
             "type": "boolean",
             "title": "回应评论提及",
             "description": "处理开启后收到的评论区 @ 通知。",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "browseFavoriteFolders": {
             "type": "array",
@@ -503,36 +782,54 @@
               "pattern": "^[1-9]\\d{0,29}$"
             },
             "maxItems": 20,
-            "default": []
+            "default": [],
+            "scope": "instance"
           },
           "dailyFavoriteLimit": {
             "type": "integer",
             "title": "每天最多收藏",
             "minimum": 0,
             "maximum": 100,
-            "default": 5
+            "default": 5,
+            "scope": "instance"
           },
           "coinEnabled": {
             "type": "boolean",
             "title": "允许投币",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "dailyCoinLimit": {
             "type": "integer",
             "title": "每天最多投币（枚）",
             "minimum": 0,
             "maximum": 100,
-            "default": 5
+            "default": 5,
+            "scope": "instance"
           },
           "autoCoin": {
             "type": "boolean",
             "title": "自主投币",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "tripleEnabled": {
             "type": "boolean",
             "title": "允许一键三连",
             "description": "同时点赞、投币并收藏到默认收藏夹；需要开启点赞和投币。",
+            "default": false,
+            "scope": "instance"
+          },
+          "discoverySettings": {
+            "type": "boolean",
+            "title": "探索偏好",
+            "scope": "instance",
+            "default": false
+          },
+          "readingSettings": {
+            "type": "boolean",
+            "title": "阅读设置",
+            "scope": "instance",
             "default": false
           }
         }
@@ -1843,10 +2140,8 @@
             "title": "浏览与分享",
             "fields": [
               "targetChat",
-              "interests",
               "tools",
-              "intervalMinutes",
-              "minimumScore"
+              "discoverySettings"
             ],
             "widgets": []
           },
@@ -1907,9 +2202,49 @@
               "mediaServices",
               "backupEnabled",
               "backupIntervalHours",
-              "commentSampleLimit"
+              "readingSettings"
             ],
             "widgets": []
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
+        ],
+        "globalSections": [
+          {
+            "id": "discoverySettingsDefaults",
+            "title": "探索偏好",
+            "fields": [
+              "interests",
+              "intervalMinutes",
+              "minimumScore"
+            ]
+          },
+          {
+            "id": "readingSettingsDefaults",
+            "title": "阅读设置",
+            "fields": [
+              "commentSampleLimit"
+            ]
+          }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "discoverySettings",
+            "sections": [
+              "discoverySettingsDefaults"
+            ],
+            "summary": "interests"
+          },
+          {
+            "mode": "readingSettings",
+            "sections": [
+              "readingSettingsDefaults"
+            ],
+            "summary": "commentSampleLimit"
           }
         ]
       },
@@ -1918,7 +2253,10 @@
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
         "changelog": "按实际失败原因显示提示。阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。"
-      }
+      },
+      "requiredFeatures": [
+        "pluginSettingScopes"
+      ]
     }
   }
 }

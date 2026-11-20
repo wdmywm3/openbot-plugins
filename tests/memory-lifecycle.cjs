@@ -15,7 +15,7 @@ const { pluginPackageHash } = fromHost("./electron/lib/plugins/plugin-authorizat
 const { createSharedModels } = fromHost("./electron/lib/features/retrieval/shared-models.cjs");
 const { createVectorCollections } = fromHost("./electron/lib/features/retrieval/vector-collections.cjs");
 const { createLocalEmbeddingIndex } = fromHost("./electron/lib/features/retrieval/local-embedding-index.cjs");
-const environment = fromHost("./electron/lib/plugins/plugin-environment.cjs"), originalLaunch = environment.resolveLaunch;
+const environment = fromHost("./electron/lib/plugins/plugin-environment.cjs");
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-lifecycle-")), dataRoot = path.join(root, "data"), legacyRoot = path.join(root, "legacy");
@@ -64,7 +64,7 @@ async function main() {
     const models = createSharedModels({ root: dataRoot, getDefault: () => "fixture", providers: { fixture: { name: "fixture", dimension: 768, version: "fixture-768", modalities: ["text"], ready: () => true,
       create: () => createLocalEmbeddingIndex(dataRoot, { embed: async () => Array.from({ length: 768 }, (_, i) => i === 0 ? 1 : 0) }) } } });
     retrieval = { models, vectors: createVectorCollections({ root: dataRoot, models }) };
-    environment.resolveLaunch = request => ({ command: process.execPath, args: request.args, runtimeEnv: {}, runtimePath: process.env.PATH });
+    await environment.prepareEnvironment(dataRoot, plugin);
     let installed = false, idleGenerations = 0;
     const media = createPluginAssets({ root: dataRoot });
     dataStore = createPluginDataStore({ rootFor: () => path.join(dataRoot, "files"), ...(postgres ? { postgres: () => postgres.connection } : {}) });
@@ -223,7 +223,7 @@ async function main() {
     if (process.env.OPENBOT_TEST_MEMORY_UI === "1") await require("./memory-ui.cjs")({ fromHost, runtime, channel, plugin, action, scope, root, legacyRunId: runId });
     console.log("Memory lifecycle: real host SDK/actions/jobs, optional absence, enable/disable, scoped legacy export/import, notes/revisions/journals, repeated import, public prompt injection and restore pause passed");
   } finally {
-    await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers(); environment.resolveLaunch = originalLaunch;
+    await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers();
     await retrieval?.vectors.pause(); await retrieval?.models.pause(); await dataStore?.pauseBackground?.(); await storage?.pauseForDataSnapshot?.(); storage?.close(); old?.close(); await postgres?.close(); await databaseRuntime?.components.close();
     if (path.dirname(root) === os.tmpdir() && path.basename(root).startsWith("openbot-memory-lifecycle-")) fs.rmSync(root, { recursive: true, force: true });
   }

@@ -1,7 +1,7 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "metadata": {
     "platforms": [
       "napcat",
@@ -63,7 +63,7 @@
     "type": "object",
     "properties": {
       "pollIntervalSeconds": {
-        "scope": "instance",
+        "scope": "global",
         "type": "integer",
         "title": "轮询间隔（秒）",
         "minimum": 30,
@@ -71,7 +71,7 @@
         "default": 120
       },
       "requestIntervalMs": {
-        "scope": "instance",
+        "scope": "global",
         "type": "integer",
         "title": "来源请求间隔（毫秒）",
         "minimum": 0,
@@ -205,6 +205,12 @@
           "widget": "collection",
           "itemLabel": "name"
         }
+      },
+      "monitorTiming": {
+        "type": "boolean",
+        "title": "检查间隔",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -218,9 +224,8 @@
         "id": "settings",
         "title": "设置",
         "fields": [
-          "pollIntervalSeconds",
-          "requestIntervalMs",
-          "subscriptions"
+          "subscriptions",
+          "monitorTiming"
         ],
         "widgets": [
           {
@@ -233,6 +238,28 @@
             "action": "check"
           }
         ]
+      }
+    ],
+    "chatAudiences": [
+      "private:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "monitorTimingDefaults",
+        "title": "检查间隔",
+        "fields": [
+          "pollIntervalSeconds",
+          "requestIntervalMs"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "monitorTiming",
+        "sections": [
+          "monitorTimingDefaults"
+        ],
+        "summary": "pollIntervalSeconds"
       }
     ]
   },
@@ -248,5 +275,8 @@
       }
     }
   ],
-  "category": "subscription"
+  "category": "subscription",
+  "requiredFeatures": [
+    "pluginSettingScopes"
+  ]
 }

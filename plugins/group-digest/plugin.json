@@ -1,7 +1,7 @@
 {
   "id": "group-digest",
   "name": "群聊总结",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "metadata": {
     "platforms": [
       "napcat",
@@ -46,7 +46,15 @@
       "defaultFocus": {
         "type": "string",
         "title": "默认总结重点",
-        "default": ""
+        "default": "",
+        "scope": "global",
+        "chatOverride": true
+      },
+      "digestStyle": {
+        "type": "boolean",
+        "title": "总结偏好",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -58,11 +66,36 @@
         "id": "settings",
         "title": "设置",
         "fields": [
-          "defaultFocus"
+          "digestStyle"
         ],
         "widgets": []
       }
+    ],
+    "chatAudiences": [
+      "group:member",
+      "group:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "digestStyleDefaults",
+        "title": "总结偏好",
+        "fields": [
+          "defaultFocus"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "digestStyle",
+        "sections": [
+          "digestStyleDefaults"
+        ],
+        "summary": "defaultFocus"
+      }
     ]
   },
-  "category": "ai"
+  "category": "ai",
+  "requiredFeatures": [
+    "pluginSettingScopes"
+  ]
 }
