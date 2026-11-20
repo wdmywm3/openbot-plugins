@@ -136,13 +136,7 @@ async function manageDevices(ctx) {
   }
   if (!/^[A-Za-z0-9:_-]{1,128}$/.test(id)) throw Error("设备编号无效");
   if (input.op === "scan" || input.op === "preview") {
-    const result = await driver(ctx, { op: input.op, deviceId: id, host: input.host, port: input.port, adbPath: input.adbPath });
-    if (result.picture) {
-      const stored = await ctx.api.assets({ action: "put", ...result.picture, kind: "image", name: "设备预览.png" });
-      delete result.picture;
-      result.ref = stored.ref;
-    }
-    return result;
+    return driver(ctx, { op:input.op,deviceId:id,host:input.host,port:input.port,adbPath:input.adbPath });
   }
   if (input.op === "save") {
     const binding = await driver(ctx, { op: "confirm", deviceId: id, token: input.token });

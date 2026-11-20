@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "dependencies": {
-    "@mobilenext/mobilecli-windows-amd64": "1.0.21"
+    "@mobilenext/mobilecli-windows-amd64": "1.0.21",
+    "sharp": "0.35.5"
   }
 }

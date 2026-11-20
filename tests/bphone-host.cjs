@@ -79,11 +79,11 @@ async function main() {
     await page.exposeFunction("notice",msg=>alerts.push(msg));
     await page.addInitScript(()=>{
       window.openbotPlugin={callAction:(...args)=>window.invokeAction(...args),notify:msg=>window.notice(msg),
-        assetUrl:()=> "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKLsAAAAASUVORK5CYII=",ui:{confirm:async()=>true}};
+        ui:{confirm:async()=>true}};
     });
     await page.goto(pathToFileURL(path.join(pkgDir,pkg.manifest.ui.views[0].entry)).href);
     await page.locator("#adb").fill(f.adb); await page.locator("#scan").click();
-    await page.waitForFunction(()=>document.querySelectorAll("li img").length===2 && !document.querySelector("#scan").disabled);
+    await page.waitForFunction(()=>document.querySelectorAll("li img").length===2 && [...document.querySelectorAll("li img")].every(img=>img.naturalWidth>0) && !document.querySelector("#scan").disabled);
     const row=page.locator("li button").filter({hasText:"127.0.0.1:16384"});
     assert.ok((await row.locator("img").boundingBox()).x > (await row.locator("span").boundingBox()).x);
     assert.ok((await page.locator("#save").boundingBox()).y < (await row.boundingBox()).y);

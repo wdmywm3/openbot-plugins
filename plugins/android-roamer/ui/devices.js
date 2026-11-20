@@ -78,7 +78,7 @@ $("scan").onclick = () => run(async () => {
     try {
       const preview = await call("preview", { ...base, ...device, adbPath:found.adbPath });
       if (generation !== scan) return;
-      const img = document.createElement("img"); img.src = api.assetUrl(preview.ref); img.alt = address.textContent + " 的设备截图"; row.append(img);
+      const img = document.createElement("img"); img.src = preview.thumbnail; img.alt = address.textContent + " 的设备截图"; row.append(img);
       row.disabled = false;
       row.onclick = () => { for (const other of $("results").querySelectorAll("button")) other.setAttribute("aria-pressed", String(other === row));
         token = preview.token; $("port").value = device.port; $("host").value = device.host; $("save").disabled = busy; };

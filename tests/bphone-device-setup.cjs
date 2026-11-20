@@ -8,7 +8,7 @@ async function fixture(root) {
   await fs.writeFile(adb, "fixture");
   const states = new Map(), ops = [], calls = [], photos = new Map(), identities = new Map();
   const host = "127.0.0.1";
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aKLsAAAAASUVORK5CYII=", "base64");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAHCAIAAACgB3uHAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQCV0FRwxU5QAAmiwf1RK0WHYAAAAASUVORK5CYII=", "base64");
   const run = async (file, args) => {
     if (file === "fixture-mobilecli") {
       ops.push(args);
@@ -63,7 +63,7 @@ if (require.main === module) (async () => {
         previews.push([item.port,await read]);
       }
       const selected = previews.find(([p])=>p===port)[1];
-      assert.ok(f.photos.has(selected.ref));
+      assert.match(selected.thumbnail,/^data:image\/jpeg;base64,/); assert.equal(f.photos.size,0);
       await assert.rejects(f.manage({op:"save",deviceId:"other",revision:0,token:selected.token}),/已失效/);
       await f.manage({op:"save",deviceId:id,revision:0,name:id,token:selected.token});
     }

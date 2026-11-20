@@ -124,7 +124,15 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       return { done: true, file: result.file };
     }
     if (op === "scan") return setup.scan("local", input);
-    if (op === "preview") return setup.test("local", deviceId, input);
+    if (op === "preview") {
+      const captured = await setup.test("local", deviceId, input);
+      const png = Buffer.from(captured.screenshot.split(",")[1],"base64");
+      const thumbnail = await require("sharp")(png,{limitInputPixels:40_000_000}).resize({
+        width:400,height:320,fit:"inside",withoutEnlargement:true
+      }).jpeg({quality:55}).toBuffer();
+      if (thumbnail.length > 40 * 1024) throw Error(`设备预览图超过 40 KiB（${thumbnail.length} 字节）`);
+      return { token:captured.token, model:captured.model, thumbnail:"data:image/jpeg;base64," + thumbnail.toString("base64") };
+    }
     if (op === "confirm") return setup.verifiedBinding("local", deviceId, input.token);
     if (op === "begin") {
       if (!binding?.key || !binding.connection) throw Error("请先确认这台手机的截图");

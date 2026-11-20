@@ -22,7 +22,6 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
     active.set(msg.id, controller);
     const result = await call(msg.params.arguments, AbortSignal.any([controller.signal,AbortSignal.timeout(55000)]));
     const content = [];
-    if (result.screenshot) { content.push({ type: "image", mimeType: "image/png", data: result.screenshot.split(",")[1] }); delete result.screenshot; }
     if (result.image) { content.push({ type: "image", mimeType: result.mimeType, data: result.image }); delete result.image; }
     content.push({ type: "text", text: JSON.stringify(result) });
     send(msg.id, { content });
