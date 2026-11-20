@@ -96,7 +96,17 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       encoding: image ? "buffer" : "utf8", maxBuffer: 4 * 1024 * 1024 })).stdout; }
     catch (e) { throw Error(e.killed ? "手机操作超时" : `手机操作失败（${e.code ?? "未知状态"}）`); }
     if (image) return output;
-    const result = JSON.parse(String(output));
+    const operation = args.slice(0, 2).join(" ");
+    const reply = String(output ?? "").trim();
+    if (!reply) throw Object.assign(Error(`设备命令 ${operation} 没有返回内容`), { code: "EMPTY_DEVICE_RESPONSE" });
+    let result;
+    try { result = JSON.parse(reply); }
+    catch (error) {
+      const trailing = /^Unexpected non-whitespace character after JSON at position \d+ \(line (\d+) column (\d+)\)/.exec(error.message);
+      if (trailing) throw Object.assign(Error(`设备命令 ${operation} 返回的 JSON 后还有内容（第 ${trailing[1]} 行第 ${trailing[2]} 列）`), { code: "TRAILING_DEVICE_JSON_CONTENT" });
+      throw Object.assign(Error(`设备命令 ${operation} 返回的内容不是有效 JSON`), { code: "INVALID_DEVICE_JSON" });
+    }
+    if (typeof result?.status !== "string") throw Object.assign(Error(`设备命令 ${operation} 未返回状态`), { code: "MISSING_DEVICE_STATUS" });
     if (result.status !== "ok") throw Error("手机操作返回状态 " + String(result.status).slice(0, 60));
     return result.data;
   }

@@ -7,11 +7,13 @@ async function fixture(root) {
   const adb = path.join(root, process.platform === "win32" ? "adb.exe" : "adb");
   await fs.writeFile(adb, "fixture");
   const states = new Map(), ops = [], calls = [], photos = new Map(), identities = new Map();
+  const foregroundReplies = [];
   const host = "127.0.0.1";
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAHCAIAAACgB3uHAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQCV0FRwxU5QAAmiwf1RK0WHYAAAAASUVORK5CYII=", "base64");
   const run = async (file, args) => {
     if (file === "fixture-mobilecli") {
       ops.push(args);
+      if (args.includes("foreground") && foregroundReplies.length) return { stdout: foregroundReplies.shift() };
       const data = args.includes("foreground") ? { packageName: "fixture.app" } : args.includes("dump") ? { elements: [{ text: "Hello" }] } : {};
       return { stdout: JSON.stringify({ status: "ok", data }) };
     }
@@ -46,7 +48,7 @@ async function fixture(root) {
     generate: async () => ({ text: JSON.stringify(model.shift()) }),
   } };
   const manage = input => plugin.deviceSettings({ ...ctx, principal:{source:"desktop",channelId:"test-instance"}, input });
-  return { ctx, manage, ops, calls, photos, identities, adb, host, model, dispatch };
+  return { ctx, manage, ops, calls, photos, identities, adb, host, model, dispatch, foregroundReplies };
 }
 module.exports = { fixture };
 if (require.main === module) (async () => {
@@ -73,6 +75,13 @@ if (require.main === module) (async () => {
     assert.match(await plugin.handle({...f.ctx,args:"--device second 测试"}),/已确认/);
     assert.ok(f.ops.some(args=>args.includes("tap")));
     assert.ok(f.ops.every(args=>args[0]==="--device" && args[1]==="127.0.0.1:16384"));
+    for (const [reply, message] of [[" ", "没有返回内容"], ["sensitive-content", "返回的内容不是有效 JSON"], ["{}", "未返回状态"],
+      ['{"status":"ok","data":{}}'.padEnd(55) + "trailing", "返回的 JSON 后还有内容（第 1 行第 56 列）"]]) {
+      f.foregroundReplies.push(reply);
+      const start = f.ops.length;
+      assert.equal(await plugin.handle({...f.ctx,args:"--device second 测试结果格式"}), "手机活动已停止（读取屏幕）：设备命令 apps foreground " + message);
+      assert.equal(f.ops.length, start + 1);
+    }
     f.identities.set("127.0.0.1:16384","replacement");const before=f.ops.length;
     assert.match(await plugin.handle({...f.ctx,args:"--device second 再测试"}),/端口对应的手机已更换/);
     assert.equal(f.ops.length,before);
