@@ -138,7 +138,7 @@ function htmlToText(html = "") {
   return compactText(decodeHtml(clean));
 }
 
-function normalizeHtml(rawText, maxChars) {
+function normalizeHtml(rawText, maxChars, pageUrl, includeImages) {
   const { html, hiddenTextCount } = screenInlineHtml(rawText);
   const title = firstMatch(html, /<title\b[^>]*>([\s\S]*?)<\/title>/i);
   const text = htmlToText(html);
@@ -146,6 +146,7 @@ function normalizeHtml(rawText, maxChars) {
   return {
     title,
     extractionMode: "html_clean",
+    ...pageReferences(html, pageUrl, includeImages),
     content: limited.text,
     cleanChars: charLen(text || title || ""),
     truncated: limited.truncated,
@@ -327,12 +328,12 @@ function sniffType(rawText, contentType, url = "") {
   return "text/plain";
 }
 
-function normalizeWebContent({ rawText = "", contentType = "", url = "", maxChars = 12000 } = {}) {
+function normalizeWebContent({ rawText = "", contentType = "", url = "", maxChars = 12000, includeImages = false } = {}) {
   const type = sniffType(rawText, contentType, url);
   const budget = Math.max(1, Math.min(50_000, Number(maxChars || 12_000)));
   const raw = String(rawText || "");
   const normalized = (() => {
-    if (type === "text/html" || type === "application/xhtml+xml") return normalizeHtml(raw, budget);
+    if (type === "text/html" || type === "application/xhtml+xml") return normalizeHtml(raw, budget, url, includeImages);
     if (isJsonType(type)) return normalizeJson(raw, budget);
     if (isCsvType(type, url)) return normalizeCsv(raw, budget);
     if (isXmlType(type)) return normalizeXml(raw, budget);
@@ -354,15 +355,58 @@ function normalizeWebContent({ rawText = "", contentType = "", url = "", maxChar
       returnedChars: charLen(normalized.content),
     },
     diagnostics: normalized.diagnostics || [],
+    ...(normalized.links ? { links: normalized.links } : {}),
+    ...(normalized.images ? { images: normalized.images } : {}),
     readPolicy: "This fetch is complete. Use the returned content to answer. If relevant text is truncated, fetch with a larger maxChars (up to 50000); otherwise use a more relevant source when information is missing. Repeating the same fetch with unchanged arguments does not retrieve a next page.",
   };
 }
 
+// The plugin VM has no URL constructor. Resolve ordinary HTML references against
+// the final page address; the network API validates every destination on fetch.
+function pageReferences(html, pageUrl, includeImages) {
+  const pictures = new Map(), links = new Map();
+  function resolve(rawUrl, base) {
+    const value = rawUrl?.trim();
+    if (!value || value.length > 3000 || /[\s\\]/.test(value) || value.startsWith("#")) return "";
+    if (/^https?:\/\//i.test(value)) return value;
+    if (/^[a-z][\w+.-]*:/i.test(value)) return "";
+    const origin = /^(https?:)\/\/[^/?#]+/i.exec(base);
+    if (!origin) return "";
+    if (value.startsWith("//")) return origin[1] + value;
+    const path = base.slice(origin[0].length).split(/[?#]/)[0] || "/";
+    if (value.startsWith("?")) return origin[0] + path + value;
+    const joined = value.startsWith("/") ? value : path.replace(/[^/]*$/, "") + value;
+    const [pathname] = joined.split(/[?#]/), parts = [];
+    for (const part of pathname.split("/").slice(1)) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    return origin[0] + "/" + parts.join("/") + joined.slice(pathname.length);
+  }
+  // Keep document metadata, then prioritize the article's links over site navigation.
+  const metadata = (html.match(/<(?:base|meta)\b[^>]*>/gi) || []).slice(0, 128).join("");
+  const content = metadata + stripHtmlNoise(primaryHtml(html));
+  let base = pageUrl;
+  for (const match of content.matchAll(/<(base|meta|img|a)\b((?:"[^"]*"|'[^']*'|[^<>"'])*)>/gi)) {
+    const tag = match[1].toLowerCase(), attrs = {};
+    for (const a of match[2].matchAll(/([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))
+      attrs[a[1].toLowerCase()] = decodeHtml(a[2] ?? a[3] ?? a[4]);
+    if (tag === "base") { base = resolve(attrs.href, pageUrl) || base; continue; }
+    const meta = tag === "meta" && /^(og:image(?::url|:secure_url)?|twitter:image(?::src)?)$/i.test(attrs.property || attrs.name || "");
+    const address = resolve(tag === "a" ? attrs.href : meta ? attrs.content : tag === "img" ? attrs["data-src"] || attrs.src : "", base);
+    if (!address) continue;
+    const label = attrs.alt || attrs.title || (tag === "a" ? firstMatch(content.slice(match.index + match[0].length, match.index + match[0].length + 300), /^([^<]+)/) : "");
+    if (tag === "a" && !/\.(?:png|jpe?g|webp)(?:[?#]|$)/i.test(address)) {
+      if (links.size < 24) links.set(address, { url: address, title: clip(label, 160) });
+    } else if (includeImages && pictures.size < 16) pictures.set(address, { imageUrl: address, sourceUrl: pageUrl, caption: clip(label || pictures.get(address)?.caption, 300) });
+  }
+  return { ...(includeImages ? { images: [...pictures.values()] } : {}), links: [...links.values()] };
+}
 return { normalizeWebContent, mediaTypeOf };
 })();
 
 const ANYSEARCH = "https://api.anysearch.com/mcp";
-const PROVIDERS = ["anysearch", "tavily", "exa", "brave"];
+const PROVIDERS = ["anysearch", "tavily", "exa", "brave", "openai"];
 const domains = ["academic", "agriculture", "business", "code", "energy", "environment", "film", "finance", "gaming", "general", "health", "ip", "legal", "resource", "security", "social_media", "travel"];
 const clip = (value, max = 3000) => String(value || "").slice(0, max);
 const limit = value => Math.max(1, Math.min(10, Number(value) || 5));
@@ -440,10 +484,58 @@ function results(rows, count) {
     snippet: clip(row.content || row.snippet || row.description || row.text), publishedAt: clip(row.published_date || row.publishedAt || row.page_age, 100) }))
     .filter(row => /^https?:\/\//i.test(row.url));
 }
+async function nativeSearch(ctx, args, input) {
+  if (!ctx.api.modelRequest) throw new Error("当前宿主未提供原生模型请求");
+  const images = input.resultType === "images";
+  const tool = { type: "web_search" };
+  if (images) {
+    tool.search_content_types = ["image", "text"];
+    tool.image_settings = { max_results: args.max_results, caption: true };
+  }
+  if (input.include_domains?.length || input.exclude_domains?.length) tool.filters = {
+    ...(input.include_domains?.length ? { allowed_domains: input.include_domains } : {}),
+    ...(input.exclude_domains?.length ? { blocked_domains: input.exclude_domains } : {}),
+  };
+  const response = await ctx.api.modelRequest({
+    tools: [tool], include: images ? ["web_search_call.results", "web_search_call.action.sources"] : ["web_search_call.action.sources"],
+    input: [{ role: "developer", content: images
+      ? "Search the web for relevant images and their source pages. Return brief captions with citations."
+      : "Use web search. Follow relevant leads to the original source, check dates and resolve material contradictions. Cite the pages supporting the answer." },
+      { role: "user", content: args.query }],
+  });
+  const calls = response.output.filter(item => item.type === "web_search_call");
+  if (!calls.length) throw new Error("模型没有执行网页搜索");
+  const completed = calls.filter(item => item.status === "completed");
+  if (!completed.length) throw new Error("网页搜索未完成（" + String(calls.at(-1).status || "无状态") + "）");
+  const sources = new Map(), pictures = new Map(), paragraphs = [];
+  function addSource(link, title) {
+    if (/^https?:\/\//i.test(link) && (sources.size < args.max_results || sources.has(link)))
+      sources.set(link, { url: link, title: clip(title || sources.get(link)?.title, 300) });
+  }
+  for (const message of response.output.filter(item => item.type === "message")) {
+    for (const part of message.content || []) {
+      if (part.type !== "output_text") continue;
+      paragraphs.push(clip(part.text, 4000));
+      for (const citation of part.annotations || []) if (citation.type === "url_citation") addSource(citation.url, citation.title);
+    }
+  }
+  for (const call of completed) {
+    for (const source of call.action?.sources || []) addSource(source.url, source.title);
+    for (const result of call.results || []) {
+      if (result.type === "image_result" && pictures.size < args.max_results
+        && /^https?:\/\//i.test(result.image_url) && /^https?:\/\//i.test(result.source_website_url))
+        pictures.set(result.image_url, { imageUrl: result.image_url, sourceUrl: result.source_website_url, caption: clip(result.caption, 500) });
+    }
+  }
+  return { provider: "openai", query: args.query, answer: clip(paragraphs.join("\n"), 8000),
+    results: [...sources.values()], ...(images ? { images: [...pictures.values()] } : {}) };
+}
 async function web(ctx, input, rpc) {
-  const p = provider(ctx), args = searchInput(input), key = await secret(ctx, p, p === "anysearch");
+  const p = provider(ctx), args = searchInput(input);
   if (p === "anysearch") return (rpc || await anySearch(ctx))("search", args);
   if (args.domain) throw new Error("专业领域参数仅适用于 AnySearch");
+  if (p === "openai") return nativeSearch(ctx, args, input);
+  const key = await secret(ctx, p);
   let rows;
   if (p === "tavily") {
     const raw = await json(ctx, "https://api.tavily.com/search", { api_key: key, query: args.query, max_results: args.max_results,
@@ -483,14 +575,15 @@ module.exports.get_sub_domains = async ctx => {
 };
 module.exports.read_webpage = async ctx => {
   const address = url(ctx.input?.url);
-  if (provider(ctx) === "anysearch") return (await anySearch(ctx))("extract", { url: address });
+  if (provider(ctx) === "anysearch" && !ctx.input.includeImages) return (await anySearch(ctx))("extract", { url: address });
   const response = await request(ctx, address, { headers: { accept: "text/html,text/plain,application/json,text/markdown" } });
   const type = response.headers?.["content-type"] || "";
   if (type && !/text\/|application\/(?:json|xml|[^;]*\+(?:json|xml))/i.test(type)) throw new Error("这个地址不是可读取的网页文本");
   const raw = String(response.body || "");
   if (!raw.trim()) throw new Error("网页没有可读取的正文");
   const maxChars = Math.max(1000, Math.min(50000, Number(ctx.input?.maxChars) || 20000));
-  return webContent.normalizeWebContent({ rawText: raw, contentType: type, url: response.url || address, maxChars });
+  const pageUrl = response.url || address;
+  return webContent.normalizeWebContent({ rawText: raw, contentType: type, url: pageUrl, maxChars, includeImages: ctx.input.includeImages });
 };
 module.exports.search_by_image = async ctx => {
   if (ctx.config.imageProvider !== "google") throw new Error("请在搜索插件设置中启用以图搜图");
@@ -503,13 +596,7 @@ module.exports.search_by_image = async ctx => {
   const imageChars = limitBytes - JSON.stringify(body).length;
   const host = (await ctx.api.getCapabilities?.())?.limits;
   const maximum = Math.min(host?.attachmentInlineBytes || 6 * 1024 * 1024, Math.floor(imageChars / 4) * 3);
-  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum }).catch(error => {
-    ctx.signal?.throwIfAborted();
-    if (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用")
-      return { available: false, reason: "not_retained" };
-    throw error;
-  });
-  if (attachment.available === false) return { found: false, skipped: true, reason: attachment.reason };
+  const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum });
   if (attachment.type !== "image" || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(attachment.mimeType)
     || typeof attachment.data !== "string" || !attachment.data) throw new Error("请选择一张 JPEG、PNG、WebP 或 GIF 图片");
   if (attachment.data.length > imageChars) throw new Error("图片编码后超过 Google Vision 的 10 MB 请求上限");
@@ -527,4 +614,80 @@ module.exports.search_by_image = async ctx => {
     labels: (Array.isArray(web.bestGuessLabels) ? web.bestGuessLabels : []).slice(0, count).map(item => clip(item.label, 300)),
   };
   return { provider: "google-cloud-vision", image: { messageId: attachment.messageId, index: attachment.index }, found: Object.values(matches).some(items => items.length > 0), ...matches };
+};
+
+// Stream pages are independently base64 encoded, including partial last triples.
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function bytes64(value) {
+  const pad = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const bytes = new Uint8Array(value.length / 4 * 3 - pad);
+  for (let i = 0, n = 0; i < value.length; i += 4) {
+    const bits = ALPHABET.indexOf(value[i]) << 18 | ALPHABET.indexOf(value[i + 1]) << 12
+      | Math.max(0, ALPHABET.indexOf(value[i + 2])) << 6 | Math.max(0, ALPHABET.indexOf(value[i + 3]));
+    if (n < bytes.length) bytes[n++] = bits >> 16 & 255;
+    if (n < bytes.length) bytes[n++] = bits >> 8 & 255;
+    if (n < bytes.length) bytes[n++] = bits & 255;
+  }
+  return bytes;
+}
+function join64(parts) {
+  if (parts.slice(0, -1).every(part => !part.endsWith("="))) return parts.join("");
+  let carry = [], result = [];
+  for (const part of parts) {
+    const bytes = bytes64(part), chars = [];
+    for (const byte of bytes) {
+      carry.push(byte);
+      if (carry.length === 3) {
+        const bits = carry[0] << 16 | carry[1] << 8 | carry[2];
+        chars.push(ALPHABET[bits >> 18], ALPHABET[bits >> 12 & 63], ALPHABET[bits >> 6 & 63], ALPHABET[bits & 63]); carry = [];
+      }
+    }
+    result.push(chars.join(""));
+  }
+  if (carry.length) result.push(ALPHABET[carry[0] >> 2], ALPHABET[(carry[0] & 3) << 4 | (carry[1] || 0) >> 4],
+    carry.length === 2 ? ALPHABET[(carry[1] & 15) << 2] : "=", "=");
+  return result.join("");
+}
+
+module.exports.prepare_reference = async ctx => {
+  const imageUrl = url(ctx.input.imageUrl), sourceUrl = url(ctx.input.sourceUrl);
+  const { limits } = await ctx.api.getCapabilities();
+  const maxBytes = Math.min(limits.assetBytes, limits.attachmentInlineBytes);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw Error("当前宿主未提供参考图容量");
+  const stream = await ctx.api.openStream(imageUrl, { encoding: "base64", redirect: "follow", timeoutMs: 45000,
+    headers: { accept: "image/png,image/jpeg,image/webp" } });
+  const parts = [];
+  let size = 0;
+  try {
+    if (stream.status < 200 || stream.status >= 300) throw Error("读取参考图失败（HTTP " + stream.status + "）");
+    const declared = Number(stream.headers?.["content-length"]);
+    const checkSize = bytes => {
+      if (bytes > maxBytes) throw Error("参考图为 " + bytes + " 字节，超过 " + maxBytes + " 字节上限");
+    };
+    checkSize(declared);
+    while (true) {
+      ctx.signal?.throwIfAborted();
+      const page = await ctx.api.readStream({ id: stream.id, maxBytes: Math.min(196608, limits.streamReadBytes), waitMs: 10000 });
+      if (page.data) {
+        size += page.data.length / 4 * 3 - (page.data.endsWith("==") ? 2 : page.data.endsWith("=") ? 1 : 0);
+        checkSize(size);
+        parts.push(page.data);
+      }
+      if (page.done) break;
+    }
+  } finally { await ctx.api.closeStream({ id: stream.id }).catch(() => {}); }
+  if (!size) throw Error("参考图响应为空");
+  const data = join64(parts), header = bytes64(data.slice(0, 32));
+  const magic = String.fromCharCode(...header);
+  let mimeType;
+  if (magic.startsWith("\x89PNG\r\n\x1a\n") && magic.slice(12, 16) === "IHDR") mimeType = "image/png";
+  else if (magic.startsWith("\xff\xd8\xff")) mimeType = "image/jpeg";
+  else if (magic.startsWith("RIFF") && magic.slice(8, 12) === "WEBP") mimeType = "image/webp";
+  else throw Error("参考图响应不是 PNG、JPEG 或 WebP 图片");
+  const stored = await ctx.api.assets({ action: "put", data, mimeType });
+  // Decode before publishing. A matching header alone does not make a usable image.
+  await ctx.api.assets({ action: "preview", ref: stored.ref, maxEdge: 64 });
+  const published = await ctx.api.assets({ action: "publish", ref: stored.ref, shareable: true });
+  return { reference: { url: published.url }, sourceUrl, imageUrl: stream.url || imageUrl,
+    attachments: [{ assetRef: stored.ref, caption: "待核对的参考图" }] };
 };

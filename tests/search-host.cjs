@@ -37,6 +37,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const file = sessionAssetWritePath({ path, root, sessionId: "conversation", kind: "images", fileName: "source.png" });
     const bytes = Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), Buffer.alloc(65000, 1)]); fs.writeFileSync(file, bytes);
     const message = { id: "source", chatId: "chat", media: [{ type: "image", assetRef: sessionAssetRef("conversation", "images", "source.png") }] };
+    const sharp = require(require.resolve("sharp", { paths: [host] }));
+    const drawing = await sharp(require("node:crypto").randomBytes(602 * 602 * 3),
+      { raw: { width: 602, height: 602, channels: 3 } }).png().toBuffer();
+    const illustration = "https://example.org/works/picture.png";
     let requests = 0;
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, resolveChannel: id => id === "bot" ? channel : null,
       botPluginsFor: () => [plugin], makeId: () => "fixture", safeError: String, isNapCatOneBotChannel: () => false,
@@ -44,9 +48,24 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       channelEventByReference: (_channel, chat, id) => chat === "chat" && id === "source" ? message : null,
       secretStore: { isSecretEnvelope: value => value?.encrypted === "fixture", decryptSecret: () => "fixture-key" },
       readResponseBytes: async (response, max) => { const data = Buffer.from(await response.arrayBuffer()); assert.ok(data.length <= max); return data; },
+      requestPluginModel: async ({ request }) => {
+        assert.deepEqual(request.tools[0].search_content_types, ["image", "text"]);
+        assert.ok(request.include.includes("web_search_call.results"));
+        return { output: [{ type: "web_search_call", status: "completed", results: [
+          { type: "image_result", image_url: illustration, source_website_url: "https://example.org/gallery", caption: "Character art" }] },
+          { type: "message", content: [{ type: "output_text", text: "Gallery", annotations: [
+            { type: "url_citation", url: "https://example.org/gallery", title: "Artist" }] }] }] };
+      },
       guardedFetch: async (url, options) => {
         requests++;
+        if (process.argv.includes("--live-reference") && ["xn--pssy23gqgbz2d718b.com", "raw.githubusercontent.com"].includes(new URL(url).hostname))
+          return fetch(url, options);
         if (url === "https://api.anysearch.com/mcp" && process.argv.includes("--live-anysearch")) return fetch(url, options);
+        if (url === "https://example.org/gallery") return new Response('<article><a href="works/detail">作品详情</a><img src="works/picture.png" alt="角色立绘"></article>',
+          { headers: { "content-type": "text/html" } });
+        if (url === illustration) return new Response(new ReadableStream({ start(controller) {
+          controller.enqueue(drawing.subarray(0, 11)); controller.enqueue(drawing.subarray(11)); controller.close();
+        } }), { headers: { "content-type": "image/png" } });
         const body = JSON.parse(options.body);
         if (url === "https://vision.googleapis.com/v1/images:annotate") {
           assert.equal(body.requests[0].image.content, bytes.toString("base64"));
@@ -65,6 +84,31 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const images = await complete("plugin__search__search_by_image", { action: "start", requestKey: "image", input: { messageId: "source" } });
     assert.equal(images.pages[0].title, "Source"); assert.equal(requests, 1);
     assert.equal((await complete("web_search", { query: "example" })).results[0].snippet, "Verified source");
+    plugin.config.webProvider = "openai";
+    const native = await complete("web_search", { query: "Character art", resultType: "images" });
+    assert.equal(native.images[0].imageUrl, illustration);
+    assert.equal(native.results[0].title, "Artist");
+    plugin.config.webProvider = "anysearch";
+    const gallery = await complete("plugin__search__read_webpage", { action: "start", requestKey: "gallery", input: { url: native.images[0].sourceUrl, includeImages: true } });
+    assert.equal(gallery.links[0].url, "https://example.org/works/detail");
+    const candidate = gallery.images[0];
+    assert.equal(candidate.caption, "角色立绘");
+    const ready = await complete("plugin__search__prepare_reference", { action: "start", requestKey: "reference", input: { imageUrl: candidate.imageUrl, sourceUrl: candidate.sourceUrl } });
+    const vault = fromHost("plugins/plugin-assets.cjs").createPluginAssets({ root });
+    const actor = { channelId: "bot", chatId: "chat", pluginId: "image-studio" };
+    const adopted = vault.handoff(actor, { action: "fromPublished", url: ready.reference.url }, () => true);
+    assert.deepEqual(vault.read(actor, adopted.ref).data, drawing);
+    if (process.argv.includes("--live-reference")) {
+      const sourceUrl = "https://xn--pssy23gqgbz2d718b.com/works/gpt202611200001.html";
+      const page = await complete("plugin__search__read_webpage", { action: "start", requestKey: "real-gallery", input: { url: sourceUrl, includeImages: true } });
+      const original = page.images.find(item => item.imageUrl.includes("raw.githubusercontent.com") && item.imageUrl.includes("/originals/gpt/"));
+      assert.ok(original, "work page supplies the original image");
+      const prepared = await complete("plugin__search__prepare_reference", { action: "start", requestKey: "real-image",
+        input: { imageUrl: original.imageUrl, sourceUrl } });
+      const actual = vault.handoff(actor, { action: "fromPublished", url: prepared.reference.url }, () => true);
+      console.log("Live reference:", page.title, actual.mimeType, actual.bytes, "bytes");
+    }
+    plugin.config.webProvider = "tavily";
     const helpers = createBuiltinToolHelpers({ normalizeList: value => value || [], parseJsonLoose: JSON.parse });
     const commands = { _channelPluginToolSchemas: runtime.pluginToolSchemas, _channelNativePluginTool: runtime.runNativePluginTool };
     const executor = createOpenBotToolExecutor({ fs, path, getStore: () => store, getCommands: () => commands, ensureStoreArray: arrays,
@@ -83,7 +127,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       assert.equal(live.provider, "anysearch"); assert.ok(live.content.length);
       console.log("Live anonymous AnySearch search completed through the installed plugin worker and guarded HTTP interface");
     }
-    console.log("Search host integration: managed installation, encrypted migration, native worker, 65 KiB attachment upload, legacy dispatch and revocation passed");
+    console.log("Search host integration: installed worker, search citations, gallery links, original image transfer, attachment upload, migration and revocation passed");
   } finally {
     runtime?.clearChannelPluginPollTimers?.({ id: "bot" }); await shutdownPluginWorkers();
     const resolved = path.resolve(root); assert.ok(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("openbot-search-host-"));
