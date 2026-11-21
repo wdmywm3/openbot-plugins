@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "test:integration": "node scripts/test-integration.cjs",
+    "test:mailbox": "node tests/mailbox-host.cjs",
     "test:all": "npm test && npm run test:integration",
     "pretest": "node tests/image-studio.cjs && node tests/image-studio-selfie.cjs && node tests/image-studio-catalog.cjs",
     "test:memory:unit": "node tests/memory-standalone.cjs && node tests/memory-dream-policy.cjs",

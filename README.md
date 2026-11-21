@@ -1,5 +1,9 @@
 # OpenBot 插件
 
+## 邮箱
+
+在主人私聊中收发和整理邮件，支持原生 Gmail 会话、标签、草稿、附件和来信提醒，也可以连接 IMAP / SMTP 邮箱。[安装与授权](plugins/mailbox/README.md)
+
 ## 电脑操作
 
 在实例主人的私聊中操作本机 Windows 应用，支持读取窗口、点击控件、中文输入和窗口截图。需要 Windows x64，Cua Driver 随插件依赖准备。[安装与使用](plugins/computer-use/README.md)
