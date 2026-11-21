@@ -593,6 +593,112 @@
       ]
     },
     {
+      "id": "mailbox",
+      "name": "邮箱",
+      "version": "0.2.0",
+      "description": "查询、收发和整理邮件，管理 Gmail 会话、标签和草稿，关注新来信。",
+      "category": "integration",
+      "main": "index.js",
+      "permissions": [
+        "process",
+        "secret",
+        "state",
+        "jobs",
+        "conversation",
+        "conversation:notify",
+        "history",
+        "assets",
+        "network",
+        "network:stream"
+      ],
+      "metadata": {
+        "usage": "在实例中选择 Gmail 或 IMAP / SMTP，在主人私聊中查信、收发邮件、管理草稿或关注新邮件。",
+        "platforms": [],
+        "requirements": [
+          "Gmail 使用 Google OAuth 授权；其他邮箱使用支持 TLS 的 IMAP / SMTP 服务。"
+        ],
+        "changelog": "",
+        "components": [
+          "tools",
+          "background"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "1922870a4277d18a36e828c90f223d407bfd79e9",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 5810,
+          "sha256": "ccc395b73284b8c8c412f4a66006ffbca3bc995ce678205fb4597cd656612168"
+        },
+        {
+          "path": "authorize-gmail.cjs",
+          "size": 4968,
+          "sha256": "b4f9a228b7243212b588c622c197392ea6813bd3bac8b05e30fe76f0c3aa4db7"
+        },
+        {
+          "path": "compose.cjs",
+          "size": 14013,
+          "sha256": "36e66530f4cb7c6cd30b0eb256d6f586bc0c825f69a48ecaa8f4483073150833"
+        },
+        {
+          "path": "gmail.cjs",
+          "size": 16170,
+          "sha256": "9c298f5d63afc7a05ea720403c3f4f9fb0cf3e22ceb74f9834339737b6228985"
+        },
+        {
+          "path": "imap-actions.cjs",
+          "size": 4772,
+          "sha256": "c89f39e89de0e250f95ac3026d0b670351fc5f571e65e92457128458d0891959"
+        },
+        {
+          "path": "imap.cjs",
+          "size": 11497,
+          "sha256": "a8864097979ff31f8556a5fce2ab07cc35ce74edb9fce64bee1edcf0d1bb5947"
+        },
+        {
+          "path": "index.js",
+          "size": 105,
+          "sha256": "99fa1d95a55fb79bfe375bece29a8ea2bc4b0d3bf0e91d9e90955e28d9bb798e"
+        },
+        {
+          "path": "mailbox.cjs",
+          "size": 10678,
+          "sha256": "d6cf5aeaa6a82d75f35f31350537f9248400c8518bd352961815190e43f17a4e"
+        },
+        {
+          "path": "organize.cjs",
+          "size": 7956,
+          "sha256": "4726f672fec95a3bb79c1988108e2dcb9e0abac5589ad697759b3e65ebe0e32b"
+        },
+        {
+          "path": "outbox.cjs",
+          "size": 12483,
+          "sha256": "b3ddd09d4840e99e2679aa24be76bfa753cd320077ae86e9490f862745d866e3"
+        },
+        {
+          "path": "package-lock.json",
+          "size": 17833,
+          "sha256": "98b613bcc738cda2f41c96a787f14f037443db581a5893e96f5d380b0c6db08c"
+        },
+        {
+          "path": "package.json",
+          "size": 208,
+          "sha256": "7eb0fa15a49341d4a24353f85a6da56f2d6cc486685c1f4820205bb034169c5f"
+        },
+        {
+          "path": "plugin.json",
+          "size": 23036,
+          "sha256": "feaf5d693af3b6b78735e534b2e86889f1415a98643ca3015028df1e7651879e"
+        },
+        {
+          "path": "process.cjs",
+          "size": 1392,
+          "sha256": "22224ff02b38a3542efc1b25517b3c2c14915633cdec702866d7769113ec8fb4"
+        }
+      ]
+    },
+    {
       "id": "meme-library",
       "name": "表情包",
       "version": "2.6.4",

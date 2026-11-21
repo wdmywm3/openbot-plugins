@@ -1,6 +1,6 @@
 // Check the published declarations through the host's package reader and runtime registry.
 "use strict";
-const assert = require("node:assert/strict"), path = require("node:path");
+const assert = require("node:assert/strict"), path = require("node:path"), fs = require("node:fs");
 const host = path.resolve(process.argv[2] || process.env.OPENBOT_HOST_ROOT);
 const load = file => require(path.join(host, "electron/lib", file));
 const { readRuntime } = load("plugins/plugin-install-package.cjs");
@@ -70,7 +70,7 @@ for (const { id, version } of entries) {
   }
 }
 async function checkWorkerConfiguration() {
-  const fs = require("node:fs"), os = require("node:os");
+  const os = require("node:os");
   const { createChannelPluginRuntimeService, shutdownPluginWorkers } = load("features/channels/channel-plugin-runtime-service.cjs");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-scope-worker-"));
   store.root = root; store.save = () => {}; store.flush = async () => {};
@@ -93,6 +93,10 @@ async function checkWorkerConfiguration() {
   }
 }
 checkWorkerConfiguration().catch(error => { console.error(error); process.exitCode = 1; });
-assert.equal(entries.length, 18);
+const packages = path.resolve(__dirname, "../plugins");
+const packageIds = fs.readdirSync(packages, { withFileTypes: true })
+  .filter(dir => dir.isDirectory() && fs.existsSync(path.join(packages, dir.name, "plugin.json")))
+  .map(dir => dir.name);
+assert.deepEqual(entries.map(entry => entry.id).sort(), packageIds.sort());
 assert(groups > 10 && chatFields > 10);
 console.log(entries.length, "packages checked;", groups, "instance groups;", chatFields, "chat fields; caller ceilings and independent delivery passed");
