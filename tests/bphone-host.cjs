@@ -44,6 +44,10 @@ async function main() {
   const pkgDir = path.resolve(__dirname,"../plugins/android-roamer");
   const pkg = host("./electron/lib/plugins/plugin-package.cjs").readPluginPackage(pkgDir);
   const { validateInput } = host("./electron/lib/plugins/plugin-agent-bridge.cjs");
+  const useSchema = pkg.manifest.tools.find(tool => tool.name === "use").inputSchema;
+  const waitFor = { app:"fixture.app", identifier:"fixture:id/status", values:["完成","失败"], anchorText:"报告.pdf", timeoutSeconds:60 };
+  validateInput(useSchema, {operation:"wait", waitFor});
+  assert.throws(() => validateInput(useSchema, {operation:"wait", waitFor:{...waitFor,timeoutSeconds:91}}));
   const { chromium } = host("playwright");
   const { Client } = host("@modelcontextprotocol/client");
   const { StdioClientTransport } = host("@modelcontextprotocol/client/stdio");

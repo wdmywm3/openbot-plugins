@@ -59,6 +59,26 @@ function screenSnapshot(nodes) {
   }
   return { elements, truncated };
 }
+function controlValue(nodes, { identifier, field, anchorText }) {
+  const pending = [nodes.values()];
+  let match, foundAnchor = anchorText === undefined;
+  while (pending.length) {
+    const { done, value: node } = pending.at(-1).next();
+    if (done) { pending.pop(); continue; }
+    if (node?.text === anchorText || node?.label === anchorText) foundAnchor = true;
+    if (node?.identifier === identifier) {
+      if (match) throw Object.assign(Error("当前页面有多个同名控件"), { code: "PHONE_CONTROL_AMBIGUOUS" });
+      match = node;
+    }
+    if (Array.isArray(node?.children)) pending.push(node.children.values());
+  }
+  if (!foundAnchor) throw Object.assign(Error("当前页面找不到指定的定位文字"), { code: "PHONE_WAIT_ANCHOR_MISSING" });
+  if (!match) throw Object.assign(Error("当前页面找不到等待的控件"), { code: "PHONE_CONTROL_MISSING" });
+  const value = match[field];
+  if (typeof value !== "string") throw Object.assign(Error("控件未返回指定文字字段"), { code: "PHONE_CONTROL_FIELD_MISSING" });
+  if (value.length > 1024) throw Object.assign(Error(`控件文字超过 1024 个字符（${value.length} 个字符）`), { code: "PHONE_CONTROL_TOO_LONG" });
+  return value;
+}
 async function sdkHome(root, adbPath) {
   const dir = await fs.realpath(path.dirname(adbPath));
   if (path.basename(dir).toLowerCase() === "platform-tools") return path.dirname(dir);
@@ -110,7 +130,7 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
             mutex.unref(); return mutex;
           } catch (e) { if (e.code !== "EADDRINUSE") throw e; }
         }
-        if (mode === "idle" || clock() >= deadline) throw Error("设备正在执行其他任务");
+        if (mode === "idle" || clock() >= deadline) throw Object.assign(Error("设备正在执行其他任务"), { code: "PHONE_DEVICE_BUSY" });
         await delay(150, undefined, { signal: requests.getStore() });
       }
     } finally { waiters.splice(waiters.indexOf(ticket), 1); }
@@ -156,7 +176,7 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
     }
     return { id: picker.id };
   }
-  async function call(input) {
+  async function call(input, readTarget) {
     expire();
     const { op, deviceId, binding } = input;
     if (op === "pick") return pickFile();
@@ -178,6 +198,15 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       return { token:captured.token, model:captured.model, thumbnail:"data:image/jpeg;base64," + thumbnail.toString("base64") };
     }
     if (op === "confirm") return setup.verifiedBinding("local", deviceId, input.token);
+    if (op === "probe") {
+      if (typeof input.app !== "string" || !packageName.test(input.app) || typeof input.identifier !== "string" || !input.identifier.trim()
+        || input.identifier.length > 512 || !["text", "label"].includes(input.field)
+        || (input.anchorText !== undefined && (typeof input.anchorText !== "string" || !input.anchorText.trim() || input.anchorText.length > 512)))
+        throw Object.assign(Error("等待读屏的目标无效"), { code: "PHONE_WAIT_TARGET" });
+      const { lease } = await call({ ...input, op: "begin", mode: "idle" });
+      try { return await call({ op: "observe", lease }, input); }
+      finally { release(lease); }
+    }
     if (op === "begin") {
       if (!binding?.key || !binding.connection) throw Error("请先确认这台手机的截图");
       const c = await connectAdb(binding.connection, run);
@@ -209,10 +238,16 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       }
       if (op === "observe") {
         s.observed = "";
+        if (readTarget) {
+          if (!app) throw Object.assign(Error("设备未返回前台应用"), { code: "PHONE_FOREGROUND_UNKNOWN" });
+          if (!allowed) throw Object.assign(Error("当前应用不在允许范围内"), { code: "PHONE_APP_NOT_ALLOWED" });
+          if (app !== readTarget.app) throw Object.assign(Error("手机已离开指定应用"), { code: "PHONE_WAIT_APP_CHANGED" });
+        }
         if (!allowed) return { app: "", allowedApps: s.apps || [], outside: true, observationId: rememberScreen(s, app, "") };
         const data = await command(s, ["dump", "ui"]);
-        if (await foreground() !== app) throw Error("读屏期间前台应用已改变");
+        if (await foreground() !== app) throw Object.assign(Error("读屏期间前台应用已改变"), { code: "SCREEN_CHANGED" });
         if (!Array.isArray(data?.elements)) throw Error("设备未返回控件列表");
+        if (readTarget) return { value: controlValue(data.elements, readTarget) };
         s.observed = app;
         s.fingerprint = screenFingerprint(data.elements);
         return { app, ...screenSnapshot(data.elements), observationId: rememberScreen(s, app, s.fingerprint) };
@@ -249,6 +284,22 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       throw error;
     } finally { s.busy = false; renew(input.lease,s); }
   }
-  return (input, signal) => requests.run(signal || AbortSignal.timeout(55000), () => call(input));
+  return (input, signal) => {
+    signal ||= AbortSignal.timeout(55000);
+    if (input.op === "probe") {
+      const remaining = input.deadline - clock();
+      if (!Number.isSafeInteger(remaining) || remaining <= 0) throw Object.assign(Error("已到手机等待时限"), { code: "PHONE_WAIT_TIMEOUT" });
+      const timeout = AbortSignal.timeout(Math.min(remaining, 90000));
+      return requests.run(AbortSignal.any([signal, timeout]), async () => {
+        try { return await call(input); }
+        catch (error) {
+          signal.throwIfAborted();
+          if (timeout.aborted) throw Object.assign(Error("已到手机等待时限"), { code: "PHONE_WAIT_TIMEOUT" });
+          throw error;
+        }
+      });
+    }
+    return requests.run(signal, () => call(input));
+  };
 }
 module.exports = { createDriver };

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
   "extensions": {
     "com.openbot": {
@@ -115,7 +115,7 @@
       "tools": [
         {
           "name": "use",
-          "description": "观察手机：读取当前控件、截图或列出应用，返回结果供你决定下一步。旧调用只给 goal 时仅读屏。",
+          "description": "读取手机控件、截图或应用列表。等待已知状态控件时用 wait，一次调用取得最终结果。",
           "export": "agentTool",
           "scope": "all",
           "permission": "member",
@@ -136,8 +136,26 @@
                 "enum": [
                   "observe",
                   "screenshot",
-                  "apps"
+                  "apps",
+                  "wait"
                 ]
+              },
+              "waitFor": {
+                "type": "object",
+                "description": "operation 为 wait 时指定。按资源 ID 精确查找当前应用内的一个控件。",
+                "properties": {
+                  "app": { "type": "string", "maxLength": 255, "description": "读屏确认的应用包名" },
+                  "identifier": { "type": "string", "minLength": 1, "maxLength": 512, "description": "状态控件的资源 ID" },
+                  "anchorText": { "type": "string", "minLength": 1, "maxLength": 512, "description": "应一直可见的文件名或页面标题；完全匹配文字或无障碍标签，消失时结束等待。" },
+                  "field": { "type": "string", "enum": ["text", "label"], "description": "读取的文字字段，默认 text" },
+                  "values": {
+                    "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string", "maxLength": 1024 },
+                    "description": "任一完整值命中即返回。省略时等待该字段相对首次读取发生变化。"
+                  },
+                  "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 90, "description": "最长等待秒数，默认 30" }
+                },
+                "required": ["app", "identifier"],
+                "additionalProperties": false
               },
               "goal": {
                 "type": "string",
@@ -759,7 +777,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "由聊天 Bot 决定每一次设备操作。新增手机脚本，可按控件文字或资源 ID 连续操作，每一步自动使用当前画面的观察编号。"
+        "changelog": "可等待手机上的下载状态等控件变化，命中指定文字或超时时返回结果。"
       },
       "dependencies": {
         "node": {

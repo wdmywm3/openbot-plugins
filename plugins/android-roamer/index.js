@@ -79,7 +79,9 @@ function readJsonObject(raw, source) {
   return value;
 }
 async function driver(ctx, data) {
-  const timeoutMs = data.deadline === undefined ? 60000 : Math.min(60000, data.deadline - Date.now());
+  // A probe enforces its deadline inside the driver, including an in-flight device read.
+  const timeoutMs = data.op === "probe" ? Math.max(1000, Math.min(60000, data.deadline - Date.now() + 1000))
+    : data.deadline === undefined ? 60000 : Math.min(60000, data.deadline - Date.now());
   if (timeoutMs < 1000) throw Error("手机脚本已超时");
   const response = await ctx.api.callTool({ pluginId: ctx.plugin?.id || "android-roamer", pluginServer: "phone",
     name: "bphone_device", arguments: data, timeoutMs });
@@ -255,14 +257,18 @@ function operationScope(ctx, row, config, privateTask) {
     ctx.principal.senderId || ctx.message?.sender?.id || "", privateTask, row.deviceId, row.deviceRevision, row.key,
     config.allApps !== false, config.playApps || [], config.prohibitions || "", config.useEnabled === true]);
 }
-async function phoneTool(ctx, input, scriptRun) {
-  const privateTask = input.private === true;
+async function phoneAccess(ctx, deviceId, privateTask) {
   if (privateTask && !ownerPrivate(ctx)) throw Error("私人手机操作仅限主人当前私聊");
-  const device = selectDevice(await devicesFor(ctx), input.deviceId);
-  const config = { ...ctx.config, ...device.effectiveSettings };
+  const device = selectDevice(await devicesFor(ctx), deviceId);
+  const config = { ...(ctx.api.getConfig ? await ctx.api.getConfig() : ctx.config), ...device.effectiveSettings };
   if (device.paused) throw Error("设备已暂停");
   if (!privateTask && config.useEnabled !== true) throw Error("手机按需使用已关闭");
   if (config.allApps === false && !config.playApps?.length) throw Error("尚未指定允许使用的应用");
+  return { device, config, scope: operationScope(ctx, device, config, privateTask) };
+}
+async function phoneTool(ctx, input, scriptRun) {
+  const privateTask = input.private === true;
+  const { device, config, scope } = await phoneAccess(ctx, input.deviceId, privateTask);
   const op = ctx.tool === "act" ? "step" : input.operation || "observe";
   if (!["observe","screenshot","apps","step"].includes(op) || op === "step" && ctx.tool !== "act") throw Error("未知手机操作");
   if (op === "step" && (!input.observationId || !input.action)) throw Error("执行动作需要观察编号和动作名称");
@@ -276,7 +282,6 @@ async function phoneTool(ctx, input, scriptRun) {
     if (!saved) throw Error("没有找到指定活动，请先查询活动列表");
     previous = publicActivity(saved);
   }
-  const scope = operationScope(ctx, device, config, privateTask);
   if (scriptRun && scriptRun.scope !== scope) throw Error("脚本所用设备或使用设置已变化");
   const timing = scriptRun ? { deadline: scriptRun.deadline } : {};
   const { lease } = await driver(ctx, { op: "begin", ...timing, scope, binding: { key: device.key, connection: device.connection },
@@ -310,6 +315,55 @@ async function phoneTool(ctx, input, scriptRun) {
     }
     return { deviceId: device.deviceId, ...view, ...(previous ? { previous } : {}), ...(settings.prohibitions ? { restrictions: settings.prohibitions } : {}) };
   } finally { await driver(ctx, { op: "end", lease }).catch(() => {}); }
+}
+async function waitForControl(ctx, input) {
+  const { app, identifier, field = "text", values, anchorText, timeoutSeconds = 30 } = input.waitFor || {};
+  if (typeof app !== "string" || app.length > 255 || !/^[a-zA-Z][\w]*(?:\.[a-zA-Z\d_]+)+$/.test(app))
+    throw Error("请指定等待读屏的应用包名");
+  if (typeof identifier !== "string" || !identifier.trim() || identifier.length > 512) throw Error("控件资源 ID 须为 1 到 512 个字符");
+  if (!["text", "label"].includes(field)) throw Error("读取字段须为 text 或 label");
+  if (anchorText !== undefined && (typeof anchorText !== "string" || !anchorText.trim() || anchorText.length > 512))
+    throw Error("页面定位文字须为 1 到 512 个字符");
+  if (values !== undefined && (!Array.isArray(values) || !values.length || values.length > 8
+    || values.some(value => typeof value !== "string" || value.length > 1024))) throw Error("等待值须为 1 到 8 段文字，每段最多 1024 个字符");
+  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 90) throw Error("等待时限须为 1 到 90 秒的整数");
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  const privateTask = input.private === true;
+  const { device, config, scope } = await phoneAccess(ctx, input.deviceId, privateTask);
+  const verifyAccess = async () => {
+    ctx.signal?.throwIfAborted();
+    if ((await phoneAccess(ctx, device.deviceId, privateTask)).scope !== scope)
+      throw Object.assign(Error("等待期间设备或使用设置已变化"), { code: "PHONE_WAIT_SCOPE_CHANGED" });
+  };
+  const target = { deviceId: device.deviceId, app, identifier, field };
+  const probe = { op: "probe", ...target, anchorText, deadline, scope, binding: { key: device.key, connection: device.connection },
+    allApps: config.allApps !== false, apps: config.playApps || [] };
+  let initial, checks = 0;
+  while (Date.now() < deadline) {
+    ctx.signal?.throwIfAborted();
+    let sample;
+    try { sample = await driver(ctx, probe); }
+    catch (error) {
+      ctx.signal?.throwIfAborted();
+      if (error.code === "PHONE_WAIT_TIMEOUT") break;
+      if (error.code !== "PHONE_DEVICE_BUSY") throw error;
+    }
+    if (sample) {
+      await verifyAccess();
+      if (Date.now() >= deadline) break;
+      if (typeof sample.value !== "string") throw Object.assign(Error("设备未返回控件文字"), { code: "PHONE_CONTROL_FIELD_MISSING" });
+      checks++;
+      initial ??= sample.value;
+      if (values ? values.includes(sample.value) : sample.value !== initial)
+        return { ...target, status: values ? "matched" : "changed", value: sample.value, checks };
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await ctx.api.sleep(Math.min(3000, remaining));
+    await verifyAccess();
+  }
+  ctx.signal?.throwIfAborted();
+  return { ...target, status: "timeout", timeoutSeconds, checks };
 }
 function scriptTap(screen, selector) {
   if (!selector || typeof selector !== "object" || Array.isArray(selector)) throw Error("点击目标须为控件选择条件");
@@ -406,6 +460,7 @@ async function recordActivity(ctx, input) {
   return { activityId, report };
 }
 module.exports.agentTool = async ctx => {
+  if (ctx.tool === "use" && ctx.input?.operation === "wait") return waitForControl(ctx, ctx.input);
   if (ctx.tool === "script") return runPhoneScript(ctx, ctx.input || {});
   if (["learning", "revise_learning"].includes(ctx.tool)) {
     const input = ctx.input || {}, privateTask = input.private === true;

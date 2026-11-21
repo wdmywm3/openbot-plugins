@@ -7,14 +7,19 @@ async function fixture(root) {
   const adb = path.join(root, process.platform === "win32" ? "adb.exe" : "adb");
   await fs.writeFile(adb, "fixture");
   const states = new Map(), ops = [], calls = [], photos = new Map(), identities = new Map();
-  const foregroundReplies = [], actionTokens = [];
+  const foregroundReplies = [], dumpReplies = [], actionTokens = [];
   let screenText = "Hello";
   const host = "127.0.0.1";
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAHCAIAAACgB3uHAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQCV0FRwxU5QAAmiwf1RK0WHYAAAAASUVORK5CYII=", "base64");
-  const run = async (file, args) => {
+  const run = async (file, args, options) => {
     if (file === "fixture-mobilecli") {
       ops.push(args);
       if (args.includes("foreground") && foregroundReplies.length) return { stdout: foregroundReplies.shift() };
+      if (args.includes("dump") && dumpReplies.length) {
+        const reply = dumpReplies.shift();
+        const elements = typeof reply === "function" ? await reply(options.signal) : reply;
+        return { stdout: JSON.stringify({ status: "ok", data: { elements } }) };
+      }
       if (args.includes("tap") && screenText === "打开示例") screenText = "下一页";
       else if (args.includes("tap") && screenText === "下一页") screenText = "已到达";
       if (args.includes("screenshot")) return { stdout: png };
@@ -32,10 +37,10 @@ async function fixture(root) {
   const dispatch = createDriver(root, { binary: "fixture-mobilecli", run, setupOptions: { ports: async () => [], probe: async () => false } });
   const ctx = { plugin:{id:"android-roamer",namespace:"instance-a"}, config: { useEnabled: true, allApps: true, maxSteps: 4 }, principal: { role:"owner", messageType:"private" },
     message:{ id:"owner-1", chatId:"owner" }, command:{ name:"phone" }, api: {
-    callTool: async ({ arguments: args }) => {
+    callTool: async ({ arguments: args }, signal) => {
       calls.push(args.op);
       if (args.op === "step") actionTokens.push(args.observationId);
-      const value = await dispatch(args);
+      const value = await dispatch(args, signal);
       const content = [];
       if (value.image) { content.push({ type:"image", mimeType:value.mimeType, data:value.image }); delete value.image; }
       return { content: [...content,{ type:"text",text:JSON.stringify(value) }] };
@@ -53,7 +58,71 @@ async function fixture(root) {
     runAgent: () => { throw Error("插件启动了 Agent"); },
   } };
   const manage = input => plugin.deviceSettings({ ...ctx, principal:{source:"desktop",channelId:"test-instance"}, input });
-  return { ctx, manage, ops, calls, photos, identities, adb, host, dispatch, foregroundReplies, actionTokens, setScreen: value => { screenText = value; } };
+  return { ctx, manage, ops, calls, photos, identities, adb, host, dispatch, foregroundReplies, dumpReplies, actionTokens, setScreen: value => { screenText = value; } };
+}
+async function verifyWait(f, deviceId) {
+  const { setTimeout: delay } = require("node:timers/promises");
+  const identifier = "fixture:id/next", app = "fixture.app", target = { app, identifier };
+  const noDelay = async () => {};
+  const watch = (options, sleep = noDelay, signal) => plugin.agentTool({ ...f.ctx, tool: "use", signal,
+    api: { ...f.ctx.api, sleep, callTool: request => f.ctx.api.callTool(request, signal) },
+    input: { deviceId, operation: "wait", waitFor: { ...target, ...options } } });
+  const reads = () => f.calls.filter(op => op === "probe").length;
+  const deviceInputs = () => f.ops.filter(args => args.includes("io")).length;
+  const start = deviceInputs(), probes = reads();
+  for (let i = 0; i < 11; i++) f.dumpReplies.push([{identifier: "clock", text: String(i)},
+    {children: [{identifier, text: i === 10 ? "下载完成" : "下载中"}]}]);
+  const matched = await watch({values: ["下载完成", "下载失败"]});
+  assert.deepEqual([matched.status, matched.value, matched.checks, reads() - probes], ["matched", "下载完成", 11, 11]);
+  assert(!("elements" in matched || "observationId" in matched));
+  f.dumpReplies.push([{identifier, label:"下载中"}], [{identifier, label:"下载失败"}]);
+  const changed = await watch({field:"label"});
+  assert.deepEqual([changed.status, changed.value, changed.checks], ["changed", "下载失败", 2]);
+  f.setScreen("下载失败");
+  assert.equal((await watch({values:["下载失败"]})).checks, 1, "an already reached state completes on the first read");
+  const label = {label:"报告.pdf"};
+  f.dumpReplies.push([label, {identifier,text:"下载中"}], [{label:"另一份.pdf"}, {identifier,text:"下载完成"}]);
+  await assert.rejects(watch({values:["下载完成"],anchorText:label.label}),
+    e => e.code === "PHONE_WAIT_ANCHOR_MISSING" && e.message === "当前页面找不到指定的定位文字");
+  for (const [elements, code, message] of [
+    [[], "PHONE_CONTROL_MISSING", "当前页面找不到等待的控件"],
+    [[{identifier, children:[{identifier}]}], "PHONE_CONTROL_AMBIGUOUS", "当前页面有多个同名控件"],
+    [[{identifier}], "PHONE_CONTROL_FIELD_MISSING", "控件未返回指定文字字段"],
+    [[{identifier, text:"x".repeat(1025)}], "PHONE_CONTROL_TOO_LONG", "控件文字超过 1024 个字符（1025 个字符）"],
+  ]) {
+    f.dumpReplies.push(elements);
+    await assert.rejects(watch({}), e => e.code === code && e.message === message);
+  }
+  f.foregroundReplies.push(JSON.stringify({status:"ok",data:{packageName:"other.app"}}));
+  await assert.rejects(watch({}), e => e.code === "PHONE_WAIT_APP_CHANGED" && e.message === "手机已离开指定应用");
+  const expired = await watch({values:["未出现"],timeoutSeconds:1}, ms => delay(ms));
+  assert.deepEqual([expired.status, expired.checks], ["timeout", 1]);
+  const canceled = new AbortController(), beforeCancel = reads();
+  await assert.rejects(watch({}, async () => canceled.abort(Error("用户已停止等待")), canceled.signal), /用户已停止等待/);
+  assert.equal(reads(), beforeCancel + 1);
+  const reading = new AbortController();
+  f.dumpReplies.push(async signal => { reading.abort(Error("取消正在进行的读屏")); await delay(5000, null, {signal}); return []; });
+  await assert.rejects(watch({}, noDelay, reading.signal), /取消正在进行的读屏/);
+  await assert.rejects(watch({}, async () => { f.ctx.config.prohibitions = "更新规则"; }), e => e.code === "PHONE_WAIT_SCOPE_CHANGED");
+  delete f.ctx.config.prohibitions;
+  assert.equal(deviceInputs(), start);
+
+  // A deadline inside a device read releases the lease. Read-only probes also leave an existing action token alone.
+  const observe = () => plugin.agentTool({...f.ctx,tool:"use",input:{deviceId}});
+  const view = await observe();
+  f.dumpReplies.push(async signal => { await delay(5000, null, {signal}); return []; });
+  const inFlight = await watch({values:["未出现"],timeoutSeconds:1});
+  assert.deepEqual([inFlight.status, inFlight.checks], ["timeout", 0]);
+  const stillThere = await watch({values:["下载失败"]});
+  assert.equal(stillThere.status, "matched");
+  const device = (await f.ctx.api.getState("bphone-devices-v1", "global")).find(row => row.deviceId === deviceId);
+  const {lease} = await f.dispatch({op:"begin",binding:device,mode:"private",scope:"other-task",allApps:true});
+  try {
+    const afterBusy = await watch({values:["下载失败"]}, () => f.dispatch({op:"end",lease}));
+    assert.equal(afterBusy.checks, 1, "only the one successful read counts after the other caller releases the device");
+  } finally { await f.dispatch({op:"end",lease}).catch(() => {}); }
+  const act = await plugin.agentTool({...f.ctx,tool:"act",input:{deviceId,action:"tap",x:1,y:2,observationId:view.observationId}});
+  assert.equal(act.completed, true);
 }
 async function verifyScript(f, deviceId, evaluate) {
   const invoke = (code, options = {}, runScript = evaluate) => plugin.agentTool({
@@ -163,6 +232,7 @@ if (require.main === module) (async () => {
       const sandbox = {module:{exports:{}}, input:request.input};
       return require("node:vm").runInNewContext(request.code + "\nmodule.exports.run({input})",sandbox,{timeout:1000});
     });
+    await verifyWait(f, "second");
     f.setScreen("很长的标签".repeat(800));
     const large = await observe();
     assert.equal(large.truncated,true);
@@ -183,6 +253,6 @@ if (require.main === module) (async () => {
     await assert.rejects(plugin.agentTool({...f.ctx,plugin:{id:"android-roamer",namespace:"instance-b"},tool:"use",input:{deviceId:"first"}}),/设备已暂停/);
     await assert.rejects(other({op:"remove",deviceId:"first",revision:2}),/设备设置已变化/);
     await assert.rejects(plugin.deviceSettings({...f.ctx,input:{op:"list"}}),/设备页面/);
-    console.log("bPhone: device setup, observation, single action, stale/replayed/foreign observation rejection, screenshot, device transfer and pause passed");
+    console.log("bPhone: device setup, observation, single action, screenshot, transfer, pause, and read-only waits including cancellation, timeout and contention passed");
   } finally { await fs.rm(root,{recursive:true,force:true}); }
 })().catch(e=>{console.error(e);process.exitCode=1});
