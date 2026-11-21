@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
       "category": "ai",
       "main": "index.js",
@@ -29,7 +29,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "由聊天 Bot 决定每一次设备操作。新增手机脚本，可按控件文字或资源 ID 连续操作，每一步自动使用当前画面的观察编号。",
+        "changelog": "可等待手机上的下载状态等控件变化，命中指定文字或超时时返回结果。",
         "components": [
           "commands",
           "hooks",
@@ -39,12 +39,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "7a72521c8bccf32b2b39ca4f04018b56be602408",
+      "ref": "472765bf3c6fa2e573c12e5ee431b8c2fb8a7d77",
       "files": [
         {
           "path": "device-driver.cjs",
-          "size": 14762,
-          "sha256": "a71e4fe72bb2f8f7d84d996f8450be81f02dc129dfbf11f92833697c27999d65"
+          "size": 17947,
+          "sha256": "b1791c70bea1c27e8a365abc9d17a838956e09dac10243a437675d40cf4998e5"
         },
         {
           "path": "device-server.cjs",
@@ -58,8 +58,8 @@
         },
         {
           "path": "index.js",
-          "size": 43363,
-          "sha256": "50faea9f9d5c2b055e17ae42c23f781db7abed1e026d875951a19d1a6f3ffe8f"
+          "size": 46778,
+          "sha256": "96bd6399ee97f04f297a4622669608ff3a318d862e96e18fc6dff883a6403fcc"
         },
         {
           "path": "mcp.json",
@@ -69,22 +69,22 @@
         {
           "path": "package-lock.json",
           "size": 20673,
-          "sha256": "179ffba157a221c070ee3e00c0738d9de877c4dc43aaf99cee5707f5cec36b16"
+          "sha256": "e208bbc98ccb4af6c1acb6161bea35e8e13d1e96e85d1e42f4f1f757060b64a7"
         },
         {
           "path": "package.json",
           "size": 209,
-          "sha256": "699745a839ee3841b4cc97ed862e69801715b1e6854db56135a3ac75e4d7b699"
+          "sha256": "6c55b61c2a21191cf82a236f43af90f760d1f706e3cd1e31e778d2f73c12841a"
         },
         {
           "path": "plugin.json",
-          "size": 24119,
-          "sha256": "27313fb11762d811e9080bb117cca80316804dcdfca384eedacbb5ae776a564c"
+          "size": 25432,
+          "sha256": "ac9fd77843e4f7331ac7fa9c3b104fa919e478ea32eb52db432076204d76aa3d"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
-          "size": 3781,
-          "sha256": "21faf823fc883e96aabc8e8c4a68862d1dce9abee3af58bb290b1ad544b094a8"
+          "size": 4835,
+          "sha256": "e948bda702b3dd99a8555b17c377680462ad80bb0a50cd8f5000c4ccc475cb9a"
         },
         {
           "path": "ui/devices.css",
