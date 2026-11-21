@@ -35,7 +35,7 @@ async function run(fn) {
   try { await fn(); } catch (e) { api.notify(e.message || String(e)); }
   finally { busy = false; controls.forEach(el => el.disabled = false); $("save").disabled = !token; }
 }
-const fields = [["useEnabled","按需使用手机","boolean"],["autonomyEnabled","闲时自行活动","boolean"],["interests","兴趣与想做的事","text"],["prohibitions","不希望做的事","text"],["shareDiscoveries","分享发现","boolean"],["screenshots","分享可附截图","boolean"],["allApps","使用所有应用","boolean"],["playApps","指定应用包名","array"],["autonomyRestMinutes","休息时间（分钟）","number"],["autonomyMeanMinutes","平均等待（分钟）","number"],["autonomyDailyLimit","每天闲时活动次数","number"],["maxSteps","最多操作步数","number"]];
+const fields = [["useEnabled","按需使用手机","boolean"],["prohibitions","不希望做的事","text"],["allApps","使用所有应用","boolean"],["playApps","指定应用包名","array"]];
 function drawOverrides(values) {
   $("overrides").replaceChildren();
   for (const [key, title, type] of fields) {

@@ -3,7 +3,7 @@ const { createRequire } = require("node:module");
 const path = require("node:path"), fs = require("node:fs/promises"), os = require("node:os");
 const { pathToFileURL } = require("node:url");
 const assert = require("node:assert/strict");
-const { fixture } = require("./bphone-device-setup.cjs");
+const { fixture, verifyScript } = require("./bphone-device-setup.cjs");
 async function verifyHostActions(host, root, pkgDir) {
   const fs = require("node:fs"), { randomUUID } = require("node:crypto");
   const { createPluginCommands } = host("./electron/lib/commands/extensions/plugin-commands.cjs");
@@ -93,7 +93,16 @@ async function main() {
     const saved = (await f.manage({op:"list"})).devices[0];
     assert.equal((await f.manage({op:"detail", deviceId:saved.deviceId})).device.connection.port,16384);
     assert.ok(alerts.includes("设备连接已保存"));
-    console.log("bPhone: OpenBot package schema, bundled Node with empty PATH, real MCP handshake, Chromium scan/preview/selection/save passed");
+    const scripts = host("./electron/lib/plugins/plugin-script.cjs").createPluginScriptRuntime();
+    try {
+      await verifyScript(f, saved.deviceId, request => scripts.run(request, {owner:"bphone-script-test"}));
+      const before = f.ops.filter(args=>args.includes("io")).length;
+      await assert.rejects(require("../plugins/android-roamer").agentTool({ ...f.ctx, tool:"script",
+        input:{deviceId:saved.deviceId,code:"while (true) {}"}, api:{...f.ctx.api,runScript: request => scripts.run(request, {owner:"bphone-timeout-test"})}
+      }), /已确认 0 次操作.*timed out/i);
+      assert.equal(f.ops.filter(args=>args.includes("io")).length, before);
+    } finally { await scripts.close(); }
+    console.log("bPhone: package schema, real MCP handshake, Chromium device setup, isolated scripts with rotating refs, stale-screen stop and timeout passed");
   } finally {
     await browser?.close(); await client.close(); await fs.rm(root,{recursive:true,force:true});
   }

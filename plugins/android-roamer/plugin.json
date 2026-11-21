@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "3.0.3",
-  "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
+  "version": "4.0.0",
+  "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
   "extensions": {
     "com.openbot": {
       "main": "index.js",
@@ -15,19 +15,11 @@
         "hook:context",
         "state",
         "reply",
-        "share",
         "mcp",
         "assets",
-        "model",
-        "push",
-        "state:global"
+        "state:global",
+        "script:run"
       ],
-      "background": {
-        "agent": true,
-        "export": "poll",
-        "intervalSeconds": 60,
-        "startupDelaySeconds": 60
-      },
       "hooks": [
         {
           "type": "context",
@@ -45,9 +37,10 @@
           "aliases": [
             "手机任务"
           ],
-          "description": "在主人私聊中交办手机任务：/phone [--device 设备] 目标",
+          "description": "让当前 Bot 使用手机完成交办事项",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         },
         {
           "name": "phonestatus",
@@ -57,18 +50,20 @@
         },
         {
           "name": "phoneresume",
-          "description": "继续当前主人私聊中的手机任务",
+          "description": "让当前 Bot 核对历史和设备画面后继续",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         },
         {
           "name": "roam",
           "aliases": [
             "手机闲逛"
           ],
-          "description": "开始自己的手机活动：/roam [--device 设备] [兴趣]",
+          "description": "让当前 Bot 按兴趣使用手机",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         }
       ],
       "configSchema": {
@@ -80,20 +75,6 @@
             "scope": "instance",
             "default": true
           },
-          "autonomyEnabled": {
-            "type": "boolean",
-            "title": "闲时自行活动",
-            "scope": "instance",
-            "default": false
-          },
-          "interests": {
-            "type": "string",
-            "title": "兴趣与想做的事",
-            "default": "按自己的兴趣选择阅读、游戏、应用体验，也可以继续上次未完成的事情",
-            "ui": {
-              "widget": "multiline"
-            }
-          },
           "prohibitions": {
             "type": "string",
             "title": "不希望做的事",
@@ -101,16 +82,6 @@
             "ui": {
               "widget": "multiline"
             }
-          },
-          "shareDiscoveries": {
-            "type": "boolean",
-            "title": "有适合的发现时提议分享",
-            "default": true
-          },
-          "screenshots": {
-            "type": "boolean",
-            "title": "分享时可附公开画面",
-            "default": true
           },
           "allApps": {
             "type": "boolean",
@@ -137,49 +108,6 @@
               }
             },
             "scope": "instance"
-          },
-          "autonomyRestMinutes": {
-            "type": "integer",
-            "title": "空闲后先休息（分钟）",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 1440,
-            "default": 10,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "autonomyMeanMinutes": {
-            "type": "integer",
-            "title": "休息后平均等待（分钟）",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 1440,
-            "default": 30,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "autonomyDailyLimit": {
-            "type": "integer",
-            "title": "每天最多闲时活动次数",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 48,
-            "default": 6,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "maxSteps": {
-            "type": "integer",
-            "title": "每次活动最多操作次数",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 40,
-            "ui": {
-              "advanced": true
-            }
           }
         }
       },
@@ -187,7 +115,7 @@
       "tools": [
         {
           "name": "use",
-          "description": "为你当前的目标按需使用自己的手机，包括查资料、体验应用、玩游戏或继续上次活动；无需等待别人明确要求。私人任务只能来自主人私聊。",
+          "description": "观察手机：读取当前控件、截图或列出应用，返回结果供你决定下一步。旧调用只给 goal 时仅读屏。",
           "export": "agentTool",
           "scope": "all",
           "permission": "member",
@@ -199,13 +127,21 @@
                 "maxLength": 128,
                 "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
               },
-              "goal": {
-                "type": "string",
-                "maxLength": 2000
-              },
               "private": {
                 "type": "boolean",
                 "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "operation": {
+                "type": "string",
+                "enum": [
+                  "observe",
+                  "screenshot",
+                  "apps"
+                ]
+              },
+              "goal": {
+                "type": "string",
+                "maxLength": 2000
               },
               "activityId": {
                 "type": "string",
@@ -213,6 +149,123 @@
                 "description": "继续活动列表中的指定活动。"
               }
             },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "act",
+          "description": "执行一项由你选定的手机动作。携带刚读屏得到的 observationId，每个编号只能操作一次。设备返回后由你判断结束或重新观察。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "observationId": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "tap",
+                  "longpress",
+                  "swipe",
+                  "back",
+                  "home",
+                  "rotate",
+                  "type",
+                  "fill",
+                  "launch",
+                  "terminate"
+                ]
+              },
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "toX": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "toY": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "app": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "orientation": {
+                "type": "string",
+                "enum": [
+                  "portrait",
+                  "landscape"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "observationId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "script",
+          "title": "执行手机脚本",
+          "description": "由你编写一次 JavaScript 函数体，按每次实际读到的画面连续操作。变量 screen、step、state；返回 {tap:{text:\"设置\"}}、{act:{action:\"back\"}}、{done:结果} 或 {stop:\"原因\"}。观察编号由工具逐步绑定。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "code": {
+                "type": "string",
+                "maxLength": 8192,
+                "description": "每次读屏后执行的 JavaScript 函数体。step 为已确认动作数，从 0 开始。可随动作返回 state。"
+              },
+              "maxActions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16,
+                "description": "本次最多执行的设备动作数，默认 8。纯查询填 0。"
+              }
+            },
+            "required": [
+              "code"
+            ],
             "additionalProperties": false
           }
         },
@@ -274,7 +327,7 @@
         },
         {
           "name": "resume",
-          "description": "继续中断的活动；结果不明时先核对，不重放动作。",
+          "description": "恢复观察：读取当前屏幕并返回新的观察编号。请根据当前画面自行决定下一步。",
           "export": "agentTool",
           "scope": "private",
           "permission": "owner",
@@ -295,6 +348,132 @@
                 "description": "继续活动列表中的指定活动。"
               }
             },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "record",
+          "description": "保存你撰写的手机活动总结和有依据的经验，不操作设备。同一活动可携带已有 activityId。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "activityId": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "goal": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "report": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "progress": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "next": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "blocked": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "reflections": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "topic": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "understanding": {
+                      "type": "string",
+                      "maxLength": 1200
+                    },
+                    "application": {
+                      "type": "string",
+                      "maxLength": 800
+                    },
+                    "uncertainty": {
+                      "type": "string",
+                      "maxLength": 600
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "maxItems": 3,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "quote": {
+                            "type": "string",
+                            "maxLength": 600
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "quote"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "topic",
+                    "understanding",
+                    "evidence",
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "questions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "question": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "question"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "goal",
+              "report"
+            ],
             "additionalProperties": false
           }
         },
@@ -423,23 +602,14 @@
             "title": "使用设置",
             "fields": [
               "useEnabled",
-              "autonomyEnabled",
-              "interests",
               "prohibitions",
-              "shareDiscoveries",
-              "screenshots",
               "allApps",
-              "playApps",
-              "autonomyRestMinutes",
-              "autonomyMeanMinutes",
-              "autonomyDailyLimit",
-              "maxSteps"
+              "playApps"
             ]
           }
         ],
         "labels": {
           "settings": "使用设置",
-          "model": "闲时活动模型",
           "save": "保存使用设置"
         },
         "views": [
@@ -550,20 +720,8 @@
                   "useEnabled": {
                     "type": "boolean"
                   },
-                  "autonomyEnabled": {
-                    "type": "boolean"
-                  },
-                  "interests": {
-                    "type": "string"
-                  },
                   "prohibitions": {
                     "type": "string"
-                  },
-                  "shareDiscoveries": {
-                    "type": "boolean"
-                  },
-                  "screenshots": {
-                    "type": "boolean"
                   },
                   "allApps": {
                     "type": "boolean"
@@ -574,26 +732,6 @@
                       "type": "string",
                       "pattern": "^(?=.{3,255}$)[A-Za-z][A-Za-z0-9_.]*\\.[A-Za-z0-9_]+$"
                     }
-                  },
-                  "autonomyRestMinutes": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1440
-                  },
-                  "autonomyMeanMinutes": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1440
-                  },
-                  "autonomyDailyLimit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 48
-                  },
-                  "maxSteps": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100
                   }
                 }
               },
@@ -615,13 +753,13 @@
         }
       ],
       "metadata": {
-        "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
+        "usage": "绑定设备后，在聊天中告诉 Bot 目标。Bot 可以读屏、查看截图和逐项调用手机动作。",
         "requirements": [
           "已在 Windows x64、OpenBot 0.1.119 验证",
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "模型回复格式有误时重新请求一次。手机活动中断时显示出错的阶段，并保留已完成的设备步骤。"
+        "changelog": "由聊天 Bot 决定每一次设备操作。新增手机脚本，可按控件文字或资源 ID 连续操作，每一步自动使用当前画面的观察编号。"
       },
       "dependencies": {
         "node": {
@@ -630,7 +768,8 @@
       },
       "requiredFeatures": [
         "instanceSettingsViews",
-        "mediaHandoff"
+        "mediaHandoff",
+        "scriptExecution"
       ]
     }
   }

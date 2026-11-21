@@ -35,6 +35,30 @@ function inputArgs(step) {
     default: throw Error("未知手机操作");
   }
 }
+function screenFingerprint(nodes) {
+  // mobilecli's snapshot refs are transient. Identity, order, bounds and UI state
+  // still participate in the check immediately before dispatching a device input.
+  const contents = JSON.stringify(nodes, (key, value) => key === "ref" ? undefined : value);
+  return createHash("sha256").update(contents).digest("hex");
+}
+function screenSnapshot(nodes) {
+  const elements = [], pending = [nodes.values()];
+  let size = 2, truncated = false;
+  while (pending.length) {
+    const item = pending.at(-1).next();
+    if (item.done) { pending.pop(); continue; }
+    if (!item.value || typeof item.value !== "object") continue;
+    const { children, ...element } = item.value;
+    for (const [key, value] of Object.entries(element)) {
+      if (typeof value === "string" && value.length > 1024) { element[key] = value.slice(0, 1024); truncated = true; }
+    }
+    size += JSON.stringify(element).length + 1;
+    if (size > 16000 || elements.length === 256) { truncated = true; break; }
+    elements.push(element);
+    if (Array.isArray(children) && children.length) pending.push(children.values());
+  }
+  return { elements, truncated };
+}
 async function sdkHome(root, adbPath) {
   const dir = await fs.realpath(path.dirname(adbPath));
   if (path.basename(dir).toLowerCase() === "platform-tools") return path.dirname(dir);
@@ -48,6 +72,16 @@ async function sdkHome(root, adbPath) {
 }
 function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}, binary } = {}) {
   const requests = new AsyncLocalStorage(), sessions = new Map(), waiters = [];
+  // Only the latest observation of a physical device can authorize an input.
+  // Keep it across short leases, never across driver restarts.
+  const observations = new Map();
+  function rememberScreen(s, app, fingerprint) {
+    observations.delete(s.key);
+    if (observations.size >= 128) observations.delete(observations.keys().next().value);
+    const token = randomUUID();
+    observations.set(s.key, { token, app, fingerprint, scope: s.scope, expires: clock() + 120000 });
+    return token;
+  }
   const executeFile = run;
   run = (file, args, options) => executeFile(file, args, { ...options, signal: requests.getStore() });
   const release = id => {
@@ -152,7 +186,7 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       const mutex = await reserve(binding.key, input.mode);
       const lease = randomUUID();
       sessions.set(lease, { ...c, sdk, mutex, key: binding.key, apps: input.allApps ? null : (input.apps || []).filter(x => packageName.test(x)),
-        expires: clock() + 90000, observed: "" });
+        scope: input.scope, expires: clock() + 90000, observed: "" });
       renew(lease,sessions.get(lease));
       return { lease };
     }
@@ -168,19 +202,20 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       const app = await foreground();
       const allowed = Boolean(app) && (!s.apps || s.apps.includes(app));
       if (op === "apps") {
-        const items = await command(s, ["apps", "list"]);
+        const data = await command(s, ["apps", "list"]);
+        const items = Array.isArray(data) ? data : data?.apps;
+        if (!Array.isArray(items)) throw Error("设备未返回应用列表");
         return { apps: items.filter(item => !s.apps || s.apps.includes(item.packageName)).slice(0, 250).map(item => [item.appName, item.packageName]) };
       }
       if (op === "observe") {
         s.observed = "";
-        if (!allowed) return { app: "", allowedApps: s.apps || [], outside: true };
+        if (!allowed) return { app: "", allowedApps: s.apps || [], outside: true, observationId: rememberScreen(s, app, "") };
         const data = await command(s, ["dump", "ui"]);
         if (await foreground() !== app) throw Error("读屏期间前台应用已改变");
         if (!Array.isArray(data?.elements)) throw Error("设备未返回控件列表");
         s.observed = app;
-        const screen = JSON.stringify(data.elements);
-        s.fingerprint = createHash("sha256").update(screen).digest("hex");
-        return { app, screen: screen.slice(0, 16000) };
+        s.fingerprint = screenFingerprint(data.elements);
+        return { app, ...screenSnapshot(data.elements), observationId: rememberScreen(s, app, s.fingerprint) };
       }
       if (op === "screenshot") {
         if (!allowed || s.observed !== app) throw Error("请重新查看当前应用");
@@ -190,17 +225,22 @@ function createDriver(root, { run = execute, clock = Date.now, setupOptions = {}
       }
       if (op !== "step") throw Error("未知设备任务");
       const step = input.step || {};
+      const seen = observations.get(s.key);
+      if (!seen || seen.scope !== s.scope || seen.token !== input.observationId || seen.expires <= clock()) throw Error("观察编号已失效，请重新读屏");
+      observations.delete(s.key);
+      if (seen.app !== app) throw Object.assign(Error("当前应用已变化，请重新读屏"), { code: "SCREEN_CHANGED" });
       if (step.action === "terminate" && (step.app !== app || !allowed)) throw Error("只能关闭当前获准应用");
       if (step.action === "launch") {
         if (s.apps && !s.apps.includes(step.app)) throw Error("该应用未获准使用");
-      } else if (!allowed || s.observed !== app) throw Error("请重新查看当前应用");
-      if (["tap","longpress","fill","type"].includes(step.action)) {
+      } else if (!allowed) throw Error("当前应用不在允许范围内");
+      if (seen.fingerprint) {
         const latest = await command(s, ["dump","ui"]);
-        if (!Array.isArray(latest?.elements) || createHash("sha256").update(JSON.stringify(latest.elements)).digest("hex") !== s.fingerprint || await foreground() !== app)
+        if (!Array.isArray(latest?.elements) || screenFingerprint(latest.elements) !== seen.fingerprint || await foreground() !== app)
           throw Object.assign(Error("当前画面已变化，请重新观察"), {code:"SCREEN_CHANGED"});
       }
       s.observed = "";
       const args = inputArgs(step);
+      if (input.deadline !== undefined && clock() >= input.deadline) throw Error("手机脚本已超时");
       dispatched = true;
       await command(s, args);
       return { completed: true };

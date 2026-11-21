@@ -7,14 +7,18 @@ async function fixture(root) {
   const adb = path.join(root, process.platform === "win32" ? "adb.exe" : "adb");
   await fs.writeFile(adb, "fixture");
   const states = new Map(), ops = [], calls = [], photos = new Map(), identities = new Map();
-  const foregroundReplies = [];
+  const foregroundReplies = [], actionTokens = [];
+  let screenText = "Hello";
   const host = "127.0.0.1";
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAHCAIAAACgB3uHAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQCV0FRwxU5QAAmiwf1RK0WHYAAAAASUVORK5CYII=", "base64");
   const run = async (file, args) => {
     if (file === "fixture-mobilecli") {
       ops.push(args);
       if (args.includes("foreground") && foregroundReplies.length) return { stdout: foregroundReplies.shift() };
-      const data = args.includes("foreground") ? { packageName: "fixture.app" } : args.includes("dump") ? { elements: [{ text: "Hello" }] } : {};
+      if (args.includes("tap") && screenText === "打开示例") screenText = "下一页";
+      else if (args.includes("tap") && screenText === "下一页") screenText = "已到达";
+      if (args.includes("screenshot")) return { stdout: png };
+      const data = args.includes("list") ? {apps:[{packageName:"fixture.app",appName:"Fixture"}]} : args.includes("foreground") ? { packageName: "fixture.app" } : args.includes("dump") ? { elements: [{ text: screenText, identifier:"fixture:id/next", ref:"@e" + ops.length, coordinates:{x:1,y:2} }] } : {};
       return { stdout: JSON.stringify({ status: "ok", data }) };
     }
     assert.equal(file, adb);
@@ -26,14 +30,14 @@ async function fixture(root) {
     throw Error("Unexpected ADB invocation");
   };
   const dispatch = createDriver(root, { binary: "fixture-mobilecli", run, setupOptions: { ports: async () => [], probe: async () => false } });
-  const model = [{ action: "tap", x: 1, y: 2 }, { report: "已确认", activity: {} }];
   const ctx = { plugin:{id:"android-roamer",namespace:"instance-a"}, config: { useEnabled: true, allApps: true, maxSteps: 4 }, principal: { role:"owner", messageType:"private" },
     message:{ id:"owner-1", chatId:"owner" }, command:{ name:"phone" }, api: {
     callTool: async ({ arguments: args }) => {
       calls.push(args.op);
+      if (args.op === "step") actionTokens.push(args.observationId);
       const value = await dispatch(args);
       const content = [];
-      if (value.screenshot) { content.push({ type:"image", mimeType:"image/png", data:value.screenshot.split(",")[1] }); delete value.screenshot; }
+      if (value.image) { content.push({ type:"image", mimeType:value.mimeType, data:value.image }); delete value.image; }
       return { content: [...content,{ type:"text",text:JSON.stringify(value) }] };
     },
     getState: async (key,scope) => structuredClone(states.get(scope + "/" + key)),
@@ -45,12 +49,58 @@ async function fixture(root) {
     setState: async (key,value,scope) => states.set(scope + "/" + key, structuredClone(value)),
     assets: async input => { const ref = "img-" + photos.size; photos.set(ref,"data:image/png;base64," + input.data); return {ref}; },
     listAgentResources: () => { throw Error("访问了宿主设备列表"); },
-    generate: async () => ({ text: JSON.stringify(model.shift()) }),
+    generate: () => { throw Error("插件调用了模型"); },
+    runAgent: () => { throw Error("插件启动了 Agent"); },
   } };
   const manage = input => plugin.deviceSettings({ ...ctx, principal:{source:"desktop",channelId:"test-instance"}, input });
-  return { ctx, manage, ops, calls, photos, identities, adb, host, model, dispatch, foregroundReplies };
+  return { ctx, manage, ops, calls, photos, identities, adb, host, dispatch, foregroundReplies, actionTokens, setScreen: value => { screenText = value; } };
 }
-module.exports = { fixture };
+async function verifyScript(f, deviceId, evaluate) {
+  const invoke = (code, options = {}, runScript = evaluate) => plugin.agentTool({
+    ...f.ctx, tool:"script", input:{deviceId,code,...options},
+    api:{ ...f.ctx.api, runScript: async request => {
+      assert.deepEqual(request.capabilities, []);
+      assert.ok(!Object.hasOwn(request.input.screen, "observationId"));
+      return runScript(request);
+    } }
+  });
+  const taps = () => f.ops.filter(args => args.includes("tap")).length;
+  const code = `
+    if (step === 0) return {tap:{text:"打开示例"},state:"opened"};
+    if (step === 1 && state === "opened") return {tap:{text:"下一页",identifier:"fixture:id/next"}};
+    return {done:screen.elements.some(el => el.text === "已到达")};
+  `;
+  const start = taps(), firstToken = f.actionTokens.length;
+  for (let run=0; run<2; run++) {
+    f.setScreen("打开示例");
+    const result = await invoke(code);
+    assert.equal(result.result, true);
+    assert.equal(result.completedActions, 2);
+    assert.ok(!JSON.stringify(result).includes("elements"));
+  }
+  const tokens = f.actionTokens.slice(firstToken);
+  assert.equal(new Set(tokens).size, 4);
+  assert.equal(taps(), start + 4);
+  await assert.rejects(invoke(code), /已确认 0 次操作.*没有匹配的控件/);
+  f.setScreen("打开示例");
+  await assert.rejects(invoke(code, {maxActions:1}), /已确认 1 次操作.*1 次操作上限/);
+  assert.equal(taps(), start + 5);
+  f.setScreen("打开示例");
+  await assert.rejects(invoke(code, {}, async req => {
+    const result = await evaluate(req);
+    if (req.input.step === 1) f.setScreen("意外页面");
+    return result;
+  }), /已确认 1 次操作.*画面已变化/);
+  assert.equal(taps(), start + 6);
+  await assert.rejects(invoke('return {act:{action:"home",observationId:"old"}}'), /无效的手机动作/);
+  const read = await invoke('return {done:screen.elements[0].text}', {maxActions:0});
+  assert.equal(read.result, "意外页面");
+  assert.equal(read.completedActions, 0);
+  const stopped = await invoke('return {stop:"预期页面未出现"}');
+  assert.equal(stopped.reason, "预期页面未出现");
+  assert.equal(stopped.status, "stopped");
+}
+module.exports = { fixture, verifyScript };
 if (require.main === module) (async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openbot-bphone-test-"));
   try {
@@ -72,21 +122,56 @@ if (require.main === module) (async () => {
     const {devices} = await f.manage({op:"list"});assert.equal(devices[0].isDefault,true);
     assert.ok(!JSON.stringify(devices).includes("base64"));
     assert.deepEqual((await plugin.agentTool({...f.ctx,tool:"status",input:{listDevices:true}})).devices.map(x=>x.deviceId),["first","second"]);
-    assert.match(await plugin.handle({...f.ctx,args:"--device second 测试"}),/已确认/);
-    assert.ok(f.ops.some(args=>args.includes("tap")));
+    const invoke = (tool, input, ctx = f.ctx) => plugin.agentTool({ ...ctx, tool, input:{ deviceId:"second", ...input } });
+    const observe = () => invoke("use", {goal:"读屏后滑动一次"});
+    const swipe = { action:"swipe", x:1, y:2, toX:1, toY:6 };
+    const firstView = await observe();
+    assert.equal(firstView.elements[0].text,"Hello");
+    assert.ok(!f.ops.some(args => args.includes("io")));
+    assert.deepEqual(f.calls.slice(-3), ["begin","observe","end"]);
+    const otherChat = { ...f.ctx, message:{ ...f.ctx.message, chatId:"other" } };
+    await assert.rejects(invoke("act", {...swipe, observationId:firstView.observationId}, otherChat), /观察编号已失效/);
+    const action = await invoke("act", { ...swipe, observationId:firstView.observationId });
+    assert.equal(action.completed, true);
+    await assert.rejects(invoke("act", {...swipe, observationId:firstView.observationId}), /观察编号已失效/);
+    const stale = await observe(); f.setScreen("Changed");
+    await assert.rejects(invoke("act", {...swipe, observationId:stale.observationId}), /画面已变化/);
+    const beforePolicyChange = await observe();
+    f.ctx.config.allApps = false; f.ctx.config.playApps = ["allowed.app"];
+    await assert.rejects(invoke("act", {...swipe, observationId:beforePolicyChange.observationId}), /观察编号已失效/);
+    const outside = await observe();
+    assert.equal(outside.outside,true);
+    assert.equal(outside.elements,undefined);
+    await assert.rejects(invoke("act", {action:"launch", app:"other.app", observationId:outside.observationId}), /未获准使用/);
+    f.ctx.config.allApps = true;
+    const screenshot = await invoke("use",{operation:"screenshot"});
+    assert.equal(screenshot.attachments[0].assetRef, "img-0");
+    assert.ok(!JSON.stringify(screenshot).includes("base64"));
+    assert.deepEqual((await invoke("use",{operation:"apps"})).apps,[["Fixture","fixture.app"]]);
+    assert.equal((await invoke("resume",{})).elements[0].text,"Changed");
+    assert.equal(f.ops.filter(args=>args.includes("io")).length,1);
     assert.ok(f.ops.every(args=>args[0]==="--device" && args[1]==="127.0.0.1:16384"));
     for (const [reply, message] of [[" ", "没有返回内容"], ["sensitive-content", "返回的内容不是有效 JSON"], ["{}", "未返回状态"],
       ['{"status":"ok","data":{}}'.padEnd(55) + "trailing", "返回的 JSON 后还有内容（第 1 行第 56 列）"]]) {
       f.foregroundReplies.push(reply);
       const start = f.ops.length;
-      assert.equal(await plugin.handle({...f.ctx,args:"--device second 测试结果格式"}), "手机活动已停止（读取屏幕）：设备命令 apps foreground " + message);
+      await assert.rejects(observe(), error => error.message === "设备命令 apps foreground " + message);
       assert.equal(f.ops.length, start + 1);
     }
+    await verifyScript(f, "second", async request => {
+      // Only the fixed test programs below run in this test VM.
+      const sandbox = {module:{exports:{}}, input:request.input};
+      return require("node:vm").runInNewContext(request.code + "\nmodule.exports.run({input})",sandbox,{timeout:1000});
+    });
+    f.setScreen("很长的标签".repeat(800));
+    const large = await observe();
+    assert.equal(large.truncated,true);
+    assert.ok(large.elements[0].text.length <= 1024);
     f.identities.set("127.0.0.1:16384","replacement");const before=f.ops.length;
-    assert.match(await plugin.handle({...f.ctx,args:"--device second 再测试"}),/端口对应的手机已更换/);
+    await assert.rejects(observe(),/端口对应的手机已更换/);
     assert.equal(f.ops.length,before);
     await f.manage({op:"remove",deviceId:"second",revision:1});
-    await assert.rejects(plugin.handle({...f.ctx,args:"--device second 测试"}),/没有找到该手机/);
+    await assert.rejects(observe(),/没有找到该手机/);
     assert.equal(f.ops.length,before);
     const other = input => plugin.deviceSettings({ ...f.ctx,plugin:{id:"android-roamer",namespace:"instance-b"},principal:{source:"desktop",channelId:"beta"},input });
     await other({op:"list"});
@@ -95,9 +180,9 @@ if (require.main === module) (async () => {
     assert.equal((await other({op:"detail",deviceId:"first"})).device.connection.port,5557);
     await assert.rejects(f.manage({op:"detail",deviceId:"first"}),/设备已移除/);
     await other({op:"update",deviceId:"first",revision:2,paused:true});
-    await assert.rejects(plugin.handle({...f.ctx,plugin:{id:"android-roamer",namespace:"instance-b"},args:"--device first 测试"}),/设备已暂停/);
+    await assert.rejects(plugin.agentTool({...f.ctx,plugin:{id:"android-roamer",namespace:"instance-b"},tool:"use",input:{deviceId:"first"}}),/设备已暂停/);
     await assert.rejects(other({op:"remove",deviceId:"first",revision:2}),/设备设置已变化/);
     await assert.rejects(plugin.deviceSettings({...f.ctx,input:{op:"list"}}),/设备页面/);
-    console.log("bPhone public actions and /phone: partial scan, two bindings, second-device-only UI commands, swapped and removed devices passed");
+    console.log("bPhone: device setup, observation, single action, stale/replayed/foreign observation rejection, screenshot, device transfer and pause passed");
   } finally { await fs.rm(root,{recursive:true,force:true}); }
 })().catch(e=>{console.error(e);process.exitCode=1});
