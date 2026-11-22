@@ -838,7 +838,7 @@ async function search(ctx, input) {
   await finishEvent(ctx, event, candidates.length ? "pending" : "no_match", { candidates: candidates.map(({ id, score }) => ({ id, score })) });
   await ctx.api.setState("lastSearch", { key: event.key, candidates: candidates.map(({ id, url }) => ({ id, url })) }, "chat");
   return { searchId: event.key, usage, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
-    instruction: "专属角色表情画的是你自己，包括 Q 版。有符合当前语境的专属角色表情时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
+    instruction: "按这条回复想表达的心情和语气选图，画面可以与聊天话题不同。专属角色表情画的是你自己，包括 Q 版；同样贴切时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
 }
 async function renderTemplate(ctx, input) {
   const searchId = text(input.searchId, 256), id = text(input.id, 256);
@@ -961,8 +961,8 @@ module.exports.beforeModel = async ctx => {
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
   const systemPromptAppend = [
     '表情可用时，每条独立回复在提交 qqReply 前必须先调用 plugin__meme-library__stickers 搜索一次并查看候选。外层传 action=start 和稳定的 requestKey，input 传 action=search 和 query。只有任务仍在 running 时才按 jobId 查状态。',
-    'query 写这次想表达的意思、态度和对象，比如「被夸后得意叉腰」。找图上的原话用 mode=text。明确想填字时用 kind=template，并按用途搜索，比如「半垂眼想吐槽的思考框」。',
-    '结合候选原图、含义和 avoidContexts 选图。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
+    '日常配图的 query 用一个简短的心情或反应：想看看可以搜「好奇」，有了发现可以搜「小得意」，等对方确认可以搜「期待」。省去话题名称、办事经过和整句回复。用户点名角色、动作或特定表情时保留指定特征；找图上的原话用 mode=text，填字用 kind=template。',
+    '结合候选原图、含义和 avoidContexts 判断这张图的语气是否合适；图中可以是另一件事。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
     '选中可填字表情后用同一工具启动 input.action=render，传 searchId、id 和公开短句 text，思考框尽量在 20 字以内。短句可以表达想法、玩梗或对熟人轻轻吐槽。',
     '搜索时用 usage=required 表示用户明确要表情、斗图或删掉图片就不能完成这条回复；这种表情不受随手配图的频率和间隔限制。普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。用途只对本次回复有效，每条独立回复使用本次搜索结果。',
     '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。插件关闭或没有合适素材时按实际情况回复。',

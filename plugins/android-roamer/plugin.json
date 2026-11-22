@@ -1,11 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
   "extensions": {
     "com.openbot": {
       "main": "index.js",
+      "execution": { "concurrency": "parallel" },
       "category": "ai",
       "permissions": [
         "agent",
@@ -777,7 +778,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "可等待手机上的下载状态等控件变化，命中指定文字或超时时返回结果。"
+        "changelog": "在 OpenBot 0.1.128 中可同时操作不同手机，同一台手机的操作按顺序执行。"
       },
       "dependencies": {
         "node": {

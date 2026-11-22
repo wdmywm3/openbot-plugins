@@ -57,6 +57,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const drawing = await sharp(require("node:crypto").randomBytes(602 * 602 * 3),
       { raw: { width: 602, height: 602, channels: 3 } }).png().toBuffer();
     const illustration = "https://example.org/works/picture.png";
+    const pendingSearch = Promise.withResolvers();
     let requests = 0, expectedKey = "fixture-key";
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, resolveChannel: id => id === "bot" ? channel : null,
       botPluginsFor: registry.botPluginsFor, makeId: () => "fixture", safeError: String, isNapCatOneBotChannel: () => false,
@@ -93,6 +94,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
           return Response.json({ responses: [{ webDetection: { pagesWithMatchingImages: [{ url: "https://example.org/source", pageTitle: "Source" }] } }] });
         }
         assert.equal(url, "https://api.tavily.com/search"); assert.equal(body.api_key, expectedKey);
+        if (body.query === "overlap") await pendingSearch.promise;
         return Response.json({ results: [{ title: "Example", url: "https://example.org", content: "Verified source" }] });
       } });
     const context = { requestId: "request", purpose: "chat", channelPrincipal: { source: "channel", channelId: "bot", chatId: "chat", senderId: "member", messageType: "group" } };
@@ -104,6 +106,15 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const images = await complete("plugin__search__search_by_image", { action: "start", requestKey: "image", input: { messageId: "source" } });
     assert.equal(images.pages[0].title, "Source"); assert.equal(requests, 1);
     assert.equal((await complete("web_search", { query: "example" })).results[0].snippet, "Verified source");
+    const ongoing = await runtime.runNativePluginTool("plugin__search__web_search",
+      { action: "start", requestKey: "overlap", input: { query: "overlap" } }, context);
+    try {
+      assert.equal(ongoing.status, "running");
+      const page = await complete("plugin__search__read_webpage", { action: "start", requestKey: "overlapping-page",
+        input: { url: "https://example.org/gallery", includeImages: true } });
+      assert.equal(page.images[0].imageUrl, illustration);
+    } finally { pendingSearch.resolve(); }
+    await complete("plugin__search__web_search", { action: "status", jobId: ongoing.id });
     saved.globalSettings.webProvider = "tavily";
     plugin.config.customWeb = false; expectedKey = "default-key";
     await complete("web_search", { query: "inherited" });
@@ -125,6 +136,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const actor = { channelId: "bot", chatId: "chat", pluginId: "image-studio" };
     const adopted = vault.handoff(actor, { action: "fromPublished", url: ready.reference.url }, () => true);
     assert.deepEqual(vault.read(actor, adopted.ref).data, drawing);
+    const reply = fromHost("features/channels/channel-behavior.cjs").parseChannelBehavior(
+      `<turn><reply><image src="${ready.reference.url}"/>是你记得的画面吗？</reply></turn>`).reply;
+    assert.deepEqual(fromHost("features/channels/reply-inline-images.cjs").inlineReplyImages(reply).urls, [ready.reference.url]);
     if (process.argv.includes("--live-reference")) {
       const sourceUrl = "https://xn--pssy23gqgbz2d718b.com/works/gpt202611200001.html";
       const page = await complete("plugin__search__read_webpage", { action: "start", requestKey: "real-gallery", input: { url: sourceUrl, includeImages: true } });

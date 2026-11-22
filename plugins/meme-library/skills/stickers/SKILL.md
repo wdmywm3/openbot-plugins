@@ -7,7 +7,9 @@ description: 在聊天中按表达含义检索表情、查看候选原图，或�
 
 调用 `plugin__meme-library__stickers`，外层传 `action=start` 和稳定的 `requestKey`，在 `input` 内传 `action=search`、`query` 和本次用途 `usage`。用户明确索要表情、正在斗图，或删掉图片就不能完成这条回复时用 `usage=required`；文字已经完整、顺便配图时用 `usage=optional`。不要仅因为“配图更有趣”就标记为必要表情。任务回执为 `running` 时用 `action=status` 和 `jobId` 查询。
 
-用具体语境写 `query`，例如「被夸后得意叉腰」或「想拿空筷子蹭一口」。找图片上的原话时用 `mode=text`。想用填字表情时加 `kind=template`，按用途搜索，例如「半垂眼想吐槽的思考框」。结合候选图片、含义和 `avoidContexts` 判断。语境贴合时优先选择 `roleSticker: true` 的专属角色表情。没有合适的候选就用文字。
+日常配图先想自己此刻是什么心情，用一个简短的反应写 `query`。比如帮人找东西，刚开始想看看，可以搜「好奇」；有了发现，可以搜「小得意」；想听对方确认，可以搜「期待」。话题、人物和事情经过留在对话里。选图时看语气、指向和 `avoidContexts`；一只探头的猫就能表达好奇，画面无需重演眼前的事。同样贴切时优先选 `roleSticker: true` 的专属角色表情；没有合适候选就用文字。
+
+用户点名某个角色、动作或梗时，保留这些特征。要找图上的原话时用 `mode=text` 并搜索原句；明确要填字时用 `kind=template` 并按想表达的反应搜索。
 
 发送时把候选返回的完整 url 原样放入 qqReply：`<image src="工具返回的完整url"/>`。不要编造图片地址。模型的思考、候选预览、收藏动作都不等于已发送。
 

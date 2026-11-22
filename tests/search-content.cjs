@@ -39,6 +39,18 @@ assert.doesNotMatch(screened.content, /hidden note|blended label/);
 assert.match(screened.content, /visible caption/);
 assert.equal(screened.diagnostics[0].code, "html_hidden_text_removed");
 
+const slides = Array.from({ length: 20 }, (_, i) => ({
+  full: `/full/${i}.jpg`, standard: `/small/${i}.jpg`, altText: `截图 #${i}`,
+}));
+const carousel = items => `<div data-props="${JSON.stringify({ screenshots: items }).replace(/"/g, "&quot;")}"></div>`;
+const galleryInput = { url: "https://example.org/game", contentType: "text/html", rawText:
+  `<main><img src="/logo.png"><div hidden>${carousel([{ full: "/hidden.png" }])}</div><div data-props="invalid"></div>${carousel(slides)}</main>` };
+const gallery = normalizeWebContent({ ...galleryInput, includeImages: true });
+assert.equal(gallery.images.length, 16);
+assert.equal(gallery.images[0].imageUrl, "https://example.org/full/0.jpg");
+assert.equal(gallery.images[0].caption, "截图 #0");
+assert.equal(normalizeWebContent(galleryInput).images, undefined);
+
 const jsonPayload = normalizeWebContent({
   url: "https://api.example.com/items",
   contentType: "application/json",
