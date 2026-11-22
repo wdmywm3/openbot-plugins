@@ -701,7 +701,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.5",
+      "version": "2.6.6",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -737,7 +737,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "日常配图按心情和语气检索。点名某个表情或图中文字时按指定特征查找。",
+        "changelog": "实例主人可以在聊天里删除指定的已收藏表情，包括刚画好后自动收藏的成品。",
         "components": [
           "commands",
           "hooks",
@@ -748,12 +748,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
+      "ref": "80529408db40c26ebbbe1715f22ade3bf235fbdb",
       "files": [
         {
           "path": "README.md",
-          "size": 10548,
-          "sha256": "106c6b17594cee31d70d82e8c17ba5985d7c027796b2f09ae3bf07356f7bc8b7"
+          "size": 10791,
+          "sha256": "1bc5cc2312c89a3280054b1f8082ebedbbfff28be5835cb0f0892d38477b9782"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -772,8 +772,8 @@
         },
         {
           "path": "index.js",
-          "size": 78641,
-          "sha256": "2baef1e0c3c3758ae9c59d9b59ef2ad6d7d20cc74965e55cd3ec2df23f9e60f0"
+          "size": 80746,
+          "sha256": "124183c2210ec73f406a4116fab03b1f1199da224e574948e0cd822e8be64702"
         },
         {
           "path": "mcp.json",
@@ -792,13 +792,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 24073,
-          "sha256": "f653066bf0b032b7b811d1b2311b1d014c82bc25ff68221ea3cf474ee0f79ea4"
+          "size": 24172,
+          "sha256": "885b6522ec89ef6c4dff6d997e70c3927bc005e03d9640484dbc582c07f24e1e"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 4805,
-          "sha256": "e8210dc35d3e9b05b2a1febfbe45a3f78d08e25b3ab9eea1f15c2520f3801334"
+          "size": 5372,
+          "sha256": "29ee4fdd27d8bfecc4d47181b46d8c4475f50eb8c9baf3448572bd2448f00436"
         },
         {
           "path": "ui/app.js",
