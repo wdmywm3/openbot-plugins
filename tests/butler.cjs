@@ -18,7 +18,7 @@ function fixture(ownerChat = "onebot:private:99") {
       setState: async (key, value) => { state.set(key, structuredClone(value)); },
       updateState: async (key, reducer) => { const value = reducer(structuredClone(state.get(key))); state.set(key, structuredClone(value)); return structuredClone(value); },
       sleep: async () => {},
-      push: async (chatId, blocks) => { pushes.push({ chatId, blocks }); return { id: "sent" }; },
+      push: async (chatId, blocks) => { pushes.push({ chatId, blocks }); return { networkStatus: "sent" }; },
       runAgent: async request => {
         agents.push(request);
         assert.ok(!/secret-one|secret-two|bili_jct/.test(JSON.stringify(request)));
@@ -124,7 +124,31 @@ if (require.main === module) (async () => {
     assert.equal(automatic.writes.length, 1, "automatic scan/plan/apply runs once then waits for its schedule");
     assert.equal(automatic.pushes.length, 1);
     assert.equal(automatic.pushes[0].chatId, ownerChat);
+    assert.equal(automatic.state.get("bili:1:schedule").reported, automatic.state.get("bili:1:scan").id);
     assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
+  }
+  for (const [receipt, reason, retry] of [
+    [{ skipped: true, reason: "disabled_for_chat" }, "disabled_for_chat", true],
+    [{ networkStatus: "canceled" }, "已取消发送", true],
+    [{ networkStatus: "partial", note: "附件发送失败" }, "通知仅部分送达（附件发送失败）", false],
+    [{ networkStatus: "error", note: "微信未连接" }, "通知发送返回状态 error（微信未连接）", false],
+    [undefined, "未收到通知送达状态", false],
+  ]) {
+    const id = "onebot:private:owner@im.wechat", f = fixture(id);
+    Object.assign(f.ctx.config, { autoOrganize: true, organizeChat: id });
+    const logs = [], attempts = [];
+    f.ctx.api.log = async event => logs.push(event);
+    f.ctx.api.push = async chat => { attempts.push(chat); return receipt; };
+    for (let round = 0; !attempts.length && round < 8; round++) await load().poll(f.ctx);
+    const schedule = () => f.state.get("bili:1:schedule");
+    assert.equal(schedule().reported, undefined);
+    assert.equal(schedule().report.state, retry ? "unsent" : "unconfirmed");
+    assert.equal(logs.findLast(row => row.operation === "notify").detail, reason);
+    f.ctx.api.push = async chat => { attempts.push(chat); return { networkStatus: "ok" }; };
+    await load().poll(f.ctx); await load().poll(f.ctx);
+    assert.equal(attempts.length, retry ? 2 : 1);
+    assert.equal(!!schedule().reported, retry);
+    assert.equal(f.writes.length, 1);
   }
   const interrupted = fixture(); await interrupted.invoke("biliscan");
   const persist = interrupted.ctx.api.setState;

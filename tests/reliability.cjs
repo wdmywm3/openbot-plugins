@@ -78,6 +78,20 @@ function stateApi(initial = {}) {
     await monitor.handle({ ...f.ctx, command: { name: "monitorcheck" } }); assert.equal(f.calls(), 1); assert.equal(f.cursor().seenIds.includes("new"), true);
   }
   const retry = monitoring({ networkStatus: "pending" }); await monitor.poll(retry.ctx);
+  for (const [receipt, reason] of [
+    [{ networkStatus: "partial", note: "附件发送失败" }, "仅部分送达（附件发送失败）"],
+    [{ networkStatus: "queued" }, "上游状态为 queued"],
+    [{}, "未收到送达状态"], [null, "未收到送达状态"],
+  ]) {
+    const scenario = monitoring(receipt);
+    const check = await monitor.handle({ ...scenario.ctx, command: { name: "monitorcheck" } });
+    assert(check.text.includes("推送 0 条") && check.text.includes(reason));
+    await monitor.handle({ ...scenario.ctx, command: { name: "monitorcheck" } });
+    assert((await monitor.handle(scenario.ctx)).text.includes(reason));
+    assert.equal(scenario.calls(), 1);
+    assert(!scenario.cursor().seenIds.includes("new"));
+  }
+  assert.equal((await monitor.poll(monitoring({ networkStatus: "ok" }).ctx)).pushed, 1);
   const retryKey = Object.keys(retry.cursor().pendingDeliveries)[0];
   await monitor.handle({ ...retry.ctx, command: { name: "monitorresolve" }, args: `s ${encodeURIComponent(retryKey)} onebot:group:OPEN_ID-a_b retry` });
   retry.result({ networkStatus: "sent" }); await monitor.handle({ ...retry.ctx, command: { name: "monitorcheck" } }); assert.equal(retry.calls(), 2);
