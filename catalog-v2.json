@@ -106,7 +106,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.3",
+      "version": "1.16.6",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -134,7 +134,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "按实际失败原因显示提示。阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。",
+        "changelog": "支持向微信绑定私聊发送通知，完整送达后记录成功。未完整送达时保留原因；评论、投币及互动触发本地配额时显示实际限制。",
         "components": [
           "commands",
           "hooks",
@@ -144,7 +144,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "MEDIA.md",
@@ -153,8 +153,8 @@
         },
         {
           "path": "index.js",
-          "size": 230059,
-          "sha256": "95badde507f804669a4910975174d5155e274a6ec527391732c98ff5a839ea34"
+          "size": 232746,
+          "sha256": "fd818d0c03daca15cf689eacfa8eaf70b37a9dcb9dcaccb3955a1638c2e0f0d8"
         },
         {
           "path": "media-mcp/launch.py",
@@ -173,8 +173,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 69757,
-          "sha256": "b9a56cafc96788787590dbc123333aee16776cc56d850391e7a32fddf25ae36d"
+          "size": 69836,
+          "sha256": "051e74b351adf8c2937dfe5c53b1036dddd42c8981dd78a5e4b7f962b5810a86"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -267,8 +267,8 @@
     {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.1.1",
-      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+      "version": "1.1.3",
+      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
       "category": "subscription",
       "main": "index.js",
       "permissions": [
@@ -283,27 +283,28 @@
         "usage": "/monitorresolve 核对聊天记录后确认或重试结果不明的推送\n/monitorstatus 查看内容监控状态\n/monitorcheck 立即执行一次内容检查",
         "platforms": [
           "napcat",
-          "qqbot"
+          "qqbot",
+          "wechat"
         ],
         "requirements": [],
-        "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。",
+        "changelog": "订阅推送只在确认完整发送后计入成功。部分送达或缺少回执时可查看原因并核对。",
         "components": [
           "commands",
           "background"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "index.js",
-          "size": 24529,
-          "sha256": "c1a5b6552c6db79849d287540161d599c3ecf91a66aa4b245e1c33ab7df48690"
+          "size": 25722,
+          "sha256": "46311fc1ace801bddcdd8933a15afb81399836b21b7d5c1a498a6f802c71e0ef"
         },
         {
           "path": "plugin.json",
-          "size": 6927,
-          "sha256": "63698c4b3b3a455a78f4582697aa22edc2b9101ec229f0a28d4338bb2e8de981"
+          "size": 6916,
+          "sha256": "0507d4a2ecae19b517921a151f7ac18ab57118f6e78956b15ce3ae21df357869"
         }
       ]
     },
@@ -473,7 +474,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.3",
+      "version": "0.6.4",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -501,14 +502,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "画图失败时，聊天可收到服务返回的 HTTP 状态，以及能够识别的参数错误和其他拒绝原因。",
+        "changelog": "画图达到本地配额时显示实际限额。图片像素、请求容量和上游 HTTP 状态分别记录，保留可公开的服务拒绝原因。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "97eafc16c9789ada62b5537f5b5bd11a5144f9d4",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "README.md",
@@ -517,13 +518,13 @@
         },
         {
           "path": "index.js",
-          "size": 48351,
-          "sha256": "1064493ae89001d734baff30df1275b71d7bd16b5258e8c0b082e3b1d4688e24"
+          "size": 49308,
+          "sha256": "ccb95cecd5e4d340dc2140fae149272fd9e510e930061dc63aa08bf8fff5f456"
         },
         {
           "path": "plugin.json",
-          "size": 27132,
-          "sha256": "03dde4875aff5ae3c66adaa0be3cac8b61eb56c3b56516fc1c4430f4e7ad5fd6"
+          "size": 27162,
+          "sha256": "c6470a5daf78f6143ea80352e5b58c5e67218b0127ccfb4364abba58d2a1b016"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -920,7 +921,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.13",
+      "version": "2.6.14",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -955,7 +956,7 @@
         "requirements": [
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
         ],
-        "changelog": "Dream 跳过已缺失的图片，继续整理同条消息的其他附件和更早的文字。",
+        "changelog": "整理材料或读取记忆达到批次上限时，显示本次限额。",
         "components": [
           "hooks",
           "tools",
@@ -964,7 +965,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "README.md",
@@ -1138,8 +1139,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 15775,
-          "sha256": "d190126cbe4a0dc30a4ca523ff7f49c69143148396040175ec0a5b7d0ab4bd9e"
+          "size": 15754,
+          "sha256": "5533c1ed1d8291f2e37a9f22367e3cf7d65f22b4b26d2b9f2611cdf4ad830253"
         },
         {
           "path": "process.cjs",
@@ -1293,8 +1294,8 @@
         },
         {
           "path": "unified-organizer.cjs",
-          "size": 18654,
-          "sha256": "3604da10e6283f478594a20ec61302cc3937bb1643f417ae3f352c9bc0f890a0"
+          "size": 18773,
+          "sha256": "c5d8ed8d9f6466c2f4f43e039d9959da9dcddc5589f906ab7a084e4979c96a8d"
         },
         {
           "path": "unified-peer.cjs",
@@ -1521,7 +1522,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
@@ -1544,14 +1545,14 @@
           "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "支持读取网页轮播里的游戏截图。搜索完成后按结果回复，需要对方辨认画面时发送已核对的图片。配合 OpenBot 0.1.128 可并行搜索和读页。",
+        "changelog": "以图搜图或读取参考图超过输入上限时返回明确的限制原因。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "README.md",
@@ -1560,13 +1561,13 @@
         },
         {
           "path": "index.js",
-          "size": 37000,
-          "sha256": "12b21fe798a724cb387792d8addbe589dcef04f1d55b9cf5708499b0cb1b9382"
+          "size": 37098,
+          "sha256": "3325edb3aae8d1177a3652cb68bf145757f1a71f139bc98ab6aefebfd8e41c7b"
         },
         {
           "path": "plugin.json",
-          "size": 15058,
-          "sha256": "a2e8213b02b2a1b4c11ff4a9f5e9d36b3c783881d314657097a7c486f14f9ae5"
+          "size": 14957,
+          "sha256": "670c65842cf97b2b8984a7ad40fd37534666de4b783b10341f777ec966ed8a7f"
         },
         {
           "path": "skills/search/SKILL.md",
