@@ -138,6 +138,7 @@ function normalizeSubscription(value, index) {
   const item = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const provider = item.provider === "rss" ? "rss" : "bilibili";
   const events = list(item.events).filter((event) => ["post", "video", "liveStart", "liveEnd"].includes(event));
+  const targets = Array.isArray(item.targetChatIds) ? item.targetChatIds.filter(id => typeof id === "string") : [];
   return {
     id: text(item.id) || `monitor-${index + 1}`,
     name: text(item.name) || (provider === "rss" ? "RSS 订阅" : "Bilibili 订阅"),
@@ -145,7 +146,7 @@ function normalizeSubscription(value, index) {
     provider,
     source: text(item.source),
     events: events.length ? events : (provider === "rss" ? ["post"] : ["post", "video", "liveStart"]),
-    targetChatIds: list(item.targetChatIds).filter((chatId) => /^onebot:(?:group|private):[A-Za-z0-9_-]+$/.test(chatId)),
+    targetChatIds: list(targets).filter(id => id.length <= 256),
     include: list(item.include),
     exclude: list(item.exclude),
     semantic: item.semantic === true,
@@ -220,7 +221,16 @@ async function pushEvent(ctx, subscription, delivery, commit) {
     // must not silently resend a message whose delivery is unknown.
     delivery.uncertainChatIds = [...list(delivery.uncertainChatIds), chatId];
     await commit();
-    const result = await ctx.api.push(chatId, blocks);
+    let result;
+    try {
+      result = await ctx.api.push(chatId, blocks);
+    } catch (error) {
+      if (["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error.code)) {
+        delivery.uncertainChatIds = delivery.uncertainChatIds.filter(id => id !== chatId);
+        await commit();
+      }
+      throw error;
+    }
     if (result?.skipped || result?.networkStatus === "canceled") {
       delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
       await commit();

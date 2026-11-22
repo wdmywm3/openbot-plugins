@@ -11,6 +11,7 @@ function fixture() {
     commentChat: "onebot:private:99", dailyCommentLimit: 10, commentIntervalMinutes: 1, likeEnabled: true, dailyLikeLimit: 20,
     messageMode: "auto", messageAllowedUids: [], dailyMessageLimit: 20, socialIntervalSeconds: 1 }, message: { chatId: "" },
     principal: { role: "owner", messageType: "private" }, api: {
+      isOwnerPrivateChat: async id => id === "onebot:private:99",
       getSecret: async () => `user=${ctx.config.browseUid}; bili_jct=PRIVATE-COOKIE`,
       getState: async key => structuredClone(states.get(key)),
       setState: async (key, value) => { states.set(key, structuredClone(value)); },
