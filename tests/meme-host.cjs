@@ -316,6 +316,13 @@ async function main() {
     let transfer = failedTransfer;
     for (let n = 0; n < 100 && transfer.status === "running"; n++) { await wait(20); transfer = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: transfer.id }, context); }
     assert.equal(transfer.status, "failed", "disabling a producer revokes new transfers");
+    const removeDrawing = { action: "remove", url: published.url };
+    await assert.rejects(waitTool(removeDrawing), /只有实例主人可以在聊天中删除表情/);
+    channel.config.ownerUsers = ["sticker-owner"];
+    const owner = { ...context, channelPrincipal: { ...context.channelPrincipal, senderId: "sticker-owner", role: "owner" } };
+    assert.equal((await waitTool(removeDrawing, owner)).removed, true);
+    const remaining = await runtime.runPluginAction(channel, plugin, action("list"), { source: "generated" });
+    assert(!remaining.items.some(item => item.id === original.sha256), "the generated sticker disappears from the library");
     plugin.enabled = false;
     const inactive = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages }, context.channelPrincipal);
     assert.deepEqual(inactive.messages, originalMessages, "disabled plugins leave neither stable instructions nor runtime hints in new requests");
