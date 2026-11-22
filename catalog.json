@@ -473,7 +473,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.2",
+      "version": "0.6.3",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -501,14 +501,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "在 OpenBot 0.1.128 中，画图期间可以恢复旧图片，生成任务仍按配置排队。",
+        "changelog": "画图失败时，聊天可收到服务返回的 HTTP 状态，以及能够识别的参数错误和其他拒绝原因。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
+      "ref": "97eafc16c9789ada62b5537f5b5bd11a5144f9d4",
       "files": [
         {
           "path": "README.md",
@@ -517,13 +517,13 @@
         },
         {
           "path": "index.js",
-          "size": 45649,
-          "sha256": "be5bb58d82c9bed03d106a1b9a12bf8dd122b4c0ace45a5d2dfbd54645fae816"
+          "size": 48351,
+          "sha256": "1064493ae89001d734baff30df1275b71d7bd16b5258e8c0b082e3b1d4688e24"
         },
         {
           "path": "plugin.json",
-          "size": 27107,
-          "sha256": "b68389f129adabb8f5ae11f7904e59f4c69c91fd82b3b636d72d8155f01139c4"
+          "size": 27132,
+          "sha256": "03dde4875aff5ae3c66adaa0be3cac8b61eb56c3b56516fc1c4430f4e7ad5fd6"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -552,8 +552,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5520,
-          "sha256": "5a27b4681df0f5e99445e3c9948d0da326000c0d6a04c0f03b0e923459be9033"
+          "size": 5910,
+          "sha256": "4275bf745036ba657c543a35cdebc384dd5fe9ed1593d12a11d58cc9bfc76299"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -572,8 +572,8 @@
         },
         {
           "path": "skills/imagegen/references/tool-use.md",
-          "size": 4555,
-          "sha256": "f5263d75810748bcd3b757c792c684d2a1c067c77667210bda0a782222e5b2e0"
+          "size": 5007,
+          "sha256": "e5c272d3346b08d7536ac96f129a1025099c4c4ad446156d76108e95fa0b0995"
         },
         {
           "path": "ui/reference.css",
@@ -1707,24 +1707,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.29",
+      "version": "1.1.30",
       "name": "嘻嘻",
       "description": "蓝发蓝眼、白色斗篷装的音游猫娘，负责 NapCatQQ 群聊互动、简单问答和联网查证。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 603144,
-      "sha256": "5f13868409be8f95c2d0f927edc1775aab77b8baa0d0e643590d622156814eae",
+      "size": 603571,
+      "sha256": "48d0e0f45efb1a9159aa8e38edc32fd6ccc4b08b03719f686f875ae513d66f02",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19648699,
-        "sha256": "275cf6e518889ab99b454b5dde509712c09a8e06cca8165a7fe898a2eef782c2",
+        "size": 19649126,
+        "sha256": "85b7af0cf48b5707ad3d6ca8139e2a0c58d77ba26d2fcce4fdd91681196236d0",
         "count": 27
       },
-      "ref": "e8cfef47423b1a2cf411f6076ff08d294bfb8c4e",
+      "ref": "97eafc16c9789ada62b5537f5b5bd11a5144f9d4",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 2661904,
-        "sha256": "74d2b03bb090fa3a1e6932136115bcc66587f194ced1e818d7ce7e5e28e6344d"
+        "size": 2662331,
+        "sha256": "25b835db1019d2ed8930023afaf02bc91853082da5a883cf5c8ee697eeaa4a60"
       },
       "referenceCount": 3
     }
