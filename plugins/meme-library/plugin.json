@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.6.5",
+  "version": "2.6.6",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -78,7 +78,7 @@
           "aliases": [
             "qqSticker"
           ],
-          "description": "按表达含义检索表情（区分随手配图和必要表情）、填字，或收藏当前聊天图片和工具生成的图片。用户要求收藏或遇到值得复用的新表情时主动收藏。",
+          "description": "按表达含义检索表情（区分随手配图和必要表情）、填字，或收藏当前聊天图片和工具生成的图片。实例主人明确指定一张已收藏的图片时可从实例图库删除。",
           "scope": "all",
           "permission": "member",
           "mutating": true,
@@ -92,6 +92,7 @@
                   "render",
                   "collect",
                   "add",
+                  "remove",
                   "no_match",
                   "feedback"
                 ]
@@ -169,7 +170,7 @@
               "url": {
                 "type": "string",
                 "maxLength": 1000,
-                "description": "收藏工具产物时填写返回的完整图片 URL，与 messageId 二选一。"
+                "description": "收藏或删除工具产物时填写成品的完整图片 URL。按聊天原图删除时填写 messageId 和从 0 开始的 imageIndex。"
               }
             },
             "required": [
@@ -844,7 +845,7 @@
         ]
       },
       "metadata": {
-        "changelog": "日常配图按心情和语气检索。点名某个表情或图中文字时按指定特征查找。",
+        "changelog": "实例主人可以在聊天里删除指定的已收藏表情，包括刚画好后自动收藏的成品。",
         "requirements": [
           "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

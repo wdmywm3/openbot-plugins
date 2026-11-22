@@ -84,13 +84,14 @@ async function transfer(ctx, ref) {
 const usableRef = (v, chat) => v.refs?.find(r => !chat || r.shared || r.chatId === chat || r.chats?.includes(chat));
 const roleProfileId = value => Object.hasOwn(value, "roleProfileId") ? text(value.roleProfileId, 200)
   : value.source?.type === "profile" ? value.source.profileId || (value.profileIds?.length === 1 ? value.profileIds[0] : "") : "";
-function visible(ctx, v) {
+function inChatScope(ctx, v) {
   const chat = ctx.message?.chatId || "";
-  return !v.deleted && v.enabled !== false && !!usableRef(v, chat)
+  return !!usableRef(v, chat)
     && (!roleProfileId(v) || roleProfileId(v) === ctx.profile?.id)
     && (!v.profileIds?.length || v.profileIds.includes(ctx.profile?.id))
     && (v.chatMode !== "include" || v.chatIds?.includes(chat)) && (v.chatMode !== "exclude" || !v.chatIds?.includes(chat));
 }
+function visible(ctx, v) { return !v.deleted && v.enabled !== false && inChatScope(ctx, v); }
 function isRoleSticker(ctx, value) {
   return !!ctx.profile?.id && roleProfileId(value) === ctx.profile.id;
 }
@@ -544,13 +545,45 @@ module.exports.save = async ctx => {
   if (changed) await enqueue(ctx, [input.id], `edit:${input.id.slice(0, 64)}:${requestId(input.id)}:${value.descriptionVersion}`);
   return { saved: true, rebuilding: changed };
 };
+async function removeItem(ctx, row) {
+  if (!row.value.deleted) await put(ctx, row.key, { ...row.value, deleted: true, updatedAt: Date.now() }, row.revision);
+  await ctx.api.vectorIndex({ action: "delete", scope: "channel", collection: "items", ids: [row.key] });
+  return { removed: true };
+}
 module.exports.remove = async ctx => {
   const row = await get(ctx, ctx.input?.id);
   if (!row || row.revision !== ctx.input?.revision) throw Error("表情已变化，请刷新后再试");
-  await put(ctx, row.key, { ...row.value, deleted: true, updatedAt: Date.now() }, row.revision);
-  await ctx.api.vectorIndex({ action: "delete", scope: "channel", collection: "items", ids: [row.key] });
-  return { removed: true };
+  return removeItem(ctx, row);
 };
+async function removeCollected(ctx) {
+  if (ctx.principal?.role !== "owner") throw Error("只有实例主人可以在聊天中删除表情");
+  if (!ctx.message?.chatId) throw Error("请在这张表情所在的聊天中删除");
+  const { url, messageId, imageIndex } = ctx.input;
+  if (url && messageId) throw Error("删除时只能指定一张图片");
+  if (!url && !messageId) throw Error("请指定要删除的图片消息或成品图片地址");
+  if (messageId && !Number.isInteger(imageIndex)) throw Error("请指定要删除消息中的第几张图片");
+  // Generated collections already retain the original publication, including older versions.
+  let row;
+  if (url) {
+    const page = await ctx.api.database({ name: "library", scope: "channel", collection: "items", action: "query",
+      where: { "source.chatId": ctx.message.chatId, "source.url": url }, limit: 1 });
+    row = page.records[0];
+  }
+  if (!row) {
+    const asset = await ctx.api.assets(url ? { action: "fromPublished", url }
+      : { action: "fromMessage", messageId, kind: "image", index: imageIndex });
+    if (asset.available === false) throw Error("这条消息的图片原件不可用");
+    row = await get(ctx, asset.sha256);
+  }
+  for (let attempt = 0; ; attempt++) {
+    if (!row || !inChatScope(ctx, row.value)) throw Error("当前聊天的表情库里没有这张图片");
+    try { return await removeItem(ctx, row); }
+    catch (error) {
+      if (attempt >= 2 || !conflict(error)) throw error;
+      row = await get(ctx, row.key);
+    }
+  }
+}
 module.exports.update = async ctx => {
   const input = ctx.input || {};
   if (input.reanalyze === true && (!Array.isArray(input.ids) || !input.ids.length || input.ids.length > 500 || input.ids.some(id => typeof id !== "string" || !id.trim() || id.length > 256))) throw Error("请选择 1–500 张表情重新识别");
@@ -872,6 +905,7 @@ async function renderTemplate(ctx, input) {
 module.exports.stickers = async ctx => {
   const action = ctx.input?.action || "search";
   if (["collect", "add"].includes(action)) return module.exports.collect(ctx);
+  if (action === "remove") return removeCollected(ctx);
   if (action === "search") return search(ctx, ctx.input || {});
   if (action === "render") return renderTemplate(ctx, ctx.input || {});
   if (["feedback", "no_match"].includes(action)) {
@@ -967,6 +1001,7 @@ module.exports.beforeModel = async ctx => {
     '搜索时用 usage=required 表示用户明确要表情、斗图或删掉图片就不能完成这条回复；这种表情不受随手配图的频率和间隔限制。普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。用途只对本次回复有效，每条独立回复使用本次搜索结果。',
     '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。插件关闭或没有合适素材时按实际情况回复。',
     '用户要求收藏、出现图库缺少且以后能复用的表情、或形成当前聊天的常用梗时，主动用 action=collect 收藏：聊天图片传 messageId 和 imageIndex，工具产物传完整 url。不要收藏普通照片、私人截图、改稿中间版或重复图片。自制表情成品发送后可自动收藏，不必再调用一次。',
+    '实例主人明确要求删掉已收藏的某张表情时，用 action=remove，从本次实例的表情库删除该图。优先用对应绘图成品的完整 url，也可以用当前聊天中那条图片消息的 messageId 和 imageIndex。只说画得不好时不删除；指向不清时请对方引用原图，不用相似搜索结果代替。',
   ].join("\n");
   let status;
   const cooldownUntil = last + cfg.cooldownSeconds * 1000;
