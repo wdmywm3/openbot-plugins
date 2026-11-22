@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
   "extensions": {
     "com.openbot": {
@@ -859,7 +859,7 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "在 OpenBot 0.1.128 中，画图期间可以恢复旧图片，生成任务仍按配置排队。"
+        "changelog": "画图失败时，聊天可收到服务返回的 HTTP 状态，以及能够识别的参数错误和其他拒绝原因。"
       }
     }
   }

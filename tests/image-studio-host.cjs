@@ -37,7 +37,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const sourceFile = sessionAssetWritePath({ path, root, sessionId: "session", kind: "images", fileName: "source.png" }); fs.writeFileSync(sourceFile, png);
     const message = { id: "reference", chatId: "chat", media: [{ type: "image", assetRef: sessionAssetRef("session", "images", "source.png") }] };
     const requests = [], nativeCalls = []; let slowStarted = false, slowCanceled = false, nativeStarted = false, nativeCanceled = false;
+    const completionMessages = [];
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, resolveChannel: id => id === channel.id ? channel : null,
+      toolCompletions: {
+        scope: (_channel, _plugin, _principal, ctx, previous) => ctx.requestId === "drawing-error-receipt" ? previous || { requestMessageId: "draw-request" } : null,
+        notify: async job => { completionMessages.push(job); },
+      },
       botPluginsFor: () => [plugin], makeId: () => "fixture-" + Math.random().toString(16).slice(2), safeError: String,
       pluginData: { database: (...args) => pluginData.database(...args) },
       isNapCatOneBotChannel: () => false, getPluginState: registry.getPluginState, setPluginState: registry.setPluginState, pluginStateScopeId: registry.pluginStateScopeId,
@@ -67,6 +72,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
           return new Response(new ReadableStream({ cancel() { slowCanceled = true; } }), { status: 200, headers: { "content-type": "text/event-stream" } });
         }
         if (body.prompt === "denied") return Response.json({ error: { message: "fixture-key" } }, { status: 429 });
+        if (body.prompt === "rejected size") return Response.json({ error: { code: "unsupported_value", param: "size", message: "fixture-key" } }, { status: 400 });
         if (body.prompt === "animated") {
           assert.equal(body.model, "gpt-image-2.6-flare"); assert.equal(body.output_format, "gif");
           assert.equal(body.frame_count, 2); assert(!("stream" in body)); assert(!("partial_images" in body));
@@ -188,6 +194,18 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await runtime.runPluginTool({ action: "cancel", pluginId: plugin.id, jobId: slow.id }, context);
     for (let i = 0; !slowCanceled && i < 100; i++) await delay(10);
     assert(slowCanceled, "cancel closes the underlying HTTP response"); assert.equal(requests.length, count + 1);
+    const receiptContext = { ...owner, requestId: "drawing-error-receipt" };
+    const failed = await finish({ prompt: "rejected size" }, "rejected-size", "failed", receiptContext);
+    const failureText = "画图服务不接受本次 size 的取值（HTTP 400）。";
+    assert.equal(failed.error, failureText, "the submitter sees the original plugin failure");
+    const result = await runtime.runPluginTool({ action: "result", pluginId: plugin.id, jobId: failed.id }, receiptContext);
+    assert.equal(result.error, failureText, "the model's result query receives the diagnostic");
+    runtime.startCompletionNotifications();
+    for (let i = 0; i < 200 && !completionMessages.some(job => job.id === failed.id); i++) await delay(25);
+    const receipt = completionMessages.find(job => job.id === failed.id);
+    assert.equal(receipt?.cardError, failureText);
+    assert.equal(receipt?.publicError, failureText, "the chat event and desktop card receive the same safe reason");
+    await runtime.stopCompletionNotifications();
     let denied = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "denied", input: { prompt: "denied" } }, context);
     for (let i = 0; denied.status === "running" && i < 500; i++) { await delay(20); denied = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: denied.id }, context); }
     assert.equal(denied.status, "failed"); assert(!JSON.stringify(denied).includes("fixture-key"));

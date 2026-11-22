@@ -136,22 +136,62 @@ function normalizeApiKey(value, compatible) {
   if (!/^[!-~]+$/.test(key)) throw Error(`${service} API Key 格式无效，请在画图设置中重新粘贴完整的密钥。`);
   return key;
 }
-function statusError(status) {
-  if (status === 401) return Error("画图服务未通过身份验证（HTTP 401）。");
-  if (status === 403) return Error("画图服务拒绝访问（HTTP 403）。");
-  if (status === 429) return Error("画图服务返回 HTTP 429，请稍后再试。");
-  return Error(`画图请求失败（HTTP ${status}）。原请求可能已被服务受理，请先核对，勿自动重复提交。`);
+const publicError = message => Object.assign(new Error(message), { code: "PLUGIN_PUBLIC_ERROR" });
+// Provider messages can echo prompts, image data and credentials. Project only known diagnostics.
+function providerReason(error) {
+  const fields = ["size", "quality", "background", "output_format", "frame_count", "frame_duration_ms", "model",
+    "images", "image", "input", "prompt", "stream", "partial_images", "n"];
+  // Some compatible endpoints identify the field only in their standard validation message.
+  const reported = typeof error?.message === "string" && /^(unsupported parameter|unknown parameter|invalid value for|missing required parameter)\s*:?\s*['"`]([a-z_]+)['"`]/i.exec(error.message);
+  const param = typeof error?.param === "string" ? error.param.replace(/^tools\[0\]\./, "") : reported?.[2];
+  if (fields.includes(param)) {
+    const phrase = reported?.[2] === param ? reported[1].toLowerCase() : "";
+    if (["unsupported_parameter", "unknown_parameter"].includes(error.code) || ["unsupported parameter", "unknown parameter"].includes(phrase)) return `画图服务不支持参数 ${param}`;
+    if (error.code === "missing_required_parameter" || phrase === "missing required parameter") return `画图服务要求提供参数 ${param}`;
+    if (error.code === "unsupported_value" || error.code === "invalid_value" || phrase === "invalid value for") return `画图服务不接受本次 ${param} 的取值`;
+    return `画图服务拒绝了参数 ${param}`;
+  }
+  switch (error?.code) {
+    case "model_not_found": return "画图服务未找到所选模型";
+    case "insufficient_quota": return "画图服务报告可用额度不足";
+    case "content_policy_violation": return "画图服务因内容策略拒绝了请求";
+    case "invalid_image": return "画图服务报告输入图片无效";
+    default: return "";
+  }
+}
+async function readRejection(ctx, id) {
+  let body = "";
+  const until = Date.now() + 1000;
+  try {
+    for (let read = 0; read < 8 && Date.now() < until; read++) {
+      const part = await ctx.api.readStream({ id, maxBytes: 4096, waitMs: Math.max(0, until - Date.now()) });
+      body += part.data || "";
+      if (utf8Size(body) > 8192) break;
+      if (part.done) return providerReason(JSON.parse(body)?.error);
+      if (part.pending) break;
+    }
+  } catch { ctx.signal?.throwIfAborted(); }
+  return "";
+}
+function statusError(status, reason, binary) {
+  if (binary) return publicError(`下载画图结果失败（HTTP ${status}）。`);
+  if (reason) return publicError(`${reason}（HTTP ${status}）。`);
+  if (status === 401) return publicError("画图服务未通过身份验证（HTTP 401）。");
+  if (status === 403) return publicError("画图服务拒绝访问（HTTP 403）。");
+  if (status === 429) return publicError("画图服务返回 HTTP 429，请稍后再试。");
+  return publicError(`画图请求失败（HTTP ${status}）。`);
 }
 async function readHttp(ctx, url, options, binary = false, mode = "image") {
   check(ctx);
   await currentDrawConfig(ctx, mode);
   const stream = await ctx.api.openStream(https(url), { ...options, encoding: binary ? "base64" : "text", redirect: "error", timeoutMs: 120000 });
-  if (!(stream.status >= 200 && stream.status < 300)) {
-    await ctx.api.closeStream({ id: stream.id }); throw statusError(stream.status);
-  }
-  const limits = await transferLimits(ctx), parts = [], response = binary ? null : imageResponse(limits.response);
-  let total = 0;
   try {
+    if (!(stream.status >= 200 && stream.status < 300)) {
+      const reason = binary ? "" : await readRejection(ctx, stream.id);
+      throw statusError(stream.status, reason, binary);
+    }
+    const limits = await transferLimits(ctx), parts = [], response = binary ? null : imageResponse(limits.response);
+    let total = 0;
     while (true) {
       check(ctx);
       // watchDrawing observes live settings while the response streams.
@@ -165,9 +205,9 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
       }
       if (value.done) break;
     }
+    check(ctx);
+    return { headers: stream.headers || {}, body: binary ? join64(parts) : response.finish() };
   } finally { try { await ctx.api.closeStream({ id: stream.id }); } catch { /* completion/revocation already closes handles */ } }
-  check(ctx);
-  return { headers: stream.headers || {}, body: binary ? join64(parts) : response.finish() };
 }
 function base64Size(data) {
   return data.length / 4 * 3 - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
@@ -176,8 +216,11 @@ function imageResponse(maximum) {
   let final, finishedImage, item, format, pending = "", pendingBytes = 0;
   const apply = value => {
     if (!value || typeof value !== "object") throw Error("画图服务响应格式无效");
-    if (value.type === "response.incomplete") throw Error("画图服务返回的结果不完整。");
-    if (value.error || value.type === "error" || value.type === "response.failed") throw Error("画图服务返回了失败状态。");
+    if (value.type === "response.incomplete") throw publicError("画图服务返回的结果不完整。");
+    if (value.error || value.type === "error" || value.type === "response.failed" || value.status === "failed") {
+      const reason = providerReason(value.error || value.response?.error || value);
+      throw publicError(reason ? reason + "。" : "画图服务返回了失败状态。");
+    }
     if (value.type === "response.completed") final = value.response;
     if (value.type === "response.output_item.done" && value.item?.type === "image_generation_call") item = value.item;
     if (["image_generation.completed", "image_edit.completed"].includes(value.type)) finishedImage = value;
@@ -296,7 +339,10 @@ function options(input, config) {
     ...(input.frameDurationMs === undefined ? {} : { frame_duration_ms: input.frameDurationMs }) };
 }
 function extract(result, responses) {
-  if (!result || result.error || ["failed", "incomplete", "cancelled", "canceled"].includes(result.status)) throw Error("画图服务未完成请求");
+  if (!result || result.error || ["failed", "incomplete", "cancelled", "canceled"].includes(result.status)) {
+    const reason = providerReason(result?.error);
+    throw publicError(reason ? reason + "。" : "画图服务未完成请求");
+  }
   const data = responses ? (result.output || []).filter(item => item.type === "image_generation_call") : result.data;
   if (!Array.isArray(data) || !data.length) throw Error("服务没有返回图片；请检查所选模型与画图能力。");
   if (data.length !== 1) throw Error("本次返回的图片数量不符合单图请求");
@@ -465,11 +511,10 @@ async function consumeQuota(ctx, config) {
       instance = { id: channelId, hourly: 0, daily: 0 }; items.push(instance);
     }
     const hourly = sameHour ? Number(old.hourly) || 0 : 0, daily = sameDay ? Number(old.daily) || 0 : 0;
-    const quotaError = message => Object.assign(new Error(message), { code: "PLUGIN_PUBLIC_ERROR" });
-    if (hourly >= caps.globalHour) throw quotaError("画图已达到总每小时上限，请稍后再试。");
-    if (daily >= caps.globalDay) throw quotaError("画图已达到总每日上限，请明天再试。");
-    if (instance.hourly >= caps.instanceHour) throw quotaError("此实例已达到每小时画图上限，请稍后再试。");
-    if (instance.daily >= caps.instanceDay) throw quotaError("此实例已达到每日画图上限，请明天再试。");
+    if (hourly >= caps.globalHour) throw publicError("画图已达到总每小时上限，请稍后再试。");
+    if (daily >= caps.globalDay) throw publicError("画图已达到总每日上限，请明天再试。");
+    if (instance.hourly >= caps.instanceHour) throw publicError("此实例已达到每小时画图上限，请稍后再试。");
+    if (instance.daily >= caps.instanceDay) throw publicError("此实例已达到每日画图上限，请明天再试。");
     instance.hourly++; instance.daily++;
     try {
       await ctx.api.database({ ...base, action: "put", expectedRevision: record?.revision || 0,

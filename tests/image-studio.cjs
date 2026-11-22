@@ -175,8 +175,25 @@ function fixture(config = {}, input = {}) {
   };
   await draw(fx.ctx); assert.equal(fx.stored[0].data, png); assert.equal(fx.requests[1].options.headers, undefined, "CDN never receives provider auth");
   fx = fixture(); fx.state.status = 429; await assert.rejects(draw(fx.ctx), /HTTP 429/); assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
+  for (const [chunks, message] of [
+    [['{"error":{"code":"unsupported_value",', '"param":"tools[0].size","message":"fixture-secret"}}'], "画图服务不接受本次 size 的取值（HTTP 400）。"],
+    [[JSON.stringify({ error: { message: "Unknown parameter: 'quality'. fixture-secret" } })], "画图服务不支持参数 quality（HTTP 400）。"],
+    [[JSON.stringify({ error: { code: "model_not_found" } })], "画图服务未找到所选模型（HTTP 400）。"],
+    [[JSON.stringify({ error: { param: "fixture-secret", message: "fixture-secret" } })], "画图请求失败（HTTP 400）。"],
+    [["upstream HTML fixture-secret"], "画图请求失败（HTTP 400）。"],
+    [["x".repeat(8193)], "画图请求失败（HTTP 400）。"],
+  ]) {
+    fx = fixture(); fx.state.status = 400; fx.state.chunks = chunks;
+    await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.message === message);
+    assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
+  }
+  fx = fixture(); fx.state.status = 403; fx.ctx.api.readStream = async () => { throw Error("upstream read failed"); };
+  await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.message === "画图服务拒绝访问（HTTP 403）。");
+  assert.equal(fx.closes.length, 1);
   fx = fixture(); fx.state.chunks = ["data: {\"type\":\"response.failed\",\"error\":{\"message\":\"fixture-secret\"}}\n\n"];
-  await assert.rejects(draw(fx.ctx), error => /失败状态/.test(error.message) && !error.message.includes("fixture-secret")); assert.equal(fx.requests.length, 1);
+  await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.message === "画图服务返回了失败状态。"); assert.equal(fx.requests.length, 1);
+  fx = fixture(); fx.state.chunks = ['data: {"type":"response.failed","response":{"error":{"code":"insufficient_quota"}}}\n\n'];
+  await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.message === "画图服务报告可用额度不足。");
   fx = fixture(); fx.state.chunks = ["x".repeat(8 * 1024 * 1024 + 1)]; await assert.rejects(draw(fx.ctx), /过大/); assert.equal(fx.closes.length, 1);
   fx = fixture(); fx.state.payload = { data: [{ b64_json: "AAAA" }] }; await assert.rejects(draw(fx.ctx), /有效/); assert.equal(fx.stored.length, 0);
   fx = fixture(); const tooManyPixels = Buffer.from(png, "base64"); tooManyPixels.writeUInt32BE(100000, 16); tooManyPixels.writeUInt32BE(100000, 20);
