@@ -1,15 +1,16 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "metadata": {
     "platforms": [
       "napcat",
-      "qqbot"
+      "qqbot",
+      "wechat"
     ],
-    "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。"
+    "changelog": "订阅更新可以推送到当前绑定的微信私聊。"
   },
-  "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+  "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
   "main": "index.js",
   "responseMode": "direct",
   "commandPrefixes": [
@@ -133,7 +134,7 @@
               "maxItems": 100,
               "items": {
                 "type": "string",
-                "pattern": "^onebot:(group|private):[A-Za-z0-9_-]+$",
+                "minLength": 1,
                 "maxLength": 256
               },
               "default": []

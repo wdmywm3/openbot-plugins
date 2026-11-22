@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.16.3",
+  "version": "1.16.4",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -2252,10 +2252,11 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "按实际失败原因显示提示。阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。"
+        "changelog": "自动整理收藏和自动评论支持绑定的微信私聊，后台执行前会核对配置的私聊。"
       },
       "requiredFeatures": [
-        "pluginSettingScopes"
+        "pluginSettingScopes",
+        "ownerPrivateChatLookup"
       ]
     }
   }

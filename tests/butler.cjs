@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const code = fs.readFileSync(path.join(__dirname, "../plugins/bilibili-explorer/index.js"), "utf8");
 const load = () => { const sandbox = { module: { exports: {} } }; vm.runInNewContext(code, sandbox); return sandbox.module.exports; };
-function fixture() {
+function fixture(ownerChat = "onebot:private:99") {
   const state = new Map(), writes = [], agents = [], pushes = [], reads = [];
   const folders = [{ id: 10, title: "待整理" }, { id: 20, title: "天文" }];
   let tags = [{ tag_name: "天文" }, { tag_name: "宇宙" }];
@@ -12,6 +12,7 @@ function fixture() {
     folderRules: [{ folderId: "20", description: "天文" }], commentMode: "draft", dailyCommentLimit: 1 },
     message: { chatId: "onebot:private:99" }, command: {}, args: "",
     api: {
+      isOwnerPrivateChat: async id => id === ownerChat,
       getSecret: async key => key === "bilibiliMainCookie" ? "user=1; bili_jct=secret-one" : "user=2; bili_jct=secret-two",
       getState: async key => structuredClone(state.get(key)),
       setState: async (key, value) => { state.set(key, structuredClone(value)); },
@@ -111,13 +112,20 @@ if (require.main === module) (async () => {
   g.memberships.get("20").add("100"); assert.match(await g.invoke("biliapply"), /1\/1/); assert.equal(g.writes.length, 1);
   const h = fixture(); h.ctx.config.commentMode = "off";
   assert.match(await h.invoke("bilidraft", "BV1234567890 hi"), /开启/); assert.equal(h.agents.length, 0);
-  const automatic = fixture();
-  automatic.ctx.config.autoOrganize = true; automatic.ctx.config.organizeChat = "onebot:private:99";
-  for (let round = 0; round < 5; round++) await load().poll(automatic.ctx);
-  assert.equal(automatic.writes.length, 1, "automatic scan/plan/apply runs once then waits for its schedule");
-  assert.equal(automatic.pushes.length, 1);
-  assert.equal(automatic.pushes[0].chatId, "onebot:private:99");
-  assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
+  for (const ownerChat of ["onebot:private:99", "onebot:private:owner@im.wechat"]) {
+    const automatic = fixture(ownerChat);
+    automatic.ctx.message.chatId = "";
+    automatic.ctx.config.autoOrganize = true;
+    automatic.ctx.config.organizeChat = "onebot:private:other";
+    await load().poll(automatic.ctx);
+    assert.equal(automatic.state.has("bili:1:scan"), false);
+    automatic.ctx.config.organizeChat = ownerChat;
+    for (let round = 0; round < 5; round++) await load().poll(automatic.ctx);
+    assert.equal(automatic.writes.length, 1, "automatic scan/plan/apply runs once then waits for its schedule");
+    assert.equal(automatic.pushes.length, 1);
+    assert.equal(automatic.pushes[0].chatId, ownerChat);
+    assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
+  }
   const interrupted = fixture(); await interrupted.invoke("biliscan");
   const persist = interrupted.ctx.api.setState;
   let failCache = true;

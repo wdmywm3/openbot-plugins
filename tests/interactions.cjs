@@ -1,14 +1,15 @@
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const code = fs.readFileSync(path.join(__dirname, "../plugins/bilibili-explorer/index.js"), "utf8");
-function fixture() {
+function fixture(ownerChat = "onebot:private:99") {
   let now = 1800000000000, failSend = false, noReply = false, failModel = false, hideTarget = false;
   const states = new Map(), posts = [], agents = [], reads = [], notifications = [], replies = new Map();
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
   const load = () => { const sandbox = { module: { exports: {} }, Date: Clock }; vm.runInNewContext(code, sandbox); return sandbox.module.exports; };
   const ctx = { config: { browseUid: "2", commentMode: "auto", autoComment: true, autoReply: true,
-    commentChat: "onebot:private:99", dailyCommentLimit: 10, threadReplyLimit: 3, commentIntervalMinutes: 1 },
+    commentChat: ownerChat, dailyCommentLimit: 10, threadReplyLimit: 3, commentIntervalMinutes: 1 },
     message: { chatId: "" }, api: {
+      isOwnerPrivateChat: async id => id === ownerChat,
       getSecret: async () => "user=2; bili_jct=PRIVATE-COOKIE",
       getState: async key => structuredClone(states.get(key)),
       setState: async (key, value) => states.set(key, structuredClone(value)),
@@ -19,7 +20,7 @@ function fixture() {
       runAgent: async args => {
         if (!args.taskId.startsWith("explore-") && !args.taskId.startsWith("bili-share-")) agents.push(args);
         assert.ok(!JSON.stringify(args).includes("PRIVATE-COOKIE"));
-        assert.equal(args.chatId, args.taskId.startsWith("explore-") ? undefined : "onebot:private:99");
+        assert.equal(args.chatId, args.taskId.startsWith("explore-") ? undefined : ownerChat);
         if (!args.taskId.startsWith("explore-")) assert.equal(args.tools.length, 0);
         if (args.taskId.startsWith("explore-")) return { toolCalls: 0, text: JSON.stringify({ candidate: ctx.config.exploreCandidate ? {
           url: "https://www.bilibili.com/video/BV1234567890", title: "天文入门", reason: "根据标题推荐", score: 90,
@@ -115,6 +116,13 @@ if (require.main === module) (async () => {
 
   const disabled = fixture(); disabled.ctx.config.commentMode = "draft"; disabled.comment("BV1234567890"); await disabled.poll(); assert.equal(disabled.posts.length, 0);
   disabled.ctx.config.commentMode = "auto"; disabled.ctx.config.commentChat = "onebot:group:99"; await disabled.poll(); assert.equal(disabled.agents.length, 0);
+  const wechat = fixture("onebot:private:owner@im.wechat");
+  wechat.comment("BV1234567890"); await wechat.poll();
+  assert.equal(wechat.posts.length, 1);
+  assert.equal(wechat.agents[0].chatId, "onebot:private:owner@im.wechat");
+  wechat.ctx.config.commentChat = "onebot:private:other@im.wechat";
+  wechat.tick(); wechat.comment("BV2234567890"); await wechat.poll();
+  assert.equal(wechat.agents.length, 1);
   const discovery = fixture(); Object.assign(discovery.ctx.config, { exploreCandidate: true, interests: "天文", tools: [], quietStartHour: 0, quietEndHour: 0 });
   await discovery.poll(); assert.equal(discovery.state().queue[0].id, "auto-comment-BV1234567890", "a real exploration candidate creates the public-comment job");
   discovery.tick(); await discovery.poll(); assert.equal(discovery.posts.length, 1); assert.equal(discovery.posts[0].root, undefined);

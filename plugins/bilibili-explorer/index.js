@@ -1587,7 +1587,7 @@ async function biliPostLocked(ctx, account, id) {
   return "B站已接受评论提交；公开可见状态仍以平台为准。";
 }
 async function butlerCommand(ctx, command) {
-  if (!String(ctx.message?.chatId || "").includes(":private:")) return "请在主人私聊中管理 B站账号和收藏。";
+  if (!await ctx.api.isOwnerPrivateChat(ctx.message?.chatId || "")) return "请在主人私聊中管理 B站账号和收藏。";
   const args = String(ctx.args || "").trim();
   try {
     if (command === "bilianalyze" || command === "bilisummary") return await biliAnalyzeCommand(ctx, command, args);
@@ -1622,7 +1622,7 @@ async function butlerCommand(ctx, command) {
 
 async function biliAutoOrganize(ctx) {
   const chatId = String(ctx.config.organizeChat || "");
-  if (!/^[A-Za-z0-9._-]+:private:[A-Za-z0-9._:-]+$/.test(chatId)) return;
+  if (!chatId || !await ctx.api.isOwnerPrivateChat(chatId)) return;
   const work = { ...ctx, message: { ...ctx.message, chatId } };
   let account;
   try {
@@ -1791,7 +1791,7 @@ async function biliPrepareAutomatic(ctx, account, job) {
   await biliSave(ctx, account, job.id, job);
 }
 async function biliAutoInteract(ctx) {
-  if (!/^[A-Za-z0-9._-]+:private:[A-Za-z0-9._:-]+$/.test(String(ctx.config.commentChat || ""))) return;
+  if (!ctx.config.commentChat || !await ctx.api.isOwnerPrivateChat(ctx.config.commentChat)) return;
   const uid = String(ctx.config.browseUid || ""), keyAccount = { uid };
   if (!/^\d+$/.test(uid)) return;
   const state = await biliInteractions(ctx, keyAccount);
