@@ -4,7 +4,7 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "4.1.0",
+      "version": "4.1.1",
       "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
       "category": "ai",
       "main": "index.js",
@@ -29,7 +29,7 @@
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "可等待手机上的下载状态等控件变化，命中指定文字或超时时返回结果。",
+        "changelog": "在 OpenBot 0.1.128 中可同时操作不同手机，同一台手机的操作按顺序执行。",
         "components": [
           "commands",
           "hooks",
@@ -39,7 +39,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "472765bf3c6fa2e573c12e5ee431b8c2fb8a7d77",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "device-driver.cjs",
@@ -69,17 +69,17 @@
         {
           "path": "package-lock.json",
           "size": 20673,
-          "sha256": "e208bbc98ccb4af6c1acb6161bea35e8e13d1e96e85d1e42f4f1f757060b64a7"
+          "sha256": "1b485acbe8e826724c0298af74763473daa7134da656e62115b2475e1412cb44"
         },
         {
           "path": "package.json",
           "size": 209,
-          "sha256": "6c55b61c2a21191cf82a236f43af90f760d1f706e3cd1e31e778d2f73c12841a"
+          "sha256": "64d475c476b4266e16d00fecda0f73cfa333ad2efa941f9d66440ac563be8e7f"
         },
         {
           "path": "plugin.json",
-          "size": 25432,
-          "sha256": "ac9fd77843e4f7331ac7fa9c3b104fa919e478ea32eb52db432076204d76aa3d"
+          "size": 25481,
+          "sha256": "b4596067ac33bb0e98d94905ad2e6f49910eeca0b1c66391502f323a3add8f55"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
@@ -473,7 +473,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.1",
+      "version": "0.6.2",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -501,14 +501,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "0.6.0 支持按实例自定义画图服务和输出设置，或跟随插件默认配置。需要 OpenBot 0.1.120 或更高版本。",
+        "changelog": "在 OpenBot 0.1.128 中，画图期间可以恢复旧图片，生成任务仍按配置排队。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "README.md",
@@ -522,8 +522,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 27093,
-          "sha256": "92ec3dd77df7ee5fcdd9b4193099d7282fc06dd320af86312acd8fd3f8e657de"
+          "size": 27107,
+          "sha256": "b68389f129adabb8f5ae11f7904e59f4c69c91fd82b3b636d72d8155f01139c4"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -701,7 +701,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.4",
+      "version": "2.6.5",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -737,7 +737,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "收藏时遇到已缺失的原图，跳过该附件。",
+        "changelog": "日常配图按心情和语气检索。点名某个表情或图中文字时按指定特征查找。",
         "components": [
           "commands",
           "hooks",
@@ -748,7 +748,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "README.md",
@@ -772,8 +772,8 @@
         },
         {
           "path": "index.js",
-          "size": 78406,
-          "sha256": "ec526d7f70aa64a9bc92c38cdc7f31c389c6ecdf675a64034e41461628963ad0"
+          "size": 78641,
+          "sha256": "2baef1e0c3c3758ae9c59d9b59ef2ad6d7d20cc74965e55cd3ec2df23f9e60f0"
         },
         {
           "path": "mcp.json",
@@ -792,13 +792,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 23926,
-          "sha256": "03fe61f4270641f850b5c2cb6f99c2226c56dd0718d0b0e247ac3535a0e22717"
+          "size": 24073,
+          "sha256": "f653066bf0b032b7b811d1b2311b1d014c82bc25ff68221ea3cf474ee0f79ea4"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 4505,
-          "sha256": "9c9776251fefab98d2e96aa5bd887c7d06ad5c8d49ab4b936b8870801d8dfbf4"
+          "size": 4805,
+          "sha256": "e8210dc35d3e9b05b2a1febfbe45a3f78d08e25b3ab9eea1f15c2520f3801334"
         },
         {
           "path": "ui/app.js",
@@ -1331,7 +1331,7 @@
     {
       "id": "personal-butler",
       "name": "私人管家",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
       "category": "utility",
       "main": "index.js",
@@ -1361,7 +1361,7 @@
         "requirements": [
           "QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"
         ],
-        "changelog": "保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。",
+        "changelog": "网页跟进在正文相同时复用已核对的结果，时间条件仍按时检查。保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。",
         "components": [
           "hooks",
           "tools",
@@ -1369,22 +1369,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "README.md",
-          "size": 4492,
-          "sha256": "f8627b8fae6bf8590a67932813508b292ea1f595ae754703e1a95ffe56c156bb"
+          "size": 4902,
+          "sha256": "ad235d5522a4e1c1d1d38f0b0f5acea6aebf3f5363b44aa2968e4445b0992a18"
         },
         {
           "path": "index.js",
-          "size": 110066,
-          "sha256": "f0af0ac3fa3956044ff8326ab211efff972e6a88c0b5b386812092fc58ab803a"
+          "size": 112505,
+          "sha256": "ee61f7eda4a05551659068632486c60a8694c92997b8110fe249f1f1917ffd97"
         },
         {
           "path": "plugin.json",
-          "size": 5990,
-          "sha256": "d27c952ee8ce9d8d3e5178264e73e303fbad265f41cd7606e9daecbf202ee6aa"
+          "size": 6077,
+          "sha256": "41823437adb77dbcff427d20333346b9cf56aacdda0d422415ce9b4eb25dbb37"
         }
       ]
     },
@@ -1431,7 +1431,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
@@ -1454,14 +1454,14 @@
           "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "0.3.0 网页搜索和以图搜图可分别跟随插件默认配置，也可为实例单独配置服务商和凭据。",
+        "changelog": "支持读取网页轮播里的游戏截图。搜索完成后按结果回复，需要对方辨认画面时发送已核对的图片。配合 OpenBot 0.1.128 可并行搜索和读页。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "README.md",
@@ -1470,18 +1470,18 @@
         },
         {
           "path": "index.js",
-          "size": 35953,
-          "sha256": "a9d49799b78dd5d974d3cb1bd16ee245d79ecd94fd0857f3ab189688f98ac920"
+          "size": 37000,
+          "sha256": "12b21fe798a724cb387792d8addbe589dcef04f1d55b9cf5708499b0cb1b9382"
         },
         {
           "path": "plugin.json",
-          "size": 14567,
-          "sha256": "ac837a80a298841f872cea4d6aabc35c23101c2ed2780c1353fbe5ded8a0dd04"
+          "size": 15058,
+          "sha256": "a2e8213b02b2a1b4c11ff4a9f5e9d36b3c783881d314657097a7c486f14f9ae5"
         },
         {
           "path": "skills/search/SKILL.md",
-          "size": 4042,
-          "sha256": "95e49c7ec91e689417b0efa22b869f288d801c6fd1d7133491a51d1f56dceaee"
+          "size": 5183,
+          "sha256": "8ec13802039a6569e4ea59be94cdf86fa605c477143258f28a3fe63d64f0b2fd"
         }
       ]
     },
