@@ -230,7 +230,9 @@ async function pushEvent(ctx, subscription, delivery, commit) {
       const result = await ctx.api.push(chatId, blocks);
       if (result?.skipped || result?.networkStatus === "canceled") {
         notSent = true;
-        throw Object.assign(new Error(`推送到 ${chatId} 尚未发送：${result.note || result.reason || "已取消"}`), { code: result.code });
+        const reason = result.reason === "disabled_for_chat" ? "插件在目标聊天中不可用" : result.reason;
+        const detail = result.note || reason || (result.skipped ? "宿主跳过了本次推送" : "已取消发送");
+        throw Object.assign(new Error(`推送到 ${chatId} 尚未发送：${detail}`), { code: result.code });
       }
       if (!["sent", "ok"].includes(result?.networkStatus)) {
         const status = result?.networkStatus;
@@ -500,7 +502,7 @@ async function handle(ctx) {
   if (!subscriptions.length) return { text: "还没有内容监控订阅，请在桌面端机器人插件配置中添加" };
   return { text: subscriptions.map((subscription) => {
     const cursor = cursors[subscription.id] || {};
-    const status = cursor.lastError ? `失败：${cursor.lastError}` : (cursor.initializedAt ? "运行中" : "等待首次检查");
+    const status = cursor.lastError || (cursor.initializedAt ? "运行中" : "等待首次检查");
     const unresolved = Object.entries(pendingDeliveries(cursor.pendingDeliveries)).flatMap(([key, item]) => list(item.uncertainChatIds)
       .map(chatId => `${subscription.id} ${encodeURIComponent(key)} ${chatId}`)).slice(0, 5);
     return `${subscription.enabled ? "启用" : "停用"} · ${subscription.name} · ${status}${unresolved.length ? `\n待确认：\n${unresolved.join("\n")}\n核对聊天记录后用 /monitorresolve 加上述一行及 delivered 或 retry` : ""}`;

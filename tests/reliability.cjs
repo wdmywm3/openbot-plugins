@@ -63,8 +63,10 @@ function stateApi(initial = {}) {
         push: async () => { calls++; if (current instanceof Error) throw current; return current; } } };
     return { ...f, ctx, calls: () => calls, result: value => { current = value; }, cursor: () => f.state.get("cursors").s };
   }
-  for (const result of [{ skipped: true, reason: "disabled_for_chat" }, { networkStatus: "canceled" }]) {
+  for (const [result, detail] of [[{ skipped: true, reason: "disabled_for_chat" }, "插件在目标聊天中不可用"],
+    [{ skipped: true }, "宿主跳过了本次推送"], [{ networkStatus: "canceled" }, "已取消发送"]]) {
     const f = monitoring(result); assert.equal((await monitor.poll(f.ctx)).pushed, 0);
+    assert((await monitor.handle(f.ctx)).text.includes(detail));
     assert.equal(f.cursor().seenIds.includes("new"), false); assert.equal(Object.keys(f.cursor().pendingDeliveries).length, 1);
     f.result({ networkStatus: "sent" }); await monitor.handle({ ...f.ctx, command: { name: "monitorcheck" } });
     assert.equal(f.calls(), 2); assert.equal(f.cursor().seenIds.includes("new"), true); assert.equal(f.cursor().lastError, "");
@@ -81,6 +83,7 @@ function stateApi(initial = {}) {
   for (const [receipt, reason] of [
     [{ networkStatus: "partial", note: "附件发送失败" }, "仅部分送达（附件发送失败）"],
     [{ networkStatus: "queued" }, "上游状态为 queued"],
+    [{ networkStatus: "failed", code: "SEND_REFUSED", note: "连接已关闭" }, "上游状态为 failed（连接已关闭）"],
     [{}, "未收到送达状态"], [null, "未收到送达状态"],
   ]) {
     const scenario = monitoring(receipt);
@@ -88,6 +91,7 @@ function stateApi(initial = {}) {
     assert(check.text.includes("推送 0 条") && check.text.includes(reason));
     await monitor.handle({ ...scenario.ctx, command: { name: "monitorcheck" } });
     assert((await monitor.handle(scenario.ctx)).text.includes(reason));
+    assert.equal(scenario.cursor().lastErrorCode, receipt?.code || "");
     assert.equal(scenario.calls(), 1);
     assert(!scenario.cursor().seenIds.includes("new"));
   }
