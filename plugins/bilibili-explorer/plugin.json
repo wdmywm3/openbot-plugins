@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bilibili-explorer",
-  "version": "1.16.4",
+  "version": "1.16.5",
   "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
   "extensions": {
     "com.openbot": {
@@ -2252,7 +2252,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "自动整理收藏和自动评论支持绑定的微信私聊，后台执行前会核对配置的私聊。"
+        "changelog": "收藏整理完成后按发送回执记录通知状态，部分发送会保留原因，同一轮整理不会因此重复执行。"
       },
       "requiredFeatures": [
         "pluginSettingScopes",

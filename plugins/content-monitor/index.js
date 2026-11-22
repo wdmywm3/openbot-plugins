@@ -216,27 +216,36 @@ async function pushEvent(ctx, subscription, delivery, commit) {
   for (const chatId of [...new Set(subscription.targetChatIds)]) {
     if (delivered.has(chatId)) continue;
     if (!hasBudget(ctx, 30000)) return false;
-    if (list(delivery.uncertainChatIds).includes(chatId)) throw new Error(`推送到 ${chatId} 的结果尚未确认，已暂停这条更新以避免重复发送`);
+    if (list(delivery.uncertainChatIds).includes(chatId)) {
+      const previous = delivery.deliveryError;
+      if (previous?.chatId === chatId) throw Object.assign(new Error(previous.message), { code: previous.code });
+      throw new Error(`推送到 ${chatId} 的结果尚未确认，已暂停这条更新以避免重复发送`);
+    }
     // Save an in-flight marker before the side effect. A worker interruption
     // must not silently resend a message whose delivery is unknown.
     delivery.uncertainChatIds = [...list(delivery.uncertainChatIds), chatId];
     await commit();
-    let result;
+    let notSent = false;
     try {
-      result = await ctx.api.push(chatId, blocks);
-    } catch (error) {
-      if (["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error.code)) {
-        delivery.uncertainChatIds = delivery.uncertainChatIds.filter(id => id !== chatId);
-        await commit();
+      const result = await ctx.api.push(chatId, blocks);
+      if (result?.skipped || result?.networkStatus === "canceled") {
+        notSent = true;
+        throw Object.assign(new Error(`推送到 ${chatId} 尚未发送：${result.note || result.reason || "已取消"}`), { code: result.code });
       }
+      if (!["sent", "ok"].includes(result?.networkStatus)) {
+        const status = result?.networkStatus;
+        const detail = status === "partial" ? "仅部分送达" : status ? `上游状态为 ${status}` : "未收到送达状态";
+        throw Object.assign(new Error(`推送到 ${chatId}：${detail}${result?.note ? `（${result.note}）` : ""}`), { code: result?.code });
+      }
+    } catch (error) {
+      if (notSent || ["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error?.code)) {
+        delivery.uncertainChatIds = delivery.uncertainChatIds.filter(id => id !== chatId);
+      } else {
+        delivery.deliveryError = { chatId, message: String(error?.message || error).slice(0, 1000), code: error?.code || "" };
+      }
+      await commit();
       throw error;
     }
-    if (result?.skipped || result?.networkStatus === "canceled") {
-      delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
-      await commit();
-      throw new Error(`推送到 ${chatId} 尚未发送：${result.note || result.reason || "已取消"}`);
-    }
-    if (!result || ["error", "failed", "pending"].includes(result.networkStatus)) throw new Error(`推送到 ${chatId} 结果未确认：${result?.note || "请检查聊天记录"}`);
     delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
     delivered.add(chatId);
     delivery.deliveredChatIds = [...delivered];
@@ -436,6 +445,7 @@ async function poll(ctx, options = {}) {
         lastCheckedAt: checkedAt,
         lastSuccessAt: checkedAt,
         lastError: "",
+        lastErrorCode: "",
         consecutiveFailures: 0,
         nextRetryAt: 0,
       };
@@ -451,11 +461,12 @@ async function poll(ctx, options = {}) {
         ...current,
         lastCheckedAt: failedAt,
         lastError: error && error.message ? error.message : String(error),
+        lastErrorCode: error?.code || "",
         consecutiveFailures: failures,
         nextRetryAt: failedAt + Math.min(6 * 3600000, base * (2 ** Math.min(failures, 8))),
       };
       await commit();
-      summaries.push(`${subscription.name}：检查失败`);
+      summaries.push(`${subscription.name}：${cursor.lastError}`);
     }
   }
 
@@ -473,8 +484,9 @@ async function handle(ctx) {
     const cursor = cursors[subscriptionId], delivery = cursor?.pendingDeliveries?.[key];
     if (!delivery || !list(delivery.uncertainChatIds).includes(chatId)) return { text: "没有找到这条待确认推送，请查看 /monitorstatus" };
     delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
+    if (delivery.deliveryError?.chatId === chatId) delete delivery.deliveryError;
     if (action === "delivered") delivery.deliveredChatIds = [...new Set([...list(delivery.deliveredChatIds), chatId])];
-    cursor.nextRetryAt = 0; cursor.lastError = "";
+    cursor.nextRetryAt = 0; cursor.lastError = ""; cursor.lastErrorCode = "";
     await storage.save(subscriptionId, cursor);
     return { text: action === "delivered" ? "已标记送达，下一轮继续检查" : "已允许这条推送在下一轮重试" };
   }

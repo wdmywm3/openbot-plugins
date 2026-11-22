@@ -1620,18 +1620,51 @@ async function butlerCommand(ctx, command) {
   }
 }
 
+async function biliSendOrganizeReport(ctx, account, schedule, { scanId, chatId, text }) {
+  // A restart between submission and its receipt must not resend an uncertain message.
+  const report = { scanId, chatId, text, state: "unconfirmed" };
+  schedule.report = report;
+  await biliSave(ctx, account, "schedule", schedule);
+  try {
+    const receipt = await ctx.api.push(chatId, [{ type: "text", text }]);
+    if (receipt?.skipped || receipt?.networkStatus === "canceled") {
+      report.state = "unsent";
+      throw Object.assign(new Error(receipt.note || receipt.reason || "已取消发送"), { code: receipt.code });
+    }
+    if (!["sent", "ok"].includes(receipt?.networkStatus)) {
+      const status = receipt?.networkStatus;
+      const detail = status === "partial" ? "通知仅部分送达" : status ? `通知发送返回状态 ${status}` : "未收到通知送达状态";
+      throw Object.assign(new Error(receipt?.note ? `${detail}（${receipt.note}）` : detail), { code: receipt?.code });
+    }
+  } catch (error) {
+    if (["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error?.code)) report.state = "unsent";
+    await biliSave(ctx, account, "schedule", schedule);
+    throw error;
+  }
+  schedule.reported = scanId;
+  delete schedule.report;
+  await biliSave(ctx, account, "schedule", schedule);
+}
+
 async function biliAutoOrganize(ctx) {
   const chatId = String(ctx.config.organizeChat || "");
   if (!chatId || !await ctx.api.isOwnerPrivateChat(chatId)) return;
   const work = { ...ctx, message: { ...ctx.message, chatId } };
-  let account;
+  let account, reporting = false;
   try {
     account = await biliAccount(work, "main");
     const schedule = await biliLoad(work, account, "schedule") || { nextAt: 0 };
     let scan = await biliLoad(work, account, "scan");
     const previous = scan && await biliLoad(work, account, `plan:${scan.id}`);
     if (previous?.status === "complete" || !scan) {
-      if (Date.now() < schedule.nextAt) return;
+      if (Date.now() < schedule.nextAt) {
+        const report = schedule.report;
+        if (report?.state === "unsent" && report.chatId === chatId && scan?.id === report.scanId) {
+          reporting = true;
+          await biliSendOrganizeReport(work, account, schedule, report);
+        }
+        return;
+      }
       schedule.nextAt = Date.now() + number(ctx.config.organizeIntervalHours, 24, 1, 168) * 3600000;
       await biliSave(work, account, "schedule", schedule);
       await biliScan(work, account, true);
@@ -1641,13 +1674,15 @@ async function biliAutoOrganize(ctx) {
     if (!previous || previous.status === "planning") { await biliPlan(work, account); return; }
     const result = await biliApply(work, account);
     const done = await biliLoad(work, account, `plan:${scan.id}`);
-    if (done.status === "complete" && schedule.reported !== scan.id) {
-      schedule.reported = scan.id; await biliSave(work, account, "schedule", schedule);
-      await ctx.api.push(chatId, [{ type: "text", text: `B站收藏整理：${result}` }]);
+    if (done.status === "complete" && schedule.reported !== scan.id && schedule.report?.scanId !== scan.id) {
+      reporting = true;
+      await biliSendOrganizeReport(work, account, schedule, { scanId: scan.id, chatId, text: `B站收藏整理：${result}` });
     }
   } catch (error) {
-    if (account) await biliSave(work, account, "lastError", { at: Date.now(), message: String(error.message || error).slice(0, 500) });
-    await biliLog(work, { operation: "organize", status: "failed", summary: "自动整理未完成", detail: String(error.message || error).slice(0, 500) });
+    const detail = String(error?.message || error).slice(0, 500);
+    if (account) await biliSave(work, account, "lastError", { at: Date.now(), message: detail, code: error?.code || "" });
+    await biliLog(work, { operation: reporting ? "notify" : "organize", status: "failed",
+      summary: reporting ? "收藏整理结果通知" : "自动整理未完成", detail });
     // Failed jobs keep their page/operation checkpoint; never reset or retry an
     // uncertain write with a newly generated operation ID.
   }
