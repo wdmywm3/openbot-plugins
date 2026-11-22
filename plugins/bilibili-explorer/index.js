@@ -1629,17 +1629,22 @@ async function biliSendOrganizeReport(ctx, account, schedule, { scanId, chatId, 
     const receipt = await ctx.api.push(chatId, [{ type: "text", text }]);
     if (receipt?.skipped || receipt?.networkStatus === "canceled") {
       report.state = "unsent";
-      throw Object.assign(new Error(receipt.note || receipt.reason || "已取消发送"), { code: receipt.code });
+      const reason = receipt.reason === "disabled_for_chat" ? "插件在目标聊天中不可用" : receipt.reason;
+      throw Object.assign(new Error(receipt.note || reason || (receipt.skipped ? "宿主跳过了本次推送" : "已取消发送")), { code: receipt.code });
     }
     if (!["sent", "ok"].includes(receipt?.networkStatus)) {
       const status = receipt?.networkStatus;
+      if (status === "partial") report.state = "partial";
+      if (status === "error" || status === "failed") report.state = "failed";
       const detail = status === "partial" ? "通知仅部分送达" : status ? `通知发送返回状态 ${status}` : "未收到通知送达状态";
       throw Object.assign(new Error(receipt?.note ? `${detail}（${receipt.note}）` : detail), { code: receipt?.code });
     }
   } catch (error) {
     if (["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error?.code)) report.state = "unsent";
+    report.detail = String(error?.message || error).slice(0, 500);
+    report.code = error?.code || "";
     await biliSave(ctx, account, "schedule", schedule);
-    throw error;
+    throw Object.assign(new Error(report.detail), { code: report.code, needsReview: ["partial", "unconfirmed"].includes(report.state) });
   }
   schedule.reported = scanId;
   delete schedule.report;
@@ -1681,7 +1686,7 @@ async function biliAutoOrganize(ctx) {
   } catch (error) {
     const detail = String(error?.message || error).slice(0, 500);
     if (account) await biliSave(work, account, "lastError", { at: Date.now(), message: detail, code: error?.code || "" });
-    await biliLog(work, { operation: reporting ? "notify" : "organize", status: "failed",
+    await biliLog(work, { operation: reporting ? "notify" : "organize", status: reporting && error?.needsReview ? "review" : "failed",
       summary: reporting ? "收藏整理结果通知" : "自动整理未完成", detail });
     // Failed jobs keep their page/operation checkpoint; never reset or retry an
     // uncertain write with a newly generated operation ID.

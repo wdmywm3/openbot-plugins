@@ -127,23 +127,30 @@ if (require.main === module) (async () => {
     assert.equal(automatic.state.get("bili:1:schedule").reported, automatic.state.get("bili:1:scan").id);
     assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
   }
-  for (const [receipt, reason, retry] of [
-    [{ skipped: true, reason: "disabled_for_chat" }, "disabled_for_chat", true],
-    [{ networkStatus: "canceled" }, "已取消发送", true],
-    [{ networkStatus: "partial", note: "附件发送失败" }, "通知仅部分送达（附件发送失败）", false],
-    [{ networkStatus: "error", note: "微信未连接" }, "通知发送返回状态 error（微信未连接）", false],
-    [undefined, "未收到通知送达状态", false],
+  for (const [receipt, reason, state, status] of [
+    [{ skipped: true, reason: "disabled_for_chat" }, "插件在目标聊天中不可用", "unsent", "failed"],
+    [{ skipped: true }, "宿主跳过了本次推送", "unsent", "failed"],
+    [{ networkStatus: "canceled" }, "已取消发送", "unsent", "failed"],
+    [{ networkStatus: "partial", note: "附件发送失败" }, "通知仅部分送达（附件发送失败）", "partial", "review"],
+    [{ networkStatus: "error", note: "微信未连接" }, "通知发送返回状态 error（微信未连接）", "failed", "failed"],
+    [undefined, "未收到通知送达状态", "unconfirmed", "review"],
+    [Object.assign(new Error("绑定已更新"), { code: "PLUGIN_PUSH_UNBOUND_CHAT" }), "绑定已更新", "unsent", "failed"],
+    [Object.assign(new Error("提交后连接中断"), { code: "CONNECTION_LOST" }), "提交后连接中断", "unconfirmed", "review"],
   ]) {
     const id = "onebot:private:owner@im.wechat", f = fixture(id);
     Object.assign(f.ctx.config, { autoOrganize: true, organizeChat: id });
     const logs = [], attempts = [];
     f.ctx.api.log = async event => logs.push(event);
-    f.ctx.api.push = async chat => { attempts.push(chat); return receipt; };
+    f.ctx.api.push = async chat => { attempts.push(chat); if (receipt instanceof Error) throw receipt; return receipt; };
     for (let round = 0; !attempts.length && round < 8; round++) await load().poll(f.ctx);
     const schedule = () => f.state.get("bili:1:schedule");
     assert.equal(schedule().reported, undefined);
-    assert.equal(schedule().report.state, retry ? "unsent" : "unconfirmed");
-    assert.equal(logs.findLast(row => row.operation === "notify").detail, reason);
+    const retry = state === "unsent";
+    assert.equal(schedule().report.state, state);
+    const notice = logs.findLast(row => row.operation === "notify");
+    assert.equal(notice.detail, reason);
+    assert.equal(notice.status, status);
+    assert.equal(f.state.get("bili:1:lastError").code, receipt?.code || "");
     f.ctx.api.push = async chat => { attempts.push(chat); return { networkStatus: "ok" }; };
     await load().poll(f.ctx); await load().poll(f.ctx);
     assert.equal(attempts.length, retry ? 2 : 1);
