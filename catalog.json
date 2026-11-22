@@ -106,7 +106,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.3",
+      "version": "1.16.4",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -134,7 +134,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "按实际失败原因显示提示。阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。",
+        "changelog": "自动整理收藏和自动评论支持绑定的微信私聊，后台执行前会核对配置的私聊。",
         "components": [
           "commands",
           "hooks",
@@ -144,7 +144,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "104f1ca1d595ed32391915c8ddba36cba8467800",
       "files": [
         {
           "path": "MEDIA.md",
@@ -153,8 +153,8 @@
         },
         {
           "path": "index.js",
-          "size": 230059,
-          "sha256": "95badde507f804669a4910975174d5155e274a6ec527391732c98ff5a839ea34"
+          "size": 230053,
+          "sha256": "434e22e8ed4266a9d4b5e842e5dc05a76d9a2d07cd0e4140797b7b2128de4020"
         },
         {
           "path": "media-mcp/launch.py",
@@ -173,8 +173,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 69757,
-          "sha256": "b9a56cafc96788787590dbc123333aee16776cc56d850391e7a32fddf25ae36d"
+          "size": 69770,
+          "sha256": "c8c3803f8e1217547501178478d868f370e71504c3190d4273c47321dfc57de8"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -267,8 +267,8 @@
     {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.1.1",
-      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+      "version": "1.1.2",
+      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
       "category": "subscription",
       "main": "index.js",
       "permissions": [
@@ -283,27 +283,28 @@
         "usage": "/monitorresolve 核对聊天记录后确认或重试结果不明的推送\n/monitorstatus 查看内容监控状态\n/monitorcheck 立即执行一次内容检查",
         "platforms": [
           "napcat",
-          "qqbot"
+          "qqbot",
+          "wechat"
         ],
         "requirements": [],
-        "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。",
+        "changelog": "订阅更新可以推送到当前绑定的微信私聊。",
         "components": [
           "commands",
           "background"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "104f1ca1d595ed32391915c8ddba36cba8467800",
       "files": [
         {
           "path": "index.js",
-          "size": 24529,
-          "sha256": "c1a5b6552c6db79849d287540161d599c3ecf91a66aa4b245e1c33ab7df48690"
+          "size": 24873,
+          "sha256": "250780f125f8d9c87bcde12818f22f561b80aedb03f40cf8196a9823a76dd093"
         },
         {
           "path": "plugin.json",
-          "size": 6927,
-          "sha256": "63698c4b3b3a455a78f4582697aa22edc2b9101ec229f0a28d4338bb2e8de981"
+          "size": 6862,
+          "sha256": "979afab78a6a6c9a17255041b22b4380718a16663ca6891d5a82dcf2b37db5a4"
         }
       ]
     },
