@@ -43,7 +43,8 @@ function setup() {
   await assert.rejects(disabled.tool("coin_video", coin), /开启投币/); assert.equal(disabled.posts.length, 0);
   await assert.rejects(disabled.tool("triple_video", { operationId: "triple", bvid: BV }), /开启投币/);
   const quota = setup(); quota.ctx.config.dailyCoinLimit = 1;
-  await assert.rejects(quota.tool("coin_video", coin), /额度/);
+  await assert.rejects(quota.tool("coin_video", coin), error => error.code === "PLUGIN_PUBLIC_ERROR" &&
+    error.details.reason === "quota_reached" && error.message === "今日投币额度不足（已用 0 枚，上限 1 枚）。");
   await assert.rejects(quota.tool("triple_video", { operationId: "triple", bvid: BV }), /额度/); assert.equal(quota.posts.length, 0);
   const race = setup(); race.ctx.config.dailyCoinLimit = 2;
   const concurrent = await Promise.allSettled([race.tool("coin_video", coin), race.tool("coin_video", { ...coin, operationId: "concurrent" })]);

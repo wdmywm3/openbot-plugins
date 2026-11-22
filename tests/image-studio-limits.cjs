@@ -28,7 +28,8 @@ function context(channelId, database, overrides = {}) {
   let database = mockDatabase();
   let a = context("a", database, { instanceHourly: 1, globalHourly: 2 }), b = context("b", database, { globalHourly: 2 });
   await testQuota(a, a.config);
-  await assert.rejects(testQuota(a, a.config), /实例.*每小时/);
+  await assert.rejects(testQuota(a, a.config), error => error.code === "PLUGIN_PUBLIC_ERROR" &&
+    error.details.reason === "quota_reached" && error.message === "此实例每小时画图上限为 1 次，本期额度已用完。");
   await testQuota(b, b.config);
   await assert.rejects(testQuota(b, b.config), /总每小时/);
   now += 3600000;

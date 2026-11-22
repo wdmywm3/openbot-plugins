@@ -12,6 +12,8 @@ const { sessionAssetWritePath, sessionAssetRef } = fromHost("context/session-ass
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-image-host-")); let runtime, pluginData;
+  const diagnostics = fromHost("app/runtime-diagnostics.cjs"), rows = [];
+  diagnostics.setRuntimeDiagnostics({ record(level, event, details) { rows.push({ level, event, code: details.code, message: details.message }); } });
   try {
     const channel = { id: "images", enabled: true, config: { ownerUsers: ["owner"], modelId: "signed-in" } };
     const store = { root, data: { channels: [channel], models: [{ id: "signed-in", name: "Logged-in model", provider: "codex", modelName: "gpt-6.1-terra", codexProfileId: "profile-fixture", enabled: true }],
@@ -209,6 +211,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let denied = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "denied", input: { prompt: "denied" } }, context);
     for (let i = 0; denied.status === "running" && i < 500; i++) { await delay(20); denied = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: denied.id }, context); }
     assert.equal(denied.status, "failed"); assert(!JSON.stringify(denied).includes("fixture-key"));
+    assert(rows.some(row => row.level === "warn" && row.message === "上游服务限制了本次请求（HTTP 429）。"));
     plugin.config.provider = "codex";
     fs.writeFileSync(sourceFile, gif); // QQ can preserve a PNG-looking filename for GIF bytes.
     const motionRefs = [{ messageId: "reference" }, { assetRef: drawn.result.images[0].assetRef },
@@ -229,10 +232,16 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     fs.writeFileSync(sourceFile, Buffer.from("unsupported"));
     const invalid = await finish({ prompt: "invalid", references: [{ messageId: "reference" }] }, "bad-reference", "failed", owner);
     assert.match(invalid.error, /图片格式不受支持，请使用 PNG、JPEG、WebP 或 GIF/);
+    plugin.config.instanceHourly = 1;
+    const beforeQuota = requests.length;
+    const limited = await finish({ prompt: "quota" }, "over-quota", "failed", owner);
+    assert.equal(requests.length, beforeQuota);
+    assert(rows.some(row => row.level === "info" && row.code === "PLUGIN_PUBLIC_ERROR" && row.message === limited.error));
     plugin.enabled = false;
     await assert.rejects(Promise.resolve().then(() => runtime.runNativePluginTool(tool, { prompt: "revoked" }, context)), /不可用/);
     console.log(`Image studio host: installed/authorized; >1 MiB SSE; reference edit; Responses/native models; permission denial; dedup; scoped media; 429; cancellation; heartbeat ${maxGap} ms passed`);
   } finally {
+    diagnostics.setRuntimeDiagnostics(null);
     runtime?.clearChannelPluginPollTimers?.({ id: "images" }); await runtime?.pauseForDataSnapshot(); await pluginData?.pause(); shutdownPluginWorkers();
     const resolved = path.resolve(root); assert(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("openbot-image-host-"));
     fs.rmSync(resolved, { recursive: true, force: true });

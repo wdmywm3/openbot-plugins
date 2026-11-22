@@ -615,7 +615,7 @@ module.exports.search_by_image = async ctx => {
   const attachment = await ctx.api.readMessageAttachment({ messageId: input.messageId, index: input.index ?? 0, maxBytes: maximum });
   if (attachment.type !== "image" || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(attachment.mimeType)
     || typeof attachment.data !== "string" || !attachment.data) throw new Error("请选择一张 JPEG、PNG、WebP 或 GIF 图片");
-  if (attachment.data.length > imageChars) throw new Error("图片编码后超过 Google Vision 的 10 MB 请求上限");
+  if (attachment.data.length > imageChars) throw Object.assign(new Error("图片编码后超过 Google Vision 的 10 MB 请求上限"), { code: "PLUGIN_INPUT_LIMIT" });
   body.requests[0].image.content = attachment.data;
   const raw = await json(ctx, "https://vision.googleapis.com/v1/images:annotate", body,
     { "x-goog-api-key": key }, { maxBodyBytes: limitBytes });
@@ -678,7 +678,7 @@ module.exports.prepare_reference = async ctx => {
     if (stream.status < 200 || stream.status >= 300) throw Error("读取参考图失败（HTTP " + stream.status + "）");
     const declared = Number(stream.headers?.["content-length"]);
     const checkSize = bytes => {
-      if (bytes > maxBytes) throw Error("参考图为 " + bytes + " 字节，超过 " + maxBytes + " 字节上限");
+      if (bytes > maxBytes) throw Object.assign(new Error("参考图为 " + bytes + " 字节，超过 " + maxBytes + " 字节上限"), { code: "PLUGIN_INPUT_LIMIT" });
     };
     checkSize(declared);
     while (true) {

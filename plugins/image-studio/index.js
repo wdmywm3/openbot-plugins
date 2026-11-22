@@ -3,6 +3,8 @@
 // Provider semantics live here. The host only brokers scoped HTTP/model/media calls.
 const LIMIT = { response: 8 * 1024 * 1024, image: 5 * 1024 * 1024, reference: 600 * 1024, references: 4, prompt: 12000 };
 const capacities = new WeakMap();
+const imagePixelLimit = 40_000_000;
+function imageLimit(message) { return Object.assign(new Error(message), { code: "PLUGIN_INPUT_LIMIT" }); }
 async function transferLimits(ctx) {
   if (!capacities.has(ctx)) capacities.set(ctx, Promise.resolve(ctx.api.getCapabilities?.()).then(value => {
     const host = value?.limits || {};
@@ -32,10 +34,11 @@ function string(value, max, label) {
 function base64(value, max) {
   if (typeof value !== "string") throw Error("图片编码必须为文本");
   if (!value.length) throw Error("图片数据为空");
-  if (value.length > Math.ceil(max / 3) * 4) throw Error(`图片超过 ${max} 字节上限`);
+  const encodedLimit = Math.ceil(max / 3) * 4;
+  if (value.length > encodedLimit) throw imageLimit(`图片编码超过 ${encodedLimit} 字符上限。`);
   if (value.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw Error("图片 Base64 编码无效");
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-  if (value.length / 4 * 3 - padding > max) throw Error("图片过大");
+  if (value.length / 4 * 3 - padding > max) throw imageLimit(`图片超过 ${max} 字节上限。`);
   if (padding && (ALPHABET.indexOf(value[value.length - padding - 1]) & (padding === 2 ? 15 : 3))) throw Error("图片编码无效");
   return value;
 }
@@ -74,7 +77,8 @@ function gifType(data) {
   if (bytes.length < 14) bad();
   const u16 = i => bytes[i] | bytes[i + 1] << 8;
   const width = u16(6), height = u16(8);
-  if (!width || !height || width * height > 40000000) throw Error("动图尺寸不符合要求");
+  if (!width || !height) throw Error("动图尺寸无效");
+  if (width * height > imagePixelLimit) throw imageLimit(`动图尺寸 ${width} × ${height} 超过 ${imagePixelLimit} 像素上限。`);
   let offset = 13, frames = 0;
   if (bytes[10] & 128) offset += 3 * (1 << ((bytes[10] & 7) + 1));
   const skipBlocks = requireData => {
@@ -101,8 +105,8 @@ function gifType(data) {
     if (packed & 128) offset += 3 * (1 << ((packed & 7) + 1));
     if (offset >= bytes.length || bytes[offset] < 2 || bytes[offset] > 8) bad();
     offset++; skipBlocks(true);
-    if (++frames > 16) throw Error("动图超过 16 帧");
-    if (width * height * frames > 40000000) throw Error("动图各帧的总像素数超过 4000 万");
+    if (++frames > 16) throw imageLimit("动图超过 16 帧上限。");
+    if (width * height * frames > imagePixelLimit) throw imageLimit(`动图各帧合计超过 ${imagePixelLimit} 像素上限。`);
   }
   bad();
 }
@@ -112,7 +116,8 @@ function imageType(data, allowGif = false, invalid = "服务没有返回有效�
   if (bytes.length >= 24 && text.startsWith("\x89PNG\r\n\x1a\n") && text.slice(12, 16) === "IHDR") {
     const number = n => bytes[n] * 16777216 + bytes[n + 1] * 65536 + bytes[n + 2] * 256 + bytes[n + 3];
     const width = number(16), height = number(20);
-    if (!width || !height || width * height > 40000000) throw Error("图片尺寸不符合要求");
+    if (!width || !height) throw Error("图片尺寸无效");
+    if (width * height > imagePixelLimit) throw imageLimit(`图片尺寸 ${width} × ${height} 超过 ${imagePixelLimit} 像素上限。`);
     return "image/png";
   }
   if (bytes.length >= 12 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
@@ -188,7 +193,7 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
   try {
     if (!(stream.status >= 200 && stream.status < 300)) {
       const reason = binary ? "" : await readRejection(ctx, stream.id);
-      throw statusError(stream.status, reason, binary);
+      throw Object.assign(statusError(stream.status, reason, binary), { status: stream.status });
     }
     const limits = await transferLimits(ctx), parts = [], response = binary ? null : imageResponse(limits.response);
     let total = 0;
@@ -199,7 +204,7 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
       if (value.data) {
         if (binary) {
           total += base64Size(value.data);
-          if (total > limits.image) throw Error("画图服务返回的图片过大");
+          if (total > limits.image) throw imageLimit(`画图服务返回的图片超过 ${limits.image} 字节上限。`);
           parts.push(value.data);
         } else response.append(value.data);
       }
@@ -226,7 +231,7 @@ function imageResponse(maximum) {
     if (["image_generation.completed", "image_edit.completed"].includes(value.type)) finishedImage = value;
   };
   function event(frame) {
-    if (frame.length > maximum || utf8Size(frame) > maximum) throw Error("画图服务返回的事件过大");
+    if (frame.length > maximum || utf8Size(frame) > maximum) throw imageLimit(`画图服务返回的事件过大（上限 ${maximum} 字节）。`);
     const data = frame.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
     if (!data || data.trim() === "[DONE]") return;
     let value; try { value = JSON.parse(data); } catch { throw Error("画图服务返回了无效事件"); }
@@ -244,7 +249,7 @@ function imageResponse(maximum) {
         while ((boundary = boundaries.exec(pending))) { event(pending.slice(start, boundary.index)); start = boundaries.lastIndex; }
         if (start) { pending = pending.slice(start); pendingBytes = utf8Size(pending); }
       }
-      if (pendingBytes > maximum) throw Error("画图服务返回的数据过大");
+      if (pendingBytes > maximum) throw imageLimit(`画图服务返回的数据过大（上限 ${maximum} 字节）。`);
     },
     finish() {
       if (format === "json") { try { final = JSON.parse(pending); } catch { throw Error("画图服务返回了无效 JSON"); } apply(final); }
@@ -258,7 +263,9 @@ function imageResponse(maximum) {
 }
 async function readAssetReference(ctx, own, limits) {
   const info = await ctx.api.assets({ action: "info", ref: own });
-  if (!Number.isSafeInteger(info.bytes) || info.bytes < 1 || info.bytes > limits.reference) throw Error("参考图超过当前宿主可读取的大小");
+  if (!Number.isSafeInteger(info.bytes) || info.bytes < 0) throw Error("参考图大小无效");
+  if (!info.bytes) throw Error("参考图文件为空");
+  if (info.bytes > limits.reference) throw imageLimit(`参考图为 ${info.bytes} 字节，超过 ${limits.reference} 字节上限。`);
   const chunks = []; let offset = 0;
   while (offset < info.bytes) {
     check(ctx);
@@ -273,7 +280,8 @@ async function readAssetReference(ctx, own, limits) {
 }
 async function references(ctx, input) {
   const refs = input.references === undefined ? [] : input.references, limits = await transferLimits(ctx);
-  if (!Array.isArray(refs) || refs.length > LIMIT.references) throw Error(`每次最多使用 ${LIMIT.references} 张聊天参考图`);
+  if (!Array.isArray(refs)) throw Error("参考图列表格式无效");
+  if (refs.length > LIMIT.references) throw imageLimit(`每次最多使用 ${LIMIT.references} 张聊天参考图`);
   const images = [], sheets = [];
   let remaining = Math.max(limits.body, limits.modelBody);
   for (const ref of refs) {
@@ -304,7 +312,7 @@ async function references(ctx, input) {
       if (view.mimeType && view.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
       const image = { image_url: `data:${mimeType};base64,${data}` };
       remaining -= image.image_url.length;
-      if (remaining < 0) throw Error("参考图合计超过请求容量，请缩小图片后重试");
+      if (remaining < 0) throw imageLimit(`参考图合计超过请求容量（上限 ${Math.max(limits.body, limits.modelBody)} 字节）。`);
       if (view.view === "frameSheet") sheets.push({ key: `frames${images.length}`, image });
       else images.push({ key: `ref${images.length + 1}`, image });
     }
@@ -511,10 +519,12 @@ async function consumeQuota(ctx, config) {
       instance = { id: channelId, hourly: 0, daily: 0 }; items.push(instance);
     }
     const hourly = sameHour ? Number(old.hourly) || 0 : 0, daily = sameDay ? Number(old.daily) || 0 : 0;
-    if (hourly >= caps.globalHour) throw publicError("画图已达到总每小时上限，请稍后再试。");
-    if (daily >= caps.globalDay) throw publicError("画图已达到总每日上限，请明天再试。");
-    if (instance.hourly >= caps.instanceHour) throw publicError("此实例已达到每小时画图上限，请稍后再试。");
-    if (instance.daily >= caps.instanceDay) throw publicError("此实例已达到每日画图上限，请明天再试。");
+    const quotaError = (scope, limit) => Object.assign(publicError(`${scope}画图上限为 ${limit} 次，本期额度已用完。`),
+      { details: { reason: "quota_reached" } });
+    if (hourly >= caps.globalHour) throw quotaError("总每小时", caps.globalHour);
+    if (daily >= caps.globalDay) throw quotaError("总每日", caps.globalDay);
+    if (instance.hourly >= caps.instanceHour) throw quotaError("此实例每小时", caps.instanceHour);
+    if (instance.daily >= caps.instanceDay) throw quotaError("此实例每日", caps.instanceDay);
     instance.hourly++; instance.daily++;
     try {
       await ctx.api.database({ ...base, action: "put", expectedRevision: record?.revision || 0,
@@ -590,7 +600,7 @@ function utf8Size(text) {
   return bytes;
 }
 function checkRequestSize(body, maximum) {
-  if (utf8Size(JSON.stringify(body)) > maximum) throw Error("参考图和提示词合计超过当前连接的请求容量，请缩小图片后重试");
+  if (utf8Size(JSON.stringify(body)) > maximum) throw imageLimit(`参考图和提示词合计超过当前连接的请求容量（上限 ${maximum} 字节）。`);
 }
 async function drawImage(ctx, mode) {
   const limits = await transferLimits(ctx);

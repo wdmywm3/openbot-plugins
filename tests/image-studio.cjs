@@ -174,7 +174,7 @@ function fixture(config = {}, input = {}) {
     return open(url, options);
   };
   await draw(fx.ctx); assert.equal(fx.stored[0].data, png); assert.equal(fx.requests[1].options.headers, undefined, "CDN never receives provider auth");
-  fx = fixture(); fx.state.status = 429; await assert.rejects(draw(fx.ctx), /HTTP 429/); assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
+  fx = fixture(); fx.state.status = 429; await assert.rejects(draw(fx.ctx), error => error.status === 429 && /HTTP 429/.test(error.message)); assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
   for (const [chunks, message] of [
     [['{"error":{"code":"unsupported_value",', '"param":"tools[0].size","message":"fixture-secret"}}'], "画图服务不接受本次 size 的取值（HTTP 400）。"],
     [[JSON.stringify({ error: { message: "Unknown parameter: 'quality'. fixture-secret" } })], "画图服务不支持参数 quality（HTTP 400）。"],
@@ -184,7 +184,7 @@ function fixture(config = {}, input = {}) {
     [["x".repeat(8193)], "画图请求失败（HTTP 400）。"],
   ]) {
     fx = fixture(); fx.state.status = 400; fx.state.chunks = chunks;
-    await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.message === message);
+    await assert.rejects(draw(fx.ctx), error => error.code === "PLUGIN_PUBLIC_ERROR" && error.status === 400 && error.message === message);
     assert.equal(fx.requests.length, 1); assert.equal(fx.closes.length, 1);
   }
   fx = fixture(); fx.state.status = 403; fx.ctx.api.readStream = async () => { throw Error("upstream read failed"); };

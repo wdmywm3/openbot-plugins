@@ -145,7 +145,7 @@ async function executeTool(ctx, storage, scope) {
       upper: batch.upper, offset: input.offset, limit: 6000 });
     if (!result.item || !materialPolicy.admit(result.item)) throw Error("原消息已变化或不可读取");
     live(ctx, storage, scope, batch);
-    if (batch.materials.length >= MAX_MESSAGES + 24) throw Error("本批补读次数已达上限");
+    if (batch.materials.length >= MAX_MESSAGES + 24) throw Object.assign(new Error(`本批材料已达到 ${MAX_MESSAGES + 24} 条上限。`), { code: "PLUGIN_INPUT_LIMIT" });
     const material = { ...retainedMaterial(storage, scope, result.item), seq: source.seq, chatId: scope.chatId };
     batch.materials.push(material); persist();
     return project(material);
@@ -155,7 +155,7 @@ async function executeTool(ctx, storage, scope) {
       const index = batch.existing.findIndex(old => old.id === item.id);
       if (index >= 0) batch.existing[index] = item;
       else if (batch.existing.length < 60) batch.existing.push(item);
-      else throw Error("本批已读取的记忆过多，请缩小查找范围");
+      else throw Object.assign(new Error("本批已读取的记忆达到 60 条上限。"), { code: "PLUGIN_INPUT_LIMIT" });
     }
     live(ctx, storage, scope, batch); persist();
   };

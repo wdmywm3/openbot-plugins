@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "search",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
   "extensions": {
     "com.openbot": {
@@ -492,7 +492,7 @@
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
         "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
-        "changelog": "支持读取网页轮播里的游戏截图。搜索完成后按结果回复，需要对方辨认画面时发送已核对的图片。配合 OpenBot 0.1.128 可并行搜索和读页。"
+        "changelog": "以图搜图或读取参考图超过输入上限时返回明确的限制原因。"
       },
       "requiredFeatures": [
         "pluginSettingsGroups",
