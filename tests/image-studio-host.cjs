@@ -97,14 +97,23 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const builtin = plugin.skills;
     plugin.skills = effectiveSkills(builtin, plugin.ui, null);
     const primary = plugin.skills.find(skill => skill.name === "image-studio:imagegen");
+    const guide = await runtime.readPluginSkillForModel(primary.id, {}, context);
+    assert.match(guide.skillContext, /未明确指定新图的画面时[,，]自行设计一幕/);
+    assert.match(guide.skillContext, /在主体或整体构图上产生一眼可见的变化/);
     assert((await runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context)).success);
     plugin.skills = effectiveSkills(builtin, plugin.ui, { target: "imagegen", content: "自定义正文", revision: "fixture",
       resources: { "references/light.md": "杯沿反射窗外的暖光。" } });
     assert.match((await runtime.readPluginSkillForModel(primary.id, {}, context)).skillContext, /自定义正文/);
     assert.match((await runtime.readPluginSkillForModel(primary.id, { resource: "references/light.md" }, context)).skillContext, /杯沿反射窗外的暖光/);
     await assert.rejects(runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context), /没有这个参考文件/);
-    plugin.skills = builtin;
     const tool = "plugin__image-studio__draw_image";
+    const drawTool = runtime.pluginToolSchemas(context).find(t => t.function.name === tool);
+    assert.ok(drawTool);
+    const promptDescription = drawTool.function.parameters.properties.input.properties.prompt.description;
+    assert.match(promptDescription, /用户未指定新图画面时自行设计/);
+    assert.match(promptDescription, /动作、视角或主体布局上明显不同的新构思/);
+    assert.match(promptDescription, /复刻、修复和局部编辑按用户指定范围/);
+    plugin.skills = builtin;
     async function finish(input, requestKey, expectedStatus = "completed", actor = context, toolName = tool) {
       let job = await runtime.runNativePluginTool(toolName, { action: "start", requestKey, input }, actor);
       for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, actor); }
@@ -117,7 +126,6 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     }
     assert.equal(requests.length, 0);
     const owner = { ...context, channelPrincipal: { ...context.channelPrincipal, senderId: "owner" } };
-    assert(runtime.pluginToolSchemas(context).some(t => t.function.name === tool));
     let last = Date.now(), maxGap = 0;
     const heartbeat = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 5);
     let drawn;
