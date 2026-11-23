@@ -3,7 +3,8 @@ const { CATEGORY } = require("./unified-memes.cjs");
 
 // Duplicate lookup is a submission requirement for each proposed record. It is
 // scoped to this chat's own space and bounded independently of model searches.
-const PAGE_SIZE = 32, MAX_PAGES = 4, MAX_READS = 256, MAX_SEARCHES = 256;
+const { identity } = require("./unified-candidates.cjs");
+const PAGE_SIZE = 100;
 const available = item => item && ["active", "pending"].includes(item.status);
 function descriptor(item, scope) {
   const subjectId = item.subjectRefs?.find(value => typeof value === "string") || item.subjectId || item.fact?.subjectId
@@ -25,21 +26,30 @@ function queries(item, scope) {
   const parts = [...new Set([text.slice(0, 80), ...text.split(/[\s，。！？；：、,.!?;:()（）"“”]+/u).filter(part => part.length >= 2).slice(0, 2)])].filter(Boolean);
   return parts.map(query => ({ kind: value.kind, query: query.slice(0, 500) }));
 }
-async function resolveExisting(ctx, scope, supplied = [], proposals = [], { profileHistory = false } = {}) {
+async function resolveExisting(ctx, scope, supplied = [], proposals = [], { profileHistory = false, relatedIds = [] } = {}) {
   ctx.signal.throwIfAborted();
-  if (proposals.length > 128 || supplied.length > MAX_READS) throw Error("本批查重条目过多，请分批提交");
   const ownSpace = ctx.api.memorySpace
     ? (await ctx.api.memorySpace({ action: "list", chatId: scope.chatId })).spaces?.find(item => item.kind === "chat" && item.ownerId === scope.chatId) : null;
   ctx.signal.throwIfAborted();
   const known = new Map(), reads = new Map(), searches = new Map();
-  let readCount = 0, searchCount = 0, stopped;
+  const identities = new Set(proposals.map(identity)), related = new Set(relatedIds);
+  const fieldKey = (subject, field) => JSON.stringify([subject, field]);
+  const fields = new Set(proposals.flatMap(record => {
+    const profile = record.attributes?.profile || {};
+    return [profile.field, profile.usage].filter(Boolean).map(field => fieldKey(record.subjectRefs?.[0], field));
+  }));
+  function relevant(item) {
+    if (related.has(item.id) || identities.has(identity(item))) return true;
+    const profile = item.attributes?.profile || {};
+    return item.subjectRefs?.some(subject => [profile.field, profile.usage].some(field => field && fields.has(fieldKey(subject, field))));
+  }
+  let stopped;
   const active = () => { ctx.signal.throwIfAborted(); if (stopped) throw stopped; };
   const read = (id, expectedRevision, suppliedRecord = false) => {
     const key = `${id}:${expectedRevision || ""}`;
     if (reads.has(key)) return reads.get(key);
     const task = (async () => {
       active();
-      if (++readCount > MAX_READS) throw Error("本批查重范围过大，请按对象或主题分批提交");
       let item;
       try { item = (await ctx.api.memory({ action: "read", chatId: scope.chatId, id, mode: "history", limit: 16000 })).item; }
       catch (error) { ctx.signal.throwIfAborted(); if (error.code === "MEMORY_NOT_FOUND") return; throw error; }
@@ -50,8 +60,10 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = [], { prof
         return;
       }
       if (expectedRevision && item.revision !== expectedRevision) throw Error("记忆在查重期间已变化，请重新查询后提交");
-      if (suppliedRecord || available(item) || profileHistory && item.category === "profile") known.set(item.id, item);
+      if (suppliedRecord || (available(item) || profileHistory && item.category === "profile") && relevant(item)) known.set(item.id, item);
     })();
+    // This cache only prevents repeat reads. Eviction never ends the search.
+    if (reads.size >= 256) reads.delete(reads.keys().next().value);
     reads.set(key, task); return task;
   };
   // Explicit revisions and updates still require current authority, including
@@ -63,9 +75,8 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = [], { prof
     if (searches.has(key)) return searches.get(key);
     const task = (async () => {
       let continuation = {};
-      for (let page = 0; page < MAX_PAGES; page++) {
+      for (;;) {
         active();
-        if (++searchCount > MAX_SEARCHES) throw Error("本批查重查询过多，请分批提交");
         const result = await ctx.api.memory({ action: "search", chatId: scope.chatId, ...(ownSpace ? { spaceId: ownSpace.id } : {}),
           mode: "history", ...input, limit: PAGE_SIZE, ...continuation });
         active();
@@ -74,9 +85,9 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = [], { prof
           await read(item.id, item.revision);
         }
         if (result.nextOffset == null) return;
+        if (!result.items?.length || !Number.isSafeInteger(result.nextOffset) || result.nextOffset <= (continuation.offset || 0)) throw Error("记忆查重分页没有前进");
         continuation = { offset: result.nextOffset, snapshot: result.snapshot, at: result.at };
       }
-      throw Error("这个对象的记忆过多，请缩小查重范围后提交");
     })();
     searches.set(key, task); return task;
   };
@@ -94,4 +105,4 @@ async function resolveExisting(ctx, scope, supplied = [], proposals = [], { prof
   ctx.signal.throwIfAborted();
   return [...known.values()];
 }
-module.exports = { resolveExisting, PAGE_SIZE, MAX_PAGES, MAX_READS, MAX_SEARCHES };
+module.exports = { resolveExisting, PAGE_SIZE };
