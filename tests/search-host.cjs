@@ -32,7 +32,23 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.deepEqual(registry.getPluginState(channel, "search", "channel", "bot", "secret:tavilyKey"), { encrypted: "fixture" });
     const saved = store.data.plugins[0];
     decidePluginAuthorization(saved, pluginAuthorization(saved).fingerprint, true);
-    const plugin = { ...channel.config.botPlugins[0], authorization: pluginAuthorization(saved), config: { webProvider: "tavily", imageProvider: "google" } };
+    const plugin = channel.config.botPlugins[0];
+    assert.equal(plugin.config.customWeb, true, "legacy service remains local");
+    Object.assign(plugin.config, { customImage: true, imageProvider: "google" });
+    const second = { id: "bot-b", enabled: true, config: { botPlugins: [registry.installedChannelPlugin(saved)] } };
+    store.data.channels.push(second);
+    saved.globalSettings = { webProvider: "brave", imageProvider: "off" };
+    const resolved = target => registry.botPluginsFor(target)[0].config;
+    assert.equal(resolved(second).webProvider, "brave");
+    assert.equal(resolved(channel).webProvider, "tavily");
+    saved.globalSettings.webProvider = "exa";
+    assert.equal(resolved(second).webProvider, "exa");
+    assert.equal(resolved(channel).webProvider, "tavily");
+    plugin.config.customWeb = false;
+    assert.equal(resolved(channel).webProvider, "exa");
+    assert.equal(resolved(channel).imageProvider, "google");
+    plugin.config.customWeb = true;
+    saved.globalSecrets = { googleKey: { encrypted: "global" }, tavilyKey: { encrypted: "global" } };
     registry.setPluginState(channel, "search", "channel", "bot", "secret:googleKey", { encrypted: "fixture" });
     const file = sessionAssetWritePath({ path, root, sessionId: "conversation", kind: "images", fileName: "source.png" });
     const bytes = Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), Buffer.alloc(65000, 1)]); fs.writeFileSync(file, bytes);
@@ -41,12 +57,13 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const drawing = await sharp(require("node:crypto").randomBytes(602 * 602 * 3),
       { raw: { width: 602, height: 602, channels: 3 } }).png().toBuffer();
     const illustration = "https://example.org/works/picture.png";
-    let requests = 0;
+    const pendingSearch = Promise.withResolvers();
+    let requests = 0, expectedKey = "fixture-key";
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, resolveChannel: id => id === "bot" ? channel : null,
-      botPluginsFor: () => [plugin], makeId: () => "fixture", safeError: String, isNapCatOneBotChannel: () => false,
+      botPluginsFor: registry.botPluginsFor, makeId: () => "fixture", safeError: String, isNapCatOneBotChannel: () => false,
       getPluginState: registry.getPluginState, setPluginState: registry.setPluginState, pluginStateScopeId: registry.pluginStateScopeId,
       channelEventByReference: (_channel, chat, id) => chat === "chat" && id === "source" ? message : null,
-      secretStore: { isSecretEnvelope: value => value?.encrypted === "fixture", decryptSecret: () => "fixture-key" },
+      secretStore: { isSecretEnvelope: value => !!value?.encrypted, decryptSecret: value => value.encrypted === "global" ? "default-key" : "fixture-key" },
       readResponseBytes: async (response, max) => { const data = Buffer.from(await response.arrayBuffer()); assert.ok(data.length <= max); return data; },
       requestPluginModel: async ({ request }) => {
         assert.deepEqual(request.tools[0].search_content_types, ["image", "text"]);
@@ -58,6 +75,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       },
       guardedFetch: async (url, options) => {
         requests++;
+        if (["https://local.example/v1/models", "https://shared.example/v1/models"].includes(url)) {
+          assert.equal(new Headers(options.headers).get("Authorization"), url.includes("local.example") ? "Bearer fixture-key" : "Bearer default-key");
+          return Response.json({ data: [{ id: "fixture-model" }] });
+        }
         if (process.argv.includes("--live-reference") && ["xn--pssy23gqgbz2d718b.com", "raw.githubusercontent.com"].includes(new URL(url).hostname))
           return fetch(url, options);
         if (url === "https://api.anysearch.com/mcp" && process.argv.includes("--live-anysearch")) return fetch(url, options);
@@ -72,7 +93,8 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
           assert.equal(options.headers["x-goog-api-key"], "fixture-key");
           return Response.json({ responses: [{ webDetection: { pagesWithMatchingImages: [{ url: "https://example.org/source", pageTitle: "Source" }] } }] });
         }
-        assert.equal(url, "https://api.tavily.com/search"); assert.equal(body.api_key, "fixture-key");
+        assert.equal(url, "https://api.tavily.com/search"); assert.equal(body.api_key, expectedKey);
+        if (body.query === "overlap") await pendingSearch.promise;
         return Response.json({ results: [{ title: "Example", url: "https://example.org", content: "Verified source" }] });
       } });
     const context = { requestId: "request", purpose: "chat", channelPrincipal: { source: "channel", channelId: "bot", chatId: "chat", senderId: "member", messageType: "group" } };
@@ -84,6 +106,22 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const images = await complete("plugin__search__search_by_image", { action: "start", requestKey: "image", input: { messageId: "source" } });
     assert.equal(images.pages[0].title, "Source"); assert.equal(requests, 1);
     assert.equal((await complete("web_search", { query: "example" })).results[0].snippet, "Verified source");
+    const ongoing = await runtime.runNativePluginTool("plugin__search__web_search",
+      { action: "start", requestKey: "overlap", input: { query: "overlap" } }, context);
+    try {
+      assert.equal(ongoing.status, "running");
+      const page = await complete("plugin__search__read_webpage", { action: "start", requestKey: "overlapping-page",
+        input: { url: "https://example.org/gallery", includeImages: true } });
+      assert.equal(page.images[0].imageUrl, illustration);
+    } finally { pendingSearch.resolve(); }
+    await complete("plugin__search__web_search", { action: "status", jobId: ongoing.id });
+    saved.globalSettings.webProvider = "tavily";
+    plugin.config.customWeb = false; expectedKey = "default-key";
+    await complete("web_search", { query: "inherited" });
+    plugin.config.customWeb = true; expectedKey = "fixture-key";
+    registry.deletePluginState(channel, "search", "channel", "bot", "secret:tavilyKey");
+    await assert.rejects(complete("web_search", { query: "missing-local-key" }), /Tavily API Key/i);
+    registry.setPluginState(channel, "search", "channel", "bot", "secret:tavilyKey", { encrypted: "fixture" });
     plugin.config.webProvider = "openai";
     const native = await complete("web_search", { query: "Character art", resultType: "images" });
     assert.equal(native.images[0].imageUrl, illustration);
@@ -98,6 +136,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const actor = { channelId: "bot", chatId: "chat", pluginId: "image-studio" };
     const adopted = vault.handoff(actor, { action: "fromPublished", url: ready.reference.url }, () => true);
     assert.deepEqual(vault.read(actor, adopted.ref).data, drawing);
+    const reply = fromHost("features/channels/channel-behavior.cjs").parseChannelBehavior(
+      `<turn><reply><image src="${ready.reference.url}"/>是你记得的画面吗？</reply></turn>`).reply;
+    assert.deepEqual(fromHost("features/channels/reply-inline-images.cjs").inlineReplyImages(reply).urls, [ready.reference.url]);
     if (process.argv.includes("--live-reference")) {
       const sourceUrl = "https://xn--pssy23gqgbz2d718b.com/works/gpt202611200001.html";
       const page = await complete("plugin__search__read_webpage", { action: "start", requestKey: "real-gallery", input: { url: sourceUrl, includeImages: true } });
@@ -127,6 +168,18 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       assert.equal(live.provider, "anysearch"); assert.ok(live.content.length);
       console.log("Live anonymous AnySearch search completed through the installed plugin worker and guarded HTTP interface");
     }
+    const drawingPackage = await installer.importPluginFromPath({ pluginPath: path.resolve(__dirname, "../plugins/image-studio") });
+    const drawingPlugin = arrays("plugins").find(item => item.id === drawingPackage.id);
+    decidePluginAuthorization(drawingPlugin, pluginAuthorization(drawingPlugin).fingerprint, true);
+    drawingPlugin.globalSettings = { provider: "compatible-images", compatibleBaseUrl: "https://shared.example/v1", compatibleImageModel: "fixture-model" };
+    drawingPlugin.globalSecrets = { compatibleKey: { encrypted: "global" } };
+    const connection = channel.config.botPlugins.find(item => item.id === drawingPlugin.id);
+    Object.assign(connection.config, { customService: true, provider: "compatible-images", compatibleBaseUrl: "https://local.example/v1", compatibleImageModel: "fixture-model" });
+    registry.setPluginState(channel, drawingPlugin.id, "channel", channel.id, "secret:compatibleKey", { encrypted: "fixture" });
+    const catalog = () => runtime.runGlobalPluginAction(drawingPlugin.id, "model_catalog", { source: "compatible", target: "image" }, channel.id);
+    assert.equal((await catalog()).models[0].id, "fixture-model");
+    connection.config.customService = false;
+    assert.equal((await catalog()).models[0].id, "fixture-model");
     console.log("Search host integration: installed worker, search citations, gallery links, original image transfer, attachment upload, migration and revocation passed");
   } finally {
     runtime?.clearChannelPluginPollTimers?.({ id: "bot" }); await shutdownPluginWorkers();

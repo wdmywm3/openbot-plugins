@@ -1,8 +1,11 @@
 {
   "id": "dice-maiden",
   "name": "骰娘",
-  "version": "1.3.3",
-  "requiredFeatures": ["qqGateway"],
+  "version": "1.3.4",
+  "requiredFeatures": [
+    "qqGateway",
+    "pluginSettingScopes"
+  ],
   "metadata": {
     "platforms": [
       "napcat",
@@ -178,50 +181,77 @@
       "defaultExpression": {
         "type": "string",
         "title": "默认骰式",
-        "default": "1d100"
+        "default": "1d100",
+        "scope": "global",
+        "chatOverride": true
       },
       "maxDice": {
         "type": "integer",
         "title": "单次最多骰子",
         "minimum": 1,
         "maximum": 100,
-        "default": 20
+        "default": 20,
+        "scope": "global",
+        "chatOverride": true
       },
       "maxSides": {
         "type": "integer",
         "title": "骰子最大面数",
         "minimum": 2,
         "maximum": 10000,
-        "default": 1000
+        "default": 1000,
+        "scope": "global",
+        "chatOverride": true
       },
       "maxRolls": {
         "type": "integer",
         "title": "单次最多重复次数",
         "minimum": 1,
         "maximum": 20,
-        "default": 10
+        "default": 10,
+        "scope": "global",
+        "chatOverride": true
       },
       "maxCardCount": {
         "type": "integer",
         "title": "单次最多制卡数",
         "minimum": 1,
         "maximum": 10,
-        "default": 3
+        "default": 3,
+        "scope": "global",
+        "chatOverride": true
       },
       "showDetails": {
         "type": "boolean",
         "title": "显示每颗骰子",
-        "default": true
+        "default": true,
+        "scope": "global",
+        "chatOverride": true
       },
       "replyToSource": {
         "type": "boolean",
         "title": "引用触发消息",
-        "default": false
+        "default": false,
+        "scope": "global",
+        "chatOverride": true
       },
       "statsEnabled": {
         "type": "boolean",
         "title": "记录本会话统计",
-        "default": true
+        "default": true,
+        "scope": "chat"
+      },
+      "rollRules": {
+        "type": "boolean",
+        "title": "骰子与制卡",
+        "scope": "instance",
+        "default": false
+      },
+      "rollDisplay": {
+        "type": "boolean",
+        "title": "回复显示",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -233,16 +263,54 @@
         "id": "settings",
         "title": "设置",
         "fields": [
+          "statsEnabled",
+          "rollRules",
+          "rollDisplay"
+        ],
+        "widgets": []
+      }
+    ],
+    "chatAudiences": [
+      "group:member",
+      "group:owner",
+      "private:member",
+      "private:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "rollRulesDefaults",
+        "title": "骰子与制卡",
+        "fields": [
           "defaultExpression",
           "maxDice",
           "maxSides",
           "maxRolls",
-          "maxCardCount",
+          "maxCardCount"
+        ]
+      },
+      {
+        "id": "rollDisplayDefaults",
+        "title": "回复显示",
+        "fields": [
           "showDetails",
-          "replyToSource",
-          "statsEnabled"
+          "replyToSource"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "rollRules",
+        "sections": [
+          "rollRulesDefaults"
         ],
-        "widgets": []
+        "summary": "defaultExpression"
+      },
+      {
+        "mode": "rollDisplay",
+        "sections": [
+          "rollDisplayDefaults"
+        ],
+        "summary": "showDetails"
       }
     ]
   },

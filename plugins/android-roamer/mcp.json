@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "phone": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/device-server.cjs",
+        "${PLUGIN_DATA}"
+      ],
+      "enabled_tools": [],
+      "native_tools": [
+        "bphone_device"
+      ]
+    }
+  }
+}

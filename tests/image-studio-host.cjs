@@ -39,7 +39,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const sourceFile = sessionAssetWritePath({ path, root, sessionId: "session", kind: "images", fileName: "source.png" }); fs.writeFileSync(sourceFile, png);
     const message = { id: "reference", chatId: "chat", media: [{ type: "image", assetRef: sessionAssetRef("session", "images", "source.png") }] };
     const requests = [], nativeCalls = []; let slowStarted = false, slowCanceled = false, nativeStarted = false, nativeCanceled = false;
+    const completionMessages = [];
     runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: arrays, resolveChannel: id => id === channel.id ? channel : null,
+      toolCompletions: {
+        scope: (_channel, _plugin, _principal, ctx, previous) => ctx.requestId === "drawing-error-receipt" ? previous || { requestMessageId: "draw-request" } : null,
+        notify: async job => { completionMessages.push(job); },
+      },
       botPluginsFor: () => [plugin], makeId: () => "fixture-" + Math.random().toString(16).slice(2), safeError: String,
       pluginData: { database: (...args) => pluginData.database(...args) },
       isNapCatOneBotChannel: () => false, getPluginState: registry.getPluginState, setPluginState: registry.setPluginState, pluginStateScopeId: registry.pluginStateScopeId,
@@ -69,6 +74,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
           return new Response(new ReadableStream({ cancel() { slowCanceled = true; } }), { status: 200, headers: { "content-type": "text/event-stream" } });
         }
         if (body.prompt === "denied") return Response.json({ error: { message: "fixture-key" } }, { status: 429 });
+        if (body.prompt === "rejected size") return Response.json({ error: { code: "unsupported_value", param: "size", message: "fixture-key" } }, { status: 400 });
         if (body.prompt === "animated") {
           assert.equal(body.model, "gpt-image-2.6-flare"); assert.equal(body.output_format, "gif");
           assert.equal(body.frame_count, 2); assert(!("stream" in body)); assert(!("partial_images" in body));
@@ -91,14 +97,23 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const builtin = plugin.skills;
     plugin.skills = effectiveSkills(builtin, plugin.ui, null);
     const primary = plugin.skills.find(skill => skill.name === "image-studio:imagegen");
+    const guide = await runtime.readPluginSkillForModel(primary.id, {}, context);
+    assert.match(guide.skillContext, /未明确指定新图的画面时[,，]自行设计一幕/);
+    assert.match(guide.skillContext, /在主体或整体构图上产生一眼可见的变化/);
     assert((await runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context)).success);
     plugin.skills = effectiveSkills(builtin, plugin.ui, { target: "imagegen", content: "自定义正文", revision: "fixture",
       resources: { "references/light.md": "杯沿反射窗外的暖光。" } });
     assert.match((await runtime.readPluginSkillForModel(primary.id, {}, context)).skillContext, /自定义正文/);
     assert.match((await runtime.readPluginSkillForModel(primary.id, { resource: "references/light.md" }, context)).skillContext, /杯沿反射窗外的暖光/);
     await assert.rejects(runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context), /没有这个参考文件/);
-    plugin.skills = builtin;
     const tool = "plugin__image-studio__draw_image";
+    const drawTool = runtime.pluginToolSchemas(context).find(t => t.function.name === tool);
+    assert.ok(drawTool);
+    const promptDescription = drawTool.function.parameters.properties.input.properties.prompt.description;
+    assert.match(promptDescription, /用户未指定新图画面时自行设计/);
+    assert.match(promptDescription, /动作、视角或主体布局上明显不同的新构思/);
+    assert.match(promptDescription, /复刻、修复和局部编辑按用户指定范围/);
+    plugin.skills = builtin;
     async function finish(input, requestKey, expectedStatus = "completed", actor = context, toolName = tool) {
       let job = await runtime.runNativePluginTool(toolName, { action: "start", requestKey, input }, actor);
       for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, actor); }
@@ -111,7 +126,6 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     }
     assert.equal(requests.length, 0);
     const owner = { ...context, channelPrincipal: { ...context.channelPrincipal, senderId: "owner" } };
-    assert(runtime.pluginToolSchemas(context).some(t => t.function.name === tool));
     let last = Date.now(), maxGap = 0;
     const heartbeat = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 5);
     let drawn;
@@ -184,13 +198,48 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const slow = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "slow", input: { prompt: "slow" } }, context);
     for (let i = 0; !slowStarted && i < 500; i++) await delay(10);
     assert(slowStarted, JSON.stringify(await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: slow.id }, context))); assert.equal(slow.status, "running");
+    const duringDraw = await finish({ url: drawn.result.images[0].url }, "recover-during-draw", "completed", owner,
+      "plugin__image-studio__recover_image");
+    assert.ok(duringDraw.result.images[0].url);
     await runtime.runPluginTool({ action: "cancel", pluginId: plugin.id, jobId: slow.id }, context);
     for (let i = 0; !slowCanceled && i < 100; i++) await delay(10);
     assert(slowCanceled, "cancel closes the underlying HTTP response"); assert.equal(requests.length, count + 1);
+    const receiptContext = { ...owner, requestId: "drawing-error-receipt" };
+    const failed = await finish({ prompt: "rejected size" }, "rejected-size", "failed", receiptContext);
+    const failureText = "画图服务不接受本次 size 的取值（HTTP 400）。";
+    assert.equal(failed.error, failureText, "the submitter sees the original plugin failure");
+    const result = await runtime.runPluginTool({ action: "result", pluginId: plugin.id, jobId: failed.id }, receiptContext);
+    assert.equal(result.error, failureText, "the model's result query receives the diagnostic");
+    runtime.startCompletionNotifications();
+    for (let i = 0; i < 200 && !completionMessages.some(job => job.id === failed.id); i++) await delay(25);
+    const receipt = completionMessages.find(job => job.id === failed.id);
+    assert.equal(receipt?.cardError, failureText);
+    assert.equal(receipt?.publicError, failureText, "the chat event and desktop card receive the same safe reason");
+    await runtime.stopCompletionNotifications();
     let denied = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "denied", input: { prompt: "denied" } }, context);
     for (let i = 0; denied.status === "running" && i < 500; i++) { await delay(20); denied = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: denied.id }, context); }
     assert.equal(denied.status, "failed"); assert(!JSON.stringify(denied).includes("fixture-key"));
     assert(rows.some(row => row.level === "warn" && row.message === "上游服务限制了本次请求（HTTP 429）。"));
+    plugin.config.provider = "codex";
+    fs.writeFileSync(sourceFile, gif); // QQ can preserve a PNG-looking filename for GIF bytes.
+    const motionRefs = [{ messageId: "reference" }, { assetRef: drawn.result.images[0].assetRef },
+      { url: nativeGif.result.images[0].url }];
+    let ticks = 0;
+    const duringDecode = setInterval(() => ticks++, 5);
+    try {
+      await finish({ prompt: "match motion", references: motionRefs }, "motion-refs", "completed", owner);
+    } finally { clearInterval(duringDecode); }
+    assert(ticks > 0);
+    const [instruction, first, still, otherFirst, sheet, otherSheet] = nativeCalls.at(-1).input[0].content;
+    assert.equal(nativeCalls.at(-1).input[0].content.length, 6);
+    assert.match(instruction.text, /图4是图1的动作参考/);
+    assert.match(instruction.text, /图5是图3的动作参考/);
+    assert.equal(still.image_url, "data:image/png;base64," + encoded);
+    for (const image of [first, otherFirst, sheet, otherSheet]) assert.match(image.image_url, /^data:image\/png;base64,/);
+    assert.notEqual(first.image_url, sheet.image_url);
+    fs.writeFileSync(sourceFile, Buffer.from("unsupported"));
+    const invalid = await finish({ prompt: "invalid", references: [{ messageId: "reference" }] }, "bad-reference", "failed", owner);
+    assert.match(invalid.error, /图片格式不受支持，请使用 PNG、JPEG、WebP 或 GIF/);
     plugin.config.instanceHourly = 1;
     const beforeQuota = requests.length;
     const limited = await finish({ prompt: "quota" }, "over-quota", "failed", owner);

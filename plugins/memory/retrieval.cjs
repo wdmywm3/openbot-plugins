@@ -1,7 +1,7 @@
 "use strict";
 const { hash } = require("./storage.cjs");
 const { lexicalRanks, memoryApplicability, memoryChunks } = require("./lib/features/channels/channel-memory-retrieval.cjs");
-const { sourceImage, imageFailureStore, writeImageBatch } = require("./image-indexing.cjs");
+const { attachmentFailureCode, attachmentFailures, sourceImage, imageFailureStore, writeImageBatch } = require("./image-indexing.cjs");
 const revision = entry => Number.isSafeInteger(entry.revision) ? entry.revision : parseInt(hash(JSON.stringify(entry)).slice(0, 12), 16);
 const inputText = entry => String(entry.title || "") + "\n" + String(entry.content || "");
 // Immutable passage IDs also support rollback and external Markdown edits,
@@ -30,13 +30,24 @@ function createRetrieval(ctx, storage, scope) {
       catch { ctx.signal?.throwIfAborted(); failed = true; continue; }
       if (!item || item.deleted || item.routeBlocked || item.memoryExcluded) continue;
       for (const attachment of (item.attachments || []).filter(item => item.type === "image").slice(0, 4)) {
+        const photo = sourceImage(item, attachment), known = failures.known(photo, current.version);
+        if (attachmentFailures.has(known)) continue;
         let asset;
         try { asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: source.id, sourceVersion: item.version, index: attachment.index, kind: "image" }); }
-        catch { ctx.signal?.throwIfAborted(); failed = true; continue; }
+        catch (error) {
+          ctx.signal?.throwIfAborted();
+          const code = attachmentFailureCode(error);
+          if (code) failures.record(photo, current.version, code);
+          else failed = true;
+          continue;
+        }
+        if (asset.available === false && asset.reason === "not_retained") {
+          failures.record(photo, current.version, "ATTACHMENT_FILE_MISSING");
+          continue;
+        }
         if (!asset.ref || seen.has(asset.ref)) continue;
         seen.add(asset.ref);
         const id = `${entry.id}@${revision(entry)}:image:${hash(asset.ref).slice(0, 24)}`;
-        const photo = sourceImage(item, attachment), known = failures.known(photo, current.version);
         images.set(id, { photo, entryId: entry.id, assetRef: asset.ref, known });
         // Keep the slot so an existing partial receipt still points to the same record.
         chunks.push({ id, revision: revision(entry),

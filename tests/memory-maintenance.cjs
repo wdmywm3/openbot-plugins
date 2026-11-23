@@ -66,6 +66,13 @@ async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) 
     assert.equal(state(storage, mislabeled).maintenanceFailures, 0);
     assert(!maintenance.pending(storage, mislabeled));
 
+    const mixed = scopeFor("working-budget-pages"); enabled(mixed);
+    const later = create(mixed, "下周继续复查正在进行的项目", { status: "pending", expiresAt: Date.now() + 86400000 });
+    for (let i = 0; i < 201; i++) create(mixed, "手工资料 " + i, {}, { ...actor(mixed.chatId), id: "desktop:owner" });
+    handler = async data => ({ decisions: data.records.map(record => record.id === later.id
+      ? { ...keep(record), action: "promote", basis: "ongoing", tier: "working", reason: "项目仍在进行，后续复查依赖这个背景" } : keep(record)) });
+    await drain(mixed);
+    assert.equal(read(mixed, later.id).status, "active", "manual records on five pages do not exhaust the plugin's working budget");
     const onlyExpired = scopeFor("only-expired"); enabled(onlyExpired); const oldCandidate = create(onlyExpired, "过期候选无需模型重判", { status: "pending", expiresAt: Date.now() - 1 });
     const beforeExpired = modelCalls; await drain(onlyExpired); assert.equal(modelCalls, beforeExpired); assert.equal(read(onlyExpired, oldCandidate.id).status, "archived");
     const empty = scopeFor("empty"); enabled(empty); const beforeEmpty = modelCalls; await drain(empty); assert.equal(modelCalls, beforeEmpty, "no records makes no model request");

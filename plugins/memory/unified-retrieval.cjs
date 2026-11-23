@@ -2,6 +2,8 @@
 const { get, put, readMemory, catalog } = require("./unified-state.cjs");
 const { createRetrieval } = require("./retrieval.cjs");
 const { lexicalRanks, memoryApplicability } = require("./lib/features/channels/channel-memory-retrieval.cjs");
+const { profileInfo } = require("./lib/features/channels/channel-member-memory-statement.cjs");
+const searchable = item => item.category === "profile" ? [item.profileInfo?.subjectName, ...(item.subjectRefs || []), item.profileInfo?.facet, item.preview].filter(Boolean).join(" ") : item.preview;
 const { searchTokens } = require("./lib/features/channels/channel-memory-policy.cjs");
 function applicable(record, options) {
   if (record.category === "followup_handoff") return false;
@@ -74,12 +76,12 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
     for (const item of matches.items || []) {
       if (!applicable(item, options)) continue;
       const previous = byId.get(item.id);
-      const score = value => lexicalRanks(query, [{ ...value, content: value.preview }], Date.now())[0].lexicalScore;
+      const score = value => lexicalRanks(query, [{ ...value, content: searchable(value) }], Date.now())[0].lexicalScore;
       if (!previous || previous.revision !== item.revision || score(item) > score(previous)) byId.set(item.id, item);
     }
   }
   const entries = [...byId.values()];
-  const ranked = options.imageOnly ? [] : lexicalRanks(query, entries.map(item => ({ ...item, content: item.preview })), Date.now()).filter(row => row.lexicalScore > 0);
+  const ranked = options.imageOnly ? [] : lexicalRanks(query, entries.map(item => ({ ...item, content: searchable(item) })), Date.now()).filter(row => row.lexicalScore > 0);
   const scores = new Map(ranked.map((row, index) => [row.entry.id, 0.35 / (61 + index)]));
   let mode = "text", fallbackReason = "";
   if (ctx.api.embeddings && ctx.api.vectorIndex) try {
@@ -130,9 +132,10 @@ async function search(ctx, storage, scope, query, limit = 8, options = {}) {
   if (options.raw === true) return { records: groups.flat().slice(0, limit), mode, fallbackReason };
   const records = []; let used = 0;
   for (const group of groups) {
-    const values = group.map(({ id, revision, kind, subtype, content, conditions, progress, validFrom, validTo, recallExcerpt, recallOffset, nextOffset }) => ({ id, revision, kind, subtype,
+    const values = group.map(row => { const { id, revision, kind, subtype, content, conditions, progress, validFrom, validTo, recallExcerpt, recallOffset, nextOffset } = row;
+      return { id, revision, kind, subtype, ...(row.category === "profile" ? { category: "profile", subjectRefs: row.subjectRefs, profileInfo: row.profileInfo || profileInfo(row) } : {}),
       content: recallExcerpt || content.slice(0, 768), truncated: !!recallOffset || content.length > 768 || nextOffset != null,
-      conditions, progress, validFrom, validTo, read: { action: "read", id, revision, offset: recallOffset || 0, limit: 768 } }));
+      conditions, progress, validFrom, validTo, read: { action: "read", id, revision, offset: recallOffset || 0, limit: 768 } }; });
     const size = JSON.stringify(values).length; if (used + size > 3500) continue; used += size; records.push(...values);
   }
   records.sort((a, b) => a.id.localeCompare(b.id) || a.read.offset - b.read.offset);

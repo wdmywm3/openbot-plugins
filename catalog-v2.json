@@ -4,8 +4,8 @@
     {
       "id": "android-roamer",
       "name": "bPhone",
-      "version": "2.5.0",
-      "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
+      "version": "4.1.1",
+      "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
       "category": "ai",
       "main": "index.js",
       "permissions": [
@@ -13,55 +13,100 @@
         "memory:read",
         "memory:write",
         "retrieval",
-        "resource:android",
-        "resource:android:autonomous",
         "hook:context",
         "state",
         "reply",
-        "share",
-        "resource:android:self"
+        "mcp",
+        "assets",
+        "state:global",
+        "script:run"
       ],
       "metadata": {
-        "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
+        "usage": "绑定设备后，在聊天中告诉 Bot 目标。Bot 可以读屏、查看截图和逐项调用手机动作。",
         "platforms": [],
         "requirements": [
-          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存跨会话经验",
+          "已在 Windows x64、OpenBot 0.1.119 验证",
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "探索经验接入共享混合检索，复用宿主模型并核对当前经验版本。",
+        "changelog": "在 OpenBot 0.1.128 中可同时操作不同手机，同一台手机的操作按顺序执行。",
         "components": [
           "commands",
           "hooks",
           "tools",
-          "background",
-          "skills"
+          "skills",
+          "mcp"
         ],
-        "hasBackgroundAgent": true
+        "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
+          "path": "device-driver.cjs",
+          "size": 17947,
+          "sha256": "b1791c70bea1c27e8a365abc9d17a838956e09dac10243a437675d40cf4998e5"
+        },
+        {
+          "path": "device-server.cjs",
+          "size": 2290,
+          "sha256": "53f003878acf63f233e720c83b89ad0cfb365d1391f05ef724f2e909e36f76fd"
+        },
+        {
+          "path": "device-setup.cjs",
+          "size": 12942,
+          "sha256": "b80505a13c88ace4820d72ce688d52bd254821b5ae1e921cb3c9808bd72c01f2"
+        },
+        {
           "path": "index.js",
-          "size": 48959,
-          "sha256": "152ac9d1096336ceb7618717d3b7534f745445cfc642f8bbaa9a67a0a3a7d1aa"
+          "size": 46778,
+          "sha256": "96bd6399ee97f04f297a4622669608ff3a318d862e96e18fc6dff883a6403fcc"
+        },
+        {
+          "path": "mcp.json",
+          "size": 272,
+          "sha256": "505f68b94b2d2e5b5c75228affc2819c6c816448ad827a9b879351bba710aef9"
+        },
+        {
+          "path": "package-lock.json",
+          "size": 20673,
+          "sha256": "1b485acbe8e826724c0298af74763473daa7134da656e62115b2475e1412cb44"
+        },
+        {
+          "path": "package.json",
+          "size": 209,
+          "sha256": "64d475c476b4266e16d00fecda0f73cfa333ad2efa941f9d66440ac563be8e7f"
         },
         {
           "path": "plugin.json",
-          "size": 15891,
-          "sha256": "7e3b37817028e01d651f3a48345519247a313c6a5c629225a43ef4bd6854698e"
+          "size": 25481,
+          "sha256": "b4596067ac33bb0e98d94905ad2e6f49910eeca0b1c66391502f323a3add8f55"
         },
         {
           "path": "skills/android-roaming/SKILL.md",
-          "size": 7069,
-          "sha256": "e2f7a55475b3691b8b424f57d5c02955688521a762289d1b48dc8eb2f2c00a1a"
+          "size": 4835,
+          "sha256": "e948bda702b3dd99a8555b17c377680462ad80bb0a50cd8f5000c4ccc475cb9a"
+        },
+        {
+          "path": "ui/devices.css",
+          "size": 1319,
+          "sha256": "69f078e962767e52a8602ff7153ba2fa69ff5350ad333e9013e680757207cae6"
+        },
+        {
+          "path": "ui/devices.html",
+          "size": 1478,
+          "sha256": "4577a53fa15621d94b2cc489a068b920004d7fea897f0e1a563acab0ae4d7f8c"
+        },
+        {
+          "path": "ui/devices.js",
+          "size": 7716,
+          "sha256": "105fbe28b0349e5a1d7ad8bc3abd90dcb1e4ead0399e6d4db8858dff7e8ee2c8"
         }
       ]
     },
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.0",
+      "version": "1.16.6",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -89,7 +134,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "阅读笔记和探索经验接入共享混合检索，后台分批补建旧笔记索引。",
+        "changelog": "支持向微信绑定私聊发送通知，完整送达后记录成功。未完整送达时保留原因；评论、投币及互动触发本地配额时显示实际限制。",
         "components": [
           "commands",
           "hooks",
@@ -99,7 +144,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "MEDIA.md",
@@ -108,8 +153,8 @@
         },
         {
           "path": "index.js",
-          "size": 229095,
-          "sha256": "3de0c5df4c076e147111ff4a8b6e922352627789a308b8e058bbd08bc9f60830"
+          "size": 232746,
+          "sha256": "fd818d0c03daca15cf689eacfa8eaf70b37a9dcb9dcaccb3955a1638c2e0f0d8"
         },
         {
           "path": "media-mcp/launch.py",
@@ -128,8 +173,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 58630,
-          "sha256": "0f99a1be205c08fe2afd70378b9892dd07404168929a13c1617ae54708c5b4a8"
+          "size": 69836,
+          "sha256": "051e74b351adf8c2937dfe5c53b1036dddd42c8981dd78a5e4b7f962b5810a86"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -154,10 +199,76 @@
       ]
     },
     {
+      "id": "computer-use",
+      "name": "电脑操作",
+      "version": "0.1.1",
+      "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
+      "category": "utility",
+      "main": "index.js",
+      "permissions": [
+        "mcp",
+        "assets"
+      ],
+      "metadata": {
+        "usage": "在主人私聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
+        "platforms": [],
+        "requirements": [
+          "Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。",
+          "查看截图需要支持图片的模型。"
+        ],
+        "changelog": "",
+        "homepage": "https://github.com/wdmywm3/openbot-plugins",
+        "components": [
+          "tools",
+          "skills",
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 2218,
+          "sha256": "64abf15911b9ff7bedb30a91ad187817d80b4ac80251a80330b1ed464a65e4a9"
+        },
+        {
+          "path": "desktop_server.py",
+          "size": 21206,
+          "sha256": "a4ac031cbeb8b3987409180f649506098ceb221b797db18a6c62744b8c7a2d90"
+        },
+        {
+          "path": "index.js",
+          "size": 2647,
+          "sha256": "90f53d415e2a1d2eae18d9d942b4e2f771b4458aad8d6f5ba16b4535c23a2ffe"
+        },
+        {
+          "path": "mcp.json",
+          "size": 299,
+          "sha256": "16c64702e019047755d36f996753d04edf0ba2b549d7a7d5f8e6e719def81836"
+        },
+        {
+          "path": "plugin.json",
+          "size": 5824,
+          "sha256": "6832270da2ff64459639377aac5dd64af9ae6e0ce25ec7a783eaa3db86937cab"
+        },
+        {
+          "path": "requirements.lock",
+          "size": 98,
+          "sha256": "19608e47b2066accf50b0a8a0b28c14dd069103c59d47a715c383504b3279be8"
+        },
+        {
+          "path": "skills/computer-use/SKILL.md",
+          "size": 3054,
+          "sha256": "23eb807df200f422853f7e100cdc8f5448f35c95eb2c728eab595c01a61095af"
+        }
+      ]
+    },
+    {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.1.0",
-      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+      "version": "1.1.3",
+      "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
       "category": "subscription",
       "main": "index.js",
       "permissions": [
@@ -172,34 +283,35 @@
         "usage": "/monitorresolve 核对聊天记录后确认或重试结果不明的推送\n/monitorstatus 查看内容监控状态\n/monitorcheck 立即执行一次内容检查",
         "platforms": [
           "napcat",
-          "qqbot"
+          "qqbot",
+          "wechat"
         ],
         "requirements": [],
-        "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。",
+        "changelog": "订阅推送只在确认完整发送后计入成功。部分送达或缺少回执时可查看原因并核对。",
         "components": [
           "commands",
           "background"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "index.js",
-          "size": 24529,
-          "sha256": "c1a5b6552c6db79849d287540161d599c3ecf91a66aa4b245e1c33ab7df48690"
+          "size": 25722,
+          "sha256": "46311fc1ace801bddcdd8933a15afb81399836b21b7d5c1a498a6f802c71e0ef"
         },
         {
           "path": "plugin.json",
-          "size": 6313,
-          "sha256": "babc532c557ed5a62f66947391cfc34b431842def85d71911e87a153d3004fd8"
+          "size": 6916,
+          "sha256": "0507d4a2ecae19b517921a151f7ac18ab57118f6e78956b15ce3ae21df357869"
         }
       ]
     },
     {
       "id": "daily-checkin",
       "name": "每日签到",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "按群或私聊记录每日签到、连续天数和积分排行",
       "category": "community",
       "main": "index.js",
@@ -222,7 +334,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -231,15 +343,15 @@
         },
         {
           "path": "plugin.json",
-          "size": 2015,
-          "sha256": "5598f4f2ffcc53d272d6a83987403c3d6062d96d410e310cd381ffbca62a4d8f"
+          "size": 2925,
+          "sha256": "9eaf1b38d4bb771a4ff5a3b0179b9d1b85a11d81f069dac73aee38d533c171e9"
         }
       ]
     },
     {
       "id": "dice-maiden",
       "name": "骰娘",
-      "version": "1.3.3",
+      "version": "1.3.4",
       "description": "通用/暗骰、丰富骰式、CoC 7 版检定、对抗检定、角色卡和疯狂症状",
       "category": "entertainment",
       "main": "index.js",
@@ -263,7 +375,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -277,15 +389,53 @@
         },
         {
           "path": "plugin.json",
-          "size": 6098,
-          "sha256": "cd0d5cd194d85abe95d9b8b3452b3dbdec058246f7a0868f6b405f610b6f608e"
+          "size": 7604,
+          "sha256": "78c564b2857bc794e069eb3a349faa35e965619d4595abee106c942158809678"
+        }
+      ]
+    },
+    {
+      "id": "google-workspace",
+      "name": "Google Workspace",
+      "version": "1.0.0",
+      "description": "连接 Google Workspace 的官方远程 MCP 服务。每个产品单独授权。",
+      "category": "integration",
+      "main": "",
+      "permissions": [
+        "mcp"
+      ],
+      "metadata": {
+        "usage": "在插件详情中选择需要的服务，填写项目中为 AI Agent 登记的 OAuth 客户端。授权服务器使用 https://accounts.google.com。",
+        "platforms": [],
+        "requirements": [
+          "Google Workspace Developer Preview 项目，所需产品 API 已启用。",
+          "每项服务使用对应的 Google OAuth 权限范围。"
+        ],
+        "changelog": "",
+        "homepage": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+        "components": [
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "files": [
+        {
+          "path": "mcp.json",
+          "size": 776,
+          "sha256": "a3a54ae825b855375e149219187446b1bd4f19b320a550f85f0f86d2b5ec6072"
+        },
+        {
+          "path": "plugin.json",
+          "size": 954,
+          "sha256": "4aabe13e4433acf37aaca78d66a3ef2b76f5ed5bf83a2ffb2189f76e3cfb0c3a"
         }
       ]
     },
     {
       "id": "group-digest",
       "name": "群聊总结",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "调用机器人 Agent 总结当前群聊中的近期消息",
       "category": "ai",
       "main": "index.js",
@@ -307,7 +457,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "dadee2da83cd80749317c6303fc1ad36615a3045",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -316,16 +466,16 @@
         },
         {
           "path": "plugin.json",
-          "size": 1637,
-          "sha256": "860c408a7d6ff5a82b81857dacc27f0cbbd0b2f584ab93861c141502434f4e3d"
+          "size": 2315,
+          "sha256": "f32f35ff6824bd5fc4bce8088ddd43528e1fe8464299c59b1d9809b1c26f4eaa"
         }
       ]
     },
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.4.0",
-      "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+      "version": "0.6.5",
+      "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
@@ -338,7 +488,9 @@
         "state",
         "state:global",
         "model:request",
-        "model:select"
+        "model:select",
+        "conversation",
+        "conversation:notify"
       ],
       "metadata": {
         "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
@@ -347,32 +499,32 @@
           "qqbot"
         ],
         "requirements": [
-          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
+          "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生成图片可在当前聊天交给其他插件使用；区分表情成品和改稿，支持发送后的自动收藏。",
+        "changelog": "用户只给主题或参考图时，Bot 会自行构思画面。参考图用于创作新图时，会设计明显不同的动作、视角或构图。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
+      "ref": "1377402b3aeea9b9cd427c71a07c4101610be63e",
       "files": [
         {
           "path": "README.md",
-          "size": 8215,
-          "sha256": "bc98eef2f84dd429e19eff16d620fd17ae68f09d41dd2e7b79488fea1f85c11c"
+          "size": 9860,
+          "sha256": "c6068d465102e6b2faafd62b887194f04861ebc3ce912cd9c7fa07a2610be69c"
         },
         {
           "path": "index.js",
-          "size": 39395,
-          "sha256": "32fea4dbb2b650435892c40e196efb7c5fcf8ef3488cbb321426f9b67aae83c8"
+          "size": 49308,
+          "sha256": "ccb95cecd5e4d340dc2140fae149272fd9e510e930061dc63aa08bf8fff5f456"
         },
         {
           "path": "plugin.json",
-          "size": 23234,
-          "sha256": "73c8217062627b5e43a586b807b16414bc640110727f9924ed6472dfc5ed004c"
+          "size": 27382,
+          "sha256": "ea4a7c0400d4fdbc704a1abcde50b728191ccc93c5de9854d20a942cdcf6aed2"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -381,18 +533,18 @@
         },
         {
           "path": "skills/gpt-image/SKILL.md",
-          "size": 1792,
-          "sha256": "8baa8742e01b0500a0bb1e365ffe2d19dc5151c627993384f06c27df544cf8f5"
+          "size": 1324,
+          "sha256": "ce90e5bb36185ba497196736c71d045bcec4628c5999d4bd7769f940c6230f88"
         },
         {
           "path": "skills/gpt-image/references/prompting.md",
-          "size": 8021,
-          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+          "size": 122,
+          "sha256": "f47b0b9685dd759401f08aaa5da93112fbb1126a78ce5deb743295e3783b6b1d"
         },
         {
           "path": "skills/gpt-image/references/sample-prompts.md",
-          "size": 17057,
-          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+          "size": 127,
+          "sha256": "114f618d3ec7526f884fb086e89c2bddc29254e22ec3fc5afbfe8e6452b5e111"
         },
         {
           "path": "skills/imagegen/LICENSE.txt",
@@ -401,23 +553,28 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 6803,
-          "sha256": "90a7b72bad52f1f781d5f3afc88d008d4bb2071c2193ed236b30d3dfcb0498e5"
+          "size": 6907,
+          "sha256": "b773088c1280bcda795c6466bc5d9f6cb0ce5438399eb84a2a240b370d174f53"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
-          "size": 8021,
-          "sha256": "2d7d4e0e56ebef0a7287464ae5412f8362d78425f55c1212f48fceff178b2d55"
+          "size": 4445,
+          "sha256": "428ef77f75ff2e9bf2bf523dd74e56b7ef831c5e8417a52f7323f608d8a32bb5"
         },
         {
           "path": "skills/imagegen/references/provider-controls.md",
-          "size": 2345,
-          "sha256": "d26c92f98a4028df04c86f73176099177b512245a9d07cdd08616208c327a164"
+          "size": 2462,
+          "sha256": "36b3506c8ac19556ed97854100f4907ec90043147140ee8585d112734f8f6001"
         },
         {
           "path": "skills/imagegen/references/sample-prompts.md",
-          "size": 17057,
-          "sha256": "6759349367f9abf58dd07d98036f0c2a9a4c3b0fafc49d73f6b9b6041d0be152"
+          "size": 2065,
+          "sha256": "d6c5bb9dffbe88796455e597414456ae9f63f14360507fc380ecaf377a3f19f3"
+        },
+        {
+          "path": "skills/imagegen/references/tool-use.md",
+          "size": 5007,
+          "sha256": "e5c272d3346b08d7536ac96f129a1025099c4c4ad446156d76108e95fa0b0995"
         },
         {
           "path": "ui/reference.css",
@@ -437,9 +594,115 @@
       ]
     },
     {
+      "id": "mailbox",
+      "name": "邮箱",
+      "version": "0.2.0",
+      "description": "查询、收发和整理邮件，管理 Gmail 会话、标签和草稿，关注新来信。",
+      "category": "integration",
+      "main": "index.js",
+      "permissions": [
+        "process",
+        "secret",
+        "state",
+        "jobs",
+        "conversation",
+        "conversation:notify",
+        "history",
+        "assets",
+        "network",
+        "network:stream"
+      ],
+      "metadata": {
+        "usage": "在实例中选择 Gmail 或 IMAP / SMTP，在主人私聊中查信、收发邮件、管理草稿或关注新邮件。",
+        "platforms": [],
+        "requirements": [
+          "Gmail 使用 Google OAuth 授权；其他邮箱使用支持 TLS 的 IMAP / SMTP 服务。"
+        ],
+        "changelog": "",
+        "components": [
+          "tools",
+          "background"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "1922870a4277d18a36e828c90f223d407bfd79e9",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 5810,
+          "sha256": "ccc395b73284b8c8c412f4a66006ffbca3bc995ce678205fb4597cd656612168"
+        },
+        {
+          "path": "authorize-gmail.cjs",
+          "size": 4968,
+          "sha256": "b4f9a228b7243212b588c622c197392ea6813bd3bac8b05e30fe76f0c3aa4db7"
+        },
+        {
+          "path": "compose.cjs",
+          "size": 14013,
+          "sha256": "36e66530f4cb7c6cd30b0eb256d6f586bc0c825f69a48ecaa8f4483073150833"
+        },
+        {
+          "path": "gmail.cjs",
+          "size": 16170,
+          "sha256": "9c298f5d63afc7a05ea720403c3f4f9fb0cf3e22ceb74f9834339737b6228985"
+        },
+        {
+          "path": "imap-actions.cjs",
+          "size": 4772,
+          "sha256": "c89f39e89de0e250f95ac3026d0b670351fc5f571e65e92457128458d0891959"
+        },
+        {
+          "path": "imap.cjs",
+          "size": 11497,
+          "sha256": "a8864097979ff31f8556a5fce2ab07cc35ce74edb9fce64bee1edcf0d1bb5947"
+        },
+        {
+          "path": "index.js",
+          "size": 105,
+          "sha256": "99fa1d95a55fb79bfe375bece29a8ea2bc4b0d3bf0e91d9e90955e28d9bb798e"
+        },
+        {
+          "path": "mailbox.cjs",
+          "size": 10678,
+          "sha256": "d6cf5aeaa6a82d75f35f31350537f9248400c8518bd352961815190e43f17a4e"
+        },
+        {
+          "path": "organize.cjs",
+          "size": 7956,
+          "sha256": "4726f672fec95a3bb79c1988108e2dcb9e0abac5589ad697759b3e65ebe0e32b"
+        },
+        {
+          "path": "outbox.cjs",
+          "size": 12483,
+          "sha256": "b3ddd09d4840e99e2679aa24be76bfa753cd320077ae86e9490f862745d866e3"
+        },
+        {
+          "path": "package-lock.json",
+          "size": 17833,
+          "sha256": "98b613bcc738cda2f41c96a787f14f037443db581a5893e96f5d380b0c6db08c"
+        },
+        {
+          "path": "package.json",
+          "size": 208,
+          "sha256": "7eb0fa15a49341d4a24353f85a6da56f2d6cc486685c1f4820205bb034169c5f"
+        },
+        {
+          "path": "plugin.json",
+          "size": 23036,
+          "sha256": "feaf5d693af3b6b78735e534b2e86889f1415a98643ca3015028df1e7651879e"
+        },
+        {
+          "path": "process.cjs",
+          "size": 1392,
+          "sha256": "22224ff02b38a3542efc1b25517b3c2c14915633cdec702866d7769113ec8fb4"
+        }
+      ]
+    },
+    {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.0",
+      "version": "2.6.6",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -475,7 +738,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "必要表情不受随手配图概率和间隔限制；支持收藏工具产物，自动收录已发出的自制表情成品。",
+        "changelog": "实例主人可以在聊天里删除指定的已收藏表情，包括刚画好后自动收藏的成品。",
         "components": [
           "commands",
           "hooks",
@@ -486,12 +749,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "ccf3f572ba701f94a10b56493f622c2ca4650a30",
+      "ref": "80529408db40c26ebbbe1715f22ade3bf235fbdb",
       "files": [
         {
           "path": "README.md",
-          "size": 10548,
-          "sha256": "106c6b17594cee31d70d82e8c17ba5985d7c027796b2f09ae3bf07356f7bc8b7"
+          "size": 10791,
+          "sha256": "1bc5cc2312c89a3280054b1f8082ebedbbfff28be5835cb0f0892d38477b9782"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -505,13 +768,13 @@
         },
         {
           "path": "engine/server.cjs",
-          "size": 15302,
-          "sha256": "92d4878d3eb16fac7e90f5de68ca4a971370a7db93d6fed9ad46683693db45ee"
+          "size": 15367,
+          "sha256": "f75015288694dfc08503b069be7a50515baec075712578632a3debdba224bd36"
         },
         {
           "path": "index.js",
-          "size": 77365,
-          "sha256": "9fc3606220db288160034534402d5121c9315f534f6caee5c02d1ec6c2c899de"
+          "size": 80746,
+          "sha256": "124183c2210ec73f406a4116fab03b1f1199da224e574948e0cd822e8be64702"
         },
         {
           "path": "mcp.json",
@@ -530,13 +793,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 23020,
-          "sha256": "3e748a14a0a6993525bb86269033eca57c50202dec696508e166e84e7cca25e1"
+          "size": 24172,
+          "sha256": "885b6522ec89ef6c4dff6d997e70c3927bc005e03d9640484dbc582c07f24e1e"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 4505,
-          "sha256": "9c9776251fefab98d2e96aa5bd887c7d06ad5c8d49ab4b936b8870801d8dfbf4"
+          "size": 5372,
+          "sha256": "29ee4fdd27d8bfecc4d47181b46d8c4475f50eb8c9baf3448572bd2448f00436"
         },
         {
           "path": "ui/app.js",
@@ -555,8 +818,8 @@
         },
         {
           "path": "ui/panel.js",
-          "size": 17633,
-          "sha256": "959e277ea0c8232373888b4b5bee1ad414e1e40dc510972937014767eb6ac778"
+          "size": 17896,
+          "sha256": "451b755bbe8254ea5adc29aec394bed601396e695a783f10f1e10e4deeeb343a"
         },
         {
           "path": "ui/style.css",
@@ -568,7 +831,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.2",
+      "version": "0.3.4",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -591,7 +854,7 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "changelog": "修复词库后台更新时，新消息偶尔无法回复的问题。",
+        "changelog": "按实际失败原因显示提示。修复词库后台更新时，新消息偶尔无法回复的问题。",
         "components": [
           "commands",
           "hooks",
@@ -601,7 +864,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "2b962e8d115965e8490c3b65b866f0663b049fc7",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "LICENSE",
@@ -635,8 +898,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 7946,
-          "sha256": "fedf3acd6e812e0ffb132d94dc01f43dd4a1e550cab52f1db5e6bb7d402535ef"
+          "size": 9876,
+          "sha256": "ea4776cf4d249c83a7afbd7cf53506910da9a842c2f35b6d8e94cf7fca400c2c"
         },
         {
           "path": "requirements.lock",
@@ -645,21 +908,21 @@
         },
         {
           "path": "tools/library.py",
-          "size": 11873,
-          "sha256": "257fc26942f5fbcdd3244ea3fbed5eaf611f40dfe2bd6d90cc5b99b8740de370"
+          "size": 11981,
+          "sha256": "1875de777d4133b5cc419fb929ad30fdf02f7fc071c3a81164d62c17022a2ea2"
         },
         {
           "path": "tools/server.py",
-          "size": 5328,
-          "sha256": "d79fc82720d2a6b1d1439984e7955f8d166ed527d1290b1ac3965119d20537d7"
+          "size": 5567,
+          "sha256": "32d4d4e4154e3eb0c3fdb2f53e37c149eccd0eb5523e5af1b289e87deb342460"
         }
       ]
     },
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.2",
-      "description": "为统一记忆提供自动召回、人物画像、闲时整理和 Dream，并兼容已有复查。",
+      "version": "2.6.15",
+      "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
       "permissions": [
@@ -669,6 +932,7 @@
         "memory:read",
         "memory:write",
         "memory:manage",
+        "memory:automatic",
         "history",
         "retrieval",
         "model",
@@ -690,9 +954,10 @@
         "usage": "",
         "platforms": [],
         "requirements": [
-          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
+          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。",
+          "跨聊天共享授权即时刷新需要 OpenBot 0.1.132 或更新版本。"
         ],
-        "changelog": "支持把尚未执行的单次复查移交给私人管家，已有周期复查沿用原设置。",
+        "changelog": "Dream 整理 Bot 自己听到、做过和学到的经历，相关聊天可以召回。修复不合格的晋升建议中止整批维护的问题。跨聊天共享授权变更后刷新召回。",
         "components": [
           "hooks",
           "tools",
@@ -701,12 +966,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "fb93b9ecb3f2100f93253166265b0fb1efbe0481",
       "files": [
         {
           "path": "README.md",
-          "size": 11408,
-          "sha256": "e255054dcd32f5e9182e7b169c5688d7557238ee32a17972a409975e51c00799"
+          "size": 15374,
+          "sha256": "98bcd130651895c2b985c9ea6b980e33c611aebba1e9f8da101af52763cadda2"
         },
         {
           "path": "followup-runtime.cjs",
@@ -715,8 +980,8 @@
         },
         {
           "path": "image-indexing.cjs",
-          "size": 3865,
-          "sha256": "ec5eb33bae41e8cd9aefb7145f86c0ae56d8b9ffed74527932668d2dfbeaccfe"
+          "size": 4540,
+          "sha256": "6160efcc12900be15a02f1f07501b44a6b7428926e5560a33c19afd2474663f9"
         },
         {
           "path": "index.js",
@@ -740,8 +1005,8 @@
         },
         {
           "path": "lib/context/channel-dream-run-repository.cjs",
-          "size": 11065,
-          "sha256": "6cb0db71278af4ef6e19ae0b4fcb68326ee79ae6344502b1139d2068bcc51578"
+          "size": 11392,
+          "sha256": "571188c3390f588588ae1c534f5cc156eb5c3f63e2b14a073dff34120577771f"
         },
         {
           "path": "lib/context/channel-memory-repository.cjs",
@@ -770,8 +1035,8 @@
         },
         {
           "path": "lib/features/channels/channel-dream-analysis.cjs",
-          "size": 14878,
-          "sha256": "e0233295084a0d75b50bcae7dd19844fabd05e4855d822ce6f048e732de1ff99"
+          "size": 15004,
+          "sha256": "cda6b7b5cc02afb0aebc78244bee8301602355ad1856604f88ae8eae8b72e0a7"
         },
         {
           "path": "lib/features/channels/channel-dream-coordinator.cjs",
@@ -807,6 +1072,16 @@
           "path": "lib/features/channels/channel-dream-settings.cjs",
           "size": 1035,
           "sha256": "55d190ed197db2a6f2dc20dc6587aa55dd439472676aa9b6b975d0169975a743"
+        },
+        {
+          "path": "lib/features/channels/channel-member-memory-proof.cjs",
+          "size": 8244,
+          "sha256": "8acec64569a02c8390703a54c52d825f298cb634fbdd5b1902bc44fc3b34c208"
+        },
+        {
+          "path": "lib/features/channels/channel-member-memory-statement.cjs",
+          "size": 8606,
+          "sha256": "f74ac034c1df54014cc275320372035696680fdc3e1f8637d183f5615d9c3042"
         },
         {
           "path": "lib/features/channels/channel-memory-policy.cjs",
@@ -865,8 +1140,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14074,
-          "sha256": "f269458fb2b676aaf22e74e1757284686cc9409c7cbe38c7cf3973ef697ad9b5"
+          "size": 15961,
+          "sha256": "f6161e4a5b2e04252741ccc54d5337dcfa2b390cdc4090651b85bb99e2aab656"
         },
         {
           "path": "process.cjs",
@@ -880,8 +1155,8 @@
         },
         {
           "path": "retrieval.cjs",
-          "size": 12384,
-          "sha256": "13288985c7b23acfd702a2479626359157377918dfe74501ffddf952711c4040"
+          "size": 12835,
+          "sha256": "f6b940b6b3672ed9c9a8397ef04b3477327f586bcfcbc03b4a7e036c67f155c8"
         },
         {
           "path": "runtime.cjs",
@@ -890,13 +1165,13 @@
         },
         {
           "path": "skills/memory/SKILL.md",
-          "size": 7241,
-          "sha256": "e427b30a00331c24b6174d75e4c63c38391ed4f52767fc9a5e450b7994ea8ac4"
+          "size": 9166,
+          "sha256": "685eecf96516d0b7313c11b15caae56892bbe4a8b7503605618774cfef8bafb4"
         },
         {
           "path": "source-retrieval.cjs",
-          "size": 8638,
-          "sha256": "77edb8a22974a2aab68dca5741d48693e927e6b1dea19554f9f6103154dd8670"
+          "size": 9041,
+          "sha256": "21a62747b9d4cef105c3b7f61fe6edf619d5044dc58b7f2fe2d123ea3e218723"
         },
         {
           "path": "sources.cjs",
@@ -905,13 +1180,13 @@
         },
         {
           "path": "storage.cjs",
-          "size": 4521,
-          "sha256": "8370448354fb17ff7fd5955fcbb89d00ce53c15db7bbcdbddf50962f3371d03c"
+          "size": 5285,
+          "sha256": "6faf71c4ad410984665b8f9f4571f46ed70c3dcc03c948b870eabcfd9020e128"
         },
         {
           "path": "ui/app.js",
-          "size": 11258,
-          "sha256": "25ecfee6a40d7a31a486b21283c395663119a1580385e28ac77bd609b64b2afd"
+          "size": 10966,
+          "sha256": "76cc5cd6a2879c8dccab00284b7d6f0ffb0a169bfe5d1dc77e2351f3cc5cb627"
         },
         {
           "path": "ui/details.html",
@@ -925,8 +1200,8 @@
         },
         {
           "path": "ui/index.html",
-          "size": 2405,
-          "sha256": "c039d0cdc27a1d53e7a16c8474b85785b1e2060490a9185d0e1a0a66f84e7077"
+          "size": 2246,
+          "sha256": "984cb2d65205602c7145a9129bf94718ad328d19496d2e21d2c2263b25ddda7c"
         },
         {
           "path": "ui/style.css",
@@ -940,33 +1215,38 @@
         },
         {
           "path": "unified-candidates.cjs",
-          "size": 6249,
-          "sha256": "5f21c1f613d3ac2be9dc2d634721eb5f97dfaee40a1e5b82dbb5d2c0376220b0"
+          "size": 7183,
+          "sha256": "ed0bbe7fd12f416f0f9e3dcd22cd4a4594a42925d7bd9d76133f8efe7ca4e93d"
         },
         {
           "path": "unified-catalog-cache.cjs",
-          "size": 2915,
-          "sha256": "b56d8d3370017d89adfa12e533a12b273ff77a01cc1935bc77d8d4d79367e7b2"
+          "size": 3179,
+          "sha256": "4b8ea864109b485c4ffdcba1c0206963bf45ae84040cb0edf3363f2ed432bf75"
         },
         {
           "path": "unified-checkpoints.cjs",
-          "size": 4397,
-          "sha256": "4730f4a3e934a02d78efeebc6f0a23f9a4c2274a60eaac0c574c74a203dc5a0d"
+          "size": 5079,
+          "sha256": "ce28ea6fdc66acbf6bc9748c249d97772fac7447428a7253911788694336e369"
         },
         {
           "path": "unified-dream-prompts.cjs",
-          "size": 6499,
-          "sha256": "9c3ee32517d05840918c38ff554c79cf05d272d33dc64e1d8225224e24b4fc2a"
+          "size": 6780,
+          "sha256": "e9be18bc85849c0592e26bd693a86d412ea22b856df363f47cb63d30dc91da5a"
         },
         {
           "path": "unified-dream.cjs",
-          "size": 18333,
-          "sha256": "0d12439274a6618838c3376ed98c1fb699d55451eb8174fbbbb5bd198d6fef30"
+          "size": 24627,
+          "sha256": "61f64f85092f080a29e0a03e82303f06031c3af2d04637a22f59f9b6a4744b7c"
         },
         {
           "path": "unified-existing.cjs",
-          "size": 5411,
-          "sha256": "02b4c524b27319db6ef63ac0ed86fe7a679d1317342cad1815dbc9ad5d57f10e"
+          "size": 6462,
+          "sha256": "f897f3687e49f46453ab36f48ad8e1bc8889190199e8e91605d7dc1379876368"
+        },
+        {
+          "path": "unified-experience.cjs",
+          "size": 4846,
+          "sha256": "97b72274bb1b53666a8f44c039ce283b49592b147ca6ff3c383de1b23f9cf012"
         },
         {
           "path": "unified-followup-activity.cjs",
@@ -975,13 +1255,18 @@
         },
         {
           "path": "unified-followup.cjs",
-          "size": 14704,
-          "sha256": "3ed1086d14ed4864110f54103c5982dd53778237d0ad4f107ffc145045a03523"
+          "size": 14079,
+          "sha256": "9b365892957c2428fd723506969ed3911194feba4e14cca9db02103bf9a94c56"
         },
         {
           "path": "unified-fork-organizer.cjs",
-          "size": 13535,
-          "sha256": "f80394b309b842d4b82b4a3f4c02e9d07ae4b7b6e85932fcd98aa40be5c25e1a"
+          "size": 16839,
+          "sha256": "8eed145f9454455cac9b4673dc03a1568e9e6294256cbb1ebfdfafe1ba22323f"
+        },
+        {
+          "path": "unified-fork-retries.cjs",
+          "size": 1970,
+          "sha256": "9177b94d80b108d72a36419bde66d00a6ee458de30652e40fde526d2ab11147c"
         },
         {
           "path": "unified-legacy-rollback.cjs",
@@ -990,13 +1275,13 @@
         },
         {
           "path": "unified-maintenance.cjs",
-          "size": 19283,
-          "sha256": "81cf745bb182fa7fe383e2cbc91ff09c64f47ae503f819607d1abd413afb0f15"
+          "size": 18369,
+          "sha256": "3d75fb0e3847ec2fa49a946d2e00c9298d14862f4000fc73af917ecb21e3567a"
         },
         {
           "path": "unified-material-policy.cjs",
-          "size": 890,
-          "sha256": "2ec375d8322df60420dfadcad48ecafab1fa34dace2600ac57bddffbaefed71e"
+          "size": 1035,
+          "sha256": "255332106a583ce3f71b9c633d56676961cf8b0409680cb53c37ba2557bacb3e"
         },
         {
           "path": "unified-memes.cjs",
@@ -1009,9 +1294,14 @@
           "sha256": "e0e1496a45a87e95ca62c19fa99765e9a36fd318547a4aeb38e563fbd6718c5d"
         },
         {
+          "path": "unified-operation-checks.cjs",
+          "size": 2428,
+          "sha256": "a4dd2ca671459f5195fba47287c2cfc3c2a5d32270e582250fbcd2a5a833e125"
+        },
+        {
           "path": "unified-organizer.cjs",
-          "size": 17514,
-          "sha256": "3d9f7b0d16f80991054ebd27fb8ebe9845e3ff75c108fbdcff804edddb2ea35f"
+          "size": 19393,
+          "sha256": "97ff9cfe1de9f6fd003581739775a58a3c4d52bed8be882045bbb1efbaad0519"
         },
         {
           "path": "unified-peer.cjs",
@@ -1019,24 +1309,44 @@
           "sha256": "e48875dc7d1b50ee4bcc9bd81d7c2056cc302d3d66291bcef3da10cfd8145a96"
         },
         {
+          "path": "unified-profile-impressions.cjs",
+          "size": 7044,
+          "sha256": "cd1d142aa701fab05e65ecc147c6acbf1c94ea327c2a3d5a6e18acc95d53943a"
+        },
+        {
           "path": "unified-profile-migration.cjs",
-          "size": 1967,
-          "sha256": "a05ebef2d6d6ffe9ec3cda567f6dbbe82900ec37f91a8fdfdd15d60825e35b66"
+          "size": 11142,
+          "sha256": "8ff988a0f690fdcb9c6105d916167b854204d860dc57a3fcc96661c72e3eda31"
+        },
+        {
+          "path": "unified-profile-observations.cjs",
+          "size": 10423,
+          "sha256": "711ce8a46f2ef6da6c63eaf2fcffc97c2d5d7e74ef6b20c98eb72a81dc132099"
         },
         {
           "path": "unified-profile-policy.cjs",
-          "size": 4356,
-          "sha256": "6d8146a67a558c58213bddc1a83ef74af819bd32d4e472012c7af4807ea41c56"
+          "size": 6185,
+          "sha256": "4f5a0b4ea134a80ac5b97569013c882a52a2211a84a50b8677883a8edcefe101"
+        },
+        {
+          "path": "unified-profile-review.cjs",
+          "size": 8755,
+          "sha256": "8e4c861b23dd868d8e74ea703698f8f9507a271be9bc3f16560044282691648a"
+        },
+        {
+          "path": "unified-profile-usage.cjs",
+          "size": 5791,
+          "sha256": "cdc83985af6be9206277867d10c5480375f4751df126cbf238f11671624653a8"
         },
         {
           "path": "unified-retention.cjs",
-          "size": 5995,
-          "sha256": "0c837df5e1b99eef7494c75700ad1a4b548297df7721037ae1dfb1a84eae9fe5"
+          "size": 8246,
+          "sha256": "ab2cb158ed8902957e248c451b0d1e654519b4cde7235760e291af04526870a5"
         },
         {
           "path": "unified-retrieval.cjs",
-          "size": 11114,
-          "sha256": "b1f75bfaad0a60e18effbc390c19b906bd31b20b63f9ec22e021c8e1f5d6516b"
+          "size": 11826,
+          "sha256": "f4faf52efa8de1793791272b5df733b90067198af11084f4f26fba81281a8a8a"
         },
         {
           "path": "unified-review-policy.cjs",
@@ -1044,19 +1354,34 @@
           "sha256": "3c8f856d4b929aca14b07c53a936163e19f8a4480fb145cf8bf6dd66387e3cd9"
         },
         {
+          "path": "unified-run-counts.cjs",
+          "size": 2711,
+          "sha256": "a25c0b1ee61f284e68d2a426729c3633ba16f332de3f1300e7d4a21058182e74"
+        },
+        {
           "path": "unified-runtime.cjs",
-          "size": 37611,
-          "sha256": "4e2b3593ebc70b9236aedffecd06f4fe3a0dc2bfdf680f162f9d834322e25f69"
+          "size": 43821,
+          "sha256": "850bb5da77c157aea18c06655f57b972ce20215e73241c7fdefa7199e003d2b9"
         },
         {
           "path": "unified-scheduling.cjs",
-          "size": 3054,
-          "sha256": "3c131dfa196060649b8279e7ebf05fd9b1f50d7fd6624513e6fcbe66710c335a"
+          "size": 3413,
+          "sha256": "719ec19f9d6a3c1eaf6a9f9450c45e4ade467cfcd0b37daf0bb43853b3e4204c"
+        },
+        {
+          "path": "unified-startup-memory.cjs",
+          "size": 8674,
+          "sha256": "ba282dafb3067e02c64e33bbaa3dafa1ff1ed7f04c51d278856f108c035d688a"
         },
         {
           "path": "unified-state.cjs",
-          "size": 4233,
-          "sha256": "c2f64babced0060d5017f5e7c0fa10bc627a6d3827bc259d8bb30359c92871c5"
+          "size": 4282,
+          "sha256": "86222d33ca86a41a75c4a43f5ff69e03ff94505fa24903cc0bf22985401cd2d4"
+        },
+        {
+          "path": "unified-topics.cjs",
+          "size": 3113,
+          "sha256": "4c5f75e5a46946345570ac575895141d64590b03c8d575d79c000fdbe904e3ea"
         },
         {
           "path": "utterance-recall.cjs",
@@ -1066,9 +1391,44 @@
       ]
     },
     {
+      "id": "notion",
+      "name": "Notion",
+      "version": "1.0.0",
+      "description": "使用 Notion 官方 MCP 搜索和处理账号有权访问的工作区内容。",
+      "category": "integration",
+      "main": "",
+      "permissions": [
+        "mcp"
+      ],
+      "metadata": {
+        "usage": "在插件详情中打开 Notion 服务，点击网页登录，选择要连接的工作区。",
+        "platforms": [],
+        "requirements": [],
+        "changelog": "",
+        "homepage": "https://developers.notion.com/guides/mcp/get-started-with-mcp",
+        "components": [
+          "mcp"
+        ],
+        "hasBackgroundAgent": false
+      },
+      "ref": "9484bb4f8aeaa6b7cf381172a09f6d93123e066d",
+      "files": [
+        {
+          "path": "mcp.json",
+          "size": 96,
+          "sha256": "89ee654116cdb5097f1c2d7889457336f4b9c1ad6e5aa0c764b55c1d3f403be2"
+        },
+        {
+          "path": "plugin.json",
+          "size": 626,
+          "sha256": "d2f839fd6b33317ae54dd4257014d947ee4871acc64138a0210e2be769fa2adf"
+        }
+      ]
+    },
+    {
       "id": "personal-butler",
       "name": "私人管家",
-      "version": "0.5.0",
+      "version": "0.5.3",
       "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
       "category": "utility",
       "main": "index.js",
@@ -1084,6 +1444,7 @@
         "conversation:notify",
         "memory:read",
         "memory:write",
+        "skills:propose",
         "hook:messageReceived",
         "hook:replyDelivered",
         "hook:taskFinished"
@@ -1097,7 +1458,7 @@
         "requirements": [
           "QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"
         ],
-        "changelog": "在 QQ 和微信的授权聊天中主动整理线索、继续查证和跟进事项，接收记忆 Plus 的单次复查移交。",
+        "changelog": "网页跟进在正文相同时复用已核对的结果，时间条件仍按时检查。保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。",
         "components": [
           "hooks",
           "tools",
@@ -1105,29 +1466,29 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
       "files": [
         {
           "path": "README.md",
-          "size": 3771,
-          "sha256": "427848daa32802a5f70ad4a9bcffe142f710b710ad68567f5fd6ba5aea5a745d"
+          "size": 4902,
+          "sha256": "ad235d5522a4e1c1d1d38f0b0f5acea6aebf3f5363b44aa2968e4445b0992a18"
         },
         {
           "path": "index.js",
-          "size": 102345,
-          "sha256": "33e90cdf5fda4399d0dba932502099cd4888e85d26f0ff4001ed2960dfbc27ed"
+          "size": 112505,
+          "sha256": "ee61f7eda4a05551659068632486c60a8694c92997b8110fe249f1f1917ffd97"
         },
         {
           "path": "plugin.json",
-          "size": 4935,
-          "sha256": "e2b86df9f75df9bbdf8e66844c8d765c9ac435287187e417e045e20e351d66c0"
+          "size": 6077,
+          "sha256": "41823437adb77dbcff427d20333346b9cf56aacdda0d422415ce9b4eb25dbb37"
         }
       ]
     },
     {
       "id": "random-toolbox",
       "name": "随机工具箱",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "description": "抛硬币、随机数、选项抽取和群成员抽取",
       "category": "entertainment",
       "main": "index.js",
@@ -1150,7 +1511,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "239f0320d89402ee779491b57e464894329d526d",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "index.js",
@@ -1159,23 +1520,26 @@
         },
         {
           "path": "plugin.json",
-          "size": 2271,
-          "sha256": "8d672ad43114522ee4a1c21d3b1e999d711d400d673cf76f949e8de16d88ad6f"
+          "size": 3065,
+          "sha256": "aed6f253ba2d7c7ec7d96178f0d187bf1c87f10e894dfaa8384dd95ea5530bb5"
         }
       ]
     },
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.1.0",
-      "description": "网页搜索、网页阅读和以图搜图，由 Bot 按任务选择。",
+      "version": "0.3.3",
+      "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
         "network",
         "secret",
         "history",
-        "settings:import"
+        "settings:import",
+        "model:request",
+        "assets",
+        "network:stream"
       ],
       "metadata": {
         "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
@@ -1184,44 +1548,44 @@
           "qqbot"
         ],
         "requirements": [
-          "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
+          "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "0.1.0：迁移 AnySearch、Tavily、Exa、Brave 网页搜索及网页读取；增加 Google Cloud Vision 以图搜图。",
+        "changelog": "以图搜图或读取参考图超过输入上限时返回明确的限制原因。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "1f8ed1d9f2cc978143b3ab21d3b4384d12d0b49c",
+      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
       "files": [
         {
           "path": "README.md",
-          "size": 1153,
-          "sha256": "5637c99f1685dd047120f11d098afd490656a700790809a109ab03bc5cb7ab2e"
+          "size": 1602,
+          "sha256": "bb1c9e6ac658d42f6875b2fc5b5b88d265de84a51075e5c284ba71008edd53a0"
         },
         {
           "path": "index.js",
-          "size": 22663,
-          "sha256": "1e1c8397792188daa56309aaba80520d53bbe80cca2fa74c8b20dccfdf52baa4"
+          "size": 37098,
+          "sha256": "3325edb3aae8d1177a3652cb68bf145757f1a71f139bc98ab6aefebfd8e41c7b"
         },
         {
           "path": "plugin.json",
-          "size": 11897,
-          "sha256": "0301993196cb04bc79ea7021ab85ed6d2e5e3634de799c6a157f9e374c8eb431"
+          "size": 14957,
+          "sha256": "670c65842cf97b2b8984a7ad40fd37534666de4b783b10341f777ec966ed8a7f"
         },
         {
           "path": "skills/search/SKILL.md",
-          "size": 1883,
-          "sha256": "0988d8ff7e531d7f2b954a9f15b998e7cd236a26e9948041e455877110cb9c76"
+          "size": 5183,
+          "sha256": "8ec13802039a6569e4ea59be94cdf86fa605c477143258f28a3fe63d64f0b2fd"
         }
       ]
     },
     {
       "id": "tool-workshop",
       "name": "工具工坊",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "让 Bot 编写、试运行并保存可重复调用的 JavaScript 工具。",
       "category": "utility",
       "main": "index.js",
@@ -1251,7 +1615,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "42b123b2e82e84bc1694f71c388b28c7438ab889",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
@@ -1265,8 +1629,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 5949,
-          "sha256": "d6fcd456c689d9f2abce061e780976d0b00d6ada5d318ed596c180b3384d8317"
+          "size": 6143,
+          "sha256": "c2861408eab9448ec73af13efeb18305df78ec6a897d67bb39667d676efd719f"
         },
         {
           "path": "skills/tool-workshop/SKILL.md",
@@ -1278,7 +1642,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.0",
+      "version": "0.11.4",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1299,7 +1663,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。",
+        "changelog": "导入时遇到已缺失的历史视频，结束该次读取。",
         "components": [
           "tools",
           "skills",
@@ -1307,12 +1671,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "3b1b6c8fb2ead233d6bb00219582046277223bbc",
+      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
       "files": [
         {
           "path": "README.md",
-          "size": 22261,
-          "sha256": "e1e57de60fe9349066d03fbfa732b3d1144b23f6e92796e1073af4aa0d8c0284"
+          "size": 22124,
+          "sha256": "be91a6d3b4d0a253e67a37124fe4e63a6ebd74a7ab0ac248ffb3c41f300fb07c"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
@@ -1326,8 +1690,8 @@
         },
         {
           "path": "index.js",
-          "size": 20077,
-          "sha256": "54c46a73a752309066425d7dcaa096cb574676fd7c176539a52d47234eafcdcd"
+          "size": 22300,
+          "sha256": "9d097268fb741ff217bb0b7d89011e364f30fbf6d1c0661eea68b08a8189da45"
         },
         {
           "path": "mcp.json",
@@ -1336,8 +1700,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 12926,
-          "sha256": "199546534d549567a8bae2f143b33f9dfd27542d4380f5c2c5641249333488db"
+          "size": 14112,
+          "sha256": "0f01231126e9617323d6a8036847ada91b0e48a7712414a4c0b424f92d7fdecd"
         },
         {
           "path": "requirements-asr.txt",
@@ -1356,8 +1720,8 @@
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 17255,
-          "sha256": "2633ffb628ae907cc9b4ece819d43d32158e3424da2540d746e61cfb6db1049b"
+          "size": 17263,
+          "sha256": "77dc9ea0e1c925aea0fa43821e9882174b2d73cb789468977e39fbf202f6b7be"
         },
         {
           "path": "tools/asr.py",
@@ -1366,63 +1730,63 @@
         },
         {
           "path": "tools/browser_media.py",
-          "size": 14943,
-          "sha256": "68333991eb29251745cbe4497d942a8d2a1b37ed1c940065b9b72f3d858d0188"
+          "size": 15163,
+          "sha256": "d47410ab84399ac640e90c95d19f54540849a529f54f496e82b3231f1c8ec6f4"
         },
         {
           "path": "tools/common.py",
-          "size": 7735,
-          "sha256": "16e5d012a08b85b2c7c8432c3d3a85fd043c9536995c2d060331885dc63015cd"
+          "size": 7870,
+          "sha256": "74791f2ec0b243ded4c7ad6714112be63d89e0f08f452c720d2ea8b0d0cd186e"
         },
         {
           "path": "tools/download.py",
-          "size": 3991,
-          "sha256": "08aefa7d6cc30d8dbe772dbc87c3a796fa187f09f8f1943ecf785976fe164424"
+          "size": 4246,
+          "sha256": "9f437302a60635a4adf5afd4654da0c7c73439e9ed6093e77bf2bd039309dbdf"
         },
         {
           "path": "tools/download_info.py",
-          "size": 4443,
-          "sha256": "37cdc8d47bb376c21803a0f09a940b8aa26b409e263bc4b00b18f0d5aae40acf"
+          "size": 4513,
+          "sha256": "f5c72ca5c64099716ce17d38bd331aa1d3ea8eea7ba52bcbe6d25723bba34e79"
         },
         {
           "path": "tools/ingest.py",
-          "size": 7029,
-          "sha256": "073a138ad7acacfc82827851ecbad219a428d8e8378bb3e1681b016a1b754a81"
+          "size": 7154,
+          "sha256": "221db66125007fd65073070d554d1638613cb67f3d6c04b3c38d3e50d310cb5a"
         },
         {
           "path": "tools/jobs.py",
-          "size": 21426,
-          "sha256": "aeca2d656da4340c8aefa14e4ccbe08c07fcef4e18b4150aeca15f53575bc653"
+          "size": 21461,
+          "sha256": "c839cd8a101cfe7bf55d197b3477bad38dd009018ba751f7f8fb3e41acd413a9"
         },
         {
           "path": "tools/media.py",
-          "size": 33637,
-          "sha256": "f78f553eed172e9f78d2fd9ed55a61a7823f20f7b4677ed0438106ecc48f2da7"
+          "size": 33980,
+          "sha256": "c42914b0a930eb563e3470a7397e806273b3b65cb4963fdeff682e4572fc6491"
         },
         {
           "path": "tools/media_bridge.py",
-          "size": 5900,
-          "sha256": "cfda8cd725c1117f2280833171347d2204b220910fb514e04f5092fd2b312397"
+          "size": 5879,
+          "sha256": "b5b5a7c50cde4b181b6bdc7e50fe1ccdf903b9bc4c1559dec454b7c49bd15b78"
         },
         {
           "path": "tools/preview.py",
-          "size": 9164,
-          "sha256": "c686a3cf0c0b5cd19985ee5639c04ad38b5487b9494e4c06f6c78c2c1a334584"
+          "size": 9233,
+          "sha256": "6321a3d99ba2dded34c32a164793308dd2babbfa22c226d769340a038f3b0525"
         },
         {
           "path": "tools/server.py",
-          "size": 16289,
-          "sha256": "da37634a52eec7f4a8b398884db93e02ebe1ccb44cf4162749ff5a9b22cebb3c"
+          "size": 16514,
+          "sha256": "186a10b99623fa3f816a203e1aab5e4dbee69c4f3e3c908e8431916dc5b02aff"
         },
         {
           "path": "tools/setup_asr.py",
-          "size": 4225,
-          "sha256": "af5adadb5c88421ad3bd38b06dc4f05c1e81637934a42854a6c6c7b0f05ea24a"
+          "size": 4237,
+          "sha256": "20ebfaa74e3efa97045103c1881ad449abed0f922d72118b7ba0094683f3addd"
         },
         {
           "path": "tools/sources.py",
-          "size": 5194,
-          "sha256": "5186147c267647a2efaad60f3b619533349fbacedd1e1dc8b24faf0e275ffc42"
+          "size": 5134,
+          "sha256": "8718591587781ab8a65c9e8bc6aea1c4277afedb0f4e0f0d4b86f49e71c2e9ee"
         },
         {
           "path": "tools/storyboard.py",
@@ -1440,24 +1804,24 @@
   "personas": [
     {
       "id": "xixi",
-      "version": "1.1.23",
+      "version": "1.1.30",
       "name": "嘻嘻",
-      "description": "浅蓝发蓝眼、戴银星和金色发夹、穿白蓝斗篷的猫娘。包含 3 张定稿人设图和 27 张 Q 版专属角色表情。",
+      "description": "蓝发蓝眼、白色斗篷装的音游猫娘，负责 NapCatQQ 群聊互动、简单问答和联网查证。",
       "author": "OpenBot",
       "file": "personas/xixi.openbot-persona.json",
-      "size": 602428,
-      "sha256": "b03661705ef5d613cc24985c78137f880a49d117e4e2d0a95253abfffcb6da82",
+      "size": 603571,
+      "sha256": "48d0e0f45efb1a9159aa8e38edc32fd6ccc4b08b03719f686f875ae513d66f02",
       "media": {
         "file": "personas/xixi.media.openbot-persona.json",
-        "size": 19647983,
-        "sha256": "077a67e1906c7670e7094f7cf92f8e0aaf76b968929aeb76b39c260969cec700",
+        "size": 19649126,
+        "sha256": "85b7af0cf48b5707ad3d6ca8139e2a0c58d77ba26d2fcce4fdd91681196236d0",
         "count": 27
       },
-      "ref": "8aed396a09c57fde035c467b58a66148481c94b6",
+      "ref": "97eafc16c9789ada62b5537f5b5bd11a5144f9d4",
       "preview": {
         "file": "personas/xixi.preview.openbot-persona.json",
-        "size": 2664066,
-        "sha256": "bd37579ed5ffe2864342a316c048c58c5719f8cd9758ed84aae0d723b8e63d6b"
+        "size": 2662331,
+        "sha256": "25b835db1019d2ed8930023afaf02bc91853082da5a883cf5c8ee697eeaa4a60"
       },
       "referenceCount": 3
     }

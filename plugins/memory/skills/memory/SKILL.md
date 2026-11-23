@@ -11,15 +11,19 @@ description: 使用宿主统一记忆保存、查询和追溯事实、偏好、�
 
 空闲整理增量处理新消息；定时整理还会复审已有自动记忆，进行有依据的晋升、合并或可恢复归档。手写和手动修订内容、重要边界、明确长期保留及未完成事项受保护。检索次数或采用次数低不能单独构成归档理由。每条新增都需在当前聊天按对象、属性或事项核对已有记录，不能用一次泛泛搜索代替逐条查重。
 
-用户画像是有依据的事实和偏好，不是另一份自由发挥的人物总结。按 identity（身份背景）、habits（长期习惯）、interests（持续兴趣）、communication（交流偏好）、boundaries（明确边界）、self_description（本人自述）分类，保留成员 ID、本人原话、条件和时间。用用户当前的昵称称呼，身份关联始终依据账号。不能从一次言行、第三方评价或 bot 自述推断性格、心理状态、身份或 MBTI。本人说“我比较内向”只能记为本人自述，不作为测评结论。短期要求不变为长期偏好。
+人物画像保存基础资料、偏好与习惯，以及根据多次互动形成的聊天印象。性别取自本人明确的原话或管理者手工填写。基础资料与偏好使用 identity、habits、interests、communication、boundaries、self_description。跨段复审聊天印象时使用 impressions，给出具体互动做法、给人的感觉和多条原话，按当前群内或私聊中的表现陈述。不能由昵称、头像或语气猜性别，也不从聊天推断健康、心理诊断或 MBTI。
 
 人物画像以实例、聊天和成员 ID 共同定位。同一成员在不同群、私聊的画像各自保存，不自动同步或用一处资料补全另一处。画像条目使用 category="profile"，kind 仍区分 fact/preference，subjectRefs 只填当前成员 ID；字段放在宿主 memory 的 record/patch 中。事件事实、一次性行为、事项进展另存普通记忆，不加入 profile 分类。只通过来源关联它们，不复制事件全文到画像，也不另外生成一份自由总结。
 
 在 QQ 聊天里，需要某人的画像或人物印象时调用 qqMemberSearch，传 view="profile" 和成员 ID 或称呼。同名时先确定 subjectId。第一页包含 QQ 头像，续页沿用 subjectId、snapshot、at 和 nextOffset。日常称呼直接使用群消息自动提供的常用称呼和别名。外号指代不清或缺少 @ 对象的准确 ID 时才用默认文字查询。单独看头像时用 view="avatar"。头像由本地缓存提供，avatar.stale 为 true 时，cachedAt 是这张图上次成功取得的时间。整理记忆时不用取图，也不根据头像推断个人特征。要核对画像条目的原话，按条目 ID 调用 memory 的 read。没有画像查询工具的聊天仍可用 memory 的 search，传 category="profile" 和 subjectId。
 
+可以从本人实际发言归纳常用的表情图、文字表情和有辨识度的惯用表达。整理时通过 usages 提供原消息中的实例，由程序按当前聊天和成员持续累计近 90 天的证据。至少三个场合，每次相隔满一天，才写入使用习惯或聊天印象。使用习惯的 basis 为 observed_use，kind 为 fact。保留可核对的原消息，只说明常怎样发。对某张图、角色或作品的喜爱仍需有本人表达该偏好的原话。
+
+画像的 content 保存具体陈述，subjectRefs 保存成员账号，attributes.profile.basis 保存依据，sources 指向原消息并保留原话。正文省去所属成员的昵称与“自述”，保留涉及的其他人、程度、否定、时效和条件。说“我不吃鱼”写“饮食习惯 · 不吃鱼”，明确说“不喜欢吃鱼”才记录相应的口味偏好。写聊天印象时保留“给人的印象是”等观察语气。资料变化时引用新原话修订已有条目。
+
 一条记录表达一个可核对的信息；写入前查同一对象与主题的旧记忆。相同信息补充证据，明确纠正使用 correction，现实变化使用 change 并保留生效时间；不以增加重复条目代替更新，也不把过期事项加入稳定画像。证据不足就不提取。
 
-需要记住时调用宿主 memory，action=remember；自动提案使用 create，依据不足时保持 pending。直接写入就是记忆，不创建独立笔记或第二份 Markdown 正文。保留对象、条件和生效时间；来源携带实际读取的 id 与 version，摘录须匹配原文。不要把推测、工具复述或待确认结果当作用户事实。只有返回 ok=true 才确认已记住。
+日常聊天中，本人明确说出以后会用到的稳定资料、偏好、称呼或边界，本轮主动写画像。先按当前聊天的 category="profile" 和 subjectId 查重。明确要求记住用 remember，自然透露的稳定资料用 create。record.category="profile"，subjectRefs=[原始发言人账号]，kind 为 fact 或 preference，status="active"，tier="long_term"。attributes.profile 保存 section 和 basis="self_report"，attributes.fact 保存 subjectId、facet、value、assertion="self"。保留原话和条件，群聊用本轮原消息选择发言人。明确改变或纠正用同一 ID、expectedRevision 和新的原话。性别另填 profile.field="gender"、value。只有回执 ok=true 才能确认写入。
 
 用户纠正旧说法时使用 revise，携带 id、expectedRevision 和稳定 requestKey。changeType 区分 edit、correction 和 change，现实变化明确 validFrom。版本冲突后重新读取，不覆盖人工修改。forget 只用于用户明确要求永久遗忘。
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "watch",
-  "version": "0.11.1",
+  "version": "0.11.4",
   "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
   "extensions": {
     "com.openbot": {
@@ -23,7 +23,7 @@
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
           "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
         ],
-        "changelog": "已读取字幕与转写接入共享检索，新增 watch_search，支持索引断点与来源过期校验。"
+        "changelog": "导入时遇到已缺失的历史视频，结束该次读取。"
       },
       "dependencies": {
         "python": {
@@ -53,7 +53,8 @@
             "items": {
               "type": "string"
             },
-            "default": []
+            "default": [],
+            "scope": "instance"
           },
           "asrBackend": {
             "type": "string",
@@ -69,14 +70,22 @@
                 "本地转写",
                 "仅使用字幕"
               ]
-            }
+            },
+            "scope": "global"
           },
           "asrLanguage": {
             "type": "string",
             "title": "口述语言",
             "default": "",
             "maxLength": 3,
-            "description": "留空自动识别；识别不准时可填写 zh、en 等语言代码。此设置不选择字幕语言。"
+            "description": "留空自动识别；识别不准时可填写 zh、en 等语言代码。此设置不选择字幕语言。",
+            "scope": "global"
+          },
+          "transcriptionSettings": {
+            "type": "boolean",
+            "title": "语音转写",
+            "scope": "instance",
+            "default": false
           }
         },
         "additionalProperties": false
@@ -378,6 +387,47 @@
             "additionalProperties": false
           }
         }
+      ],
+      "ui": {
+        "version": 1,
+        "sections": [
+          {
+            "id": "settings",
+            "title": "设置",
+            "fields": [
+              "localVideoRoots",
+              "transcriptionSettings"
+            ]
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
+        ],
+        "globalSections": [
+          {
+            "id": "transcriptionSettingsDefaults",
+            "title": "语音转写",
+            "fields": [
+              "asrBackend",
+              "asrLanguage"
+            ]
+          }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "transcriptionSettings",
+            "sections": [
+              "transcriptionSettingsDefaults"
+            ],
+            "summary": "asrBackend"
+          }
+        ]
+      },
+      "requiredFeatures": [
+        "pluginSettingScopes"
       ]
     }
   }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.5.2",
+  "version": "0.6.5",
   "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
   "extensions": {
     "com.openbot": {
@@ -10,6 +10,7 @@
       "icon": "image",
       "apiVersion": 1,
       "main": "index.js",
+      "execution": { "concurrency": "parallel" },
       "permissions": [
         "network",
         "network:stream",
@@ -30,13 +31,15 @@
         "modelResponseSelection",
         "connectedModelCatalog",
         "pluginGlobalSettings",
+        "pluginSettingsGroups",
         "globalPluginDatabase",
         "pluginAdmissionQueue",
         "conditionalGlobalSettings",
         "mediaHandoff",
         "mediaRepublication",
-          "toolCompletionEvents",
-          "pluginSkillUpload"
+        "toolCompletionEvents",
+        "pluginSkillUpload",
+        "pluginSettingScopes"
       ],
       "networkHosts": [
         "*"
@@ -73,15 +76,29 @@
       "configSchema": {
         "type": "object",
         "properties": {
+          "customService": {
+            "type": "boolean",
+            "title": "画图服务",
+            "scope": "instance",
+            "default": false
+          },
+          "customOutput": {
+            "type": "boolean",
+            "title": "输出设置",
+            "scope": "instance",
+            "default": false
+          },
           "imageEnabled": {
             "type": "boolean",
             "title": "普通生图",
-            "default": true
+            "default": true,
+            "scope": "instance"
           },
           "selfieEnabled": {
             "type": "boolean",
             "title": "自拍",
-            "default": false
+            "default": false,
+            "scope": "instance"
           },
           "allowNonOwnerDrawing": {
             "type": "boolean",
@@ -203,7 +220,8 @@
               ]
             },
             "default": "1024x1024",
-            "scope": "global"
+            "scope": "global",
+            "chatOverride": true
           },
           "quality": {
             "type": "string",
@@ -223,7 +241,8 @@
               ]
             },
             "default": "medium",
-            "scope": "global"
+            "scope": "global",
+            "chatOverride": true
           },
           "globalConcurrency": {
             "type": "integer",
@@ -362,7 +381,7 @@
               },
               "prompt": {
                 "type": "string",
-                "description": "直接送入图像 API 的自然语言正文。从画面或具体编辑指令起笔，写清可见主体、构图与必要细节。任务名放在外层 title，请求者和聊天经过留在会话中。画面需要印出的原文用引号标明。",
+                "description": "直接送入图像 API 的自然语言正文。从画面或具体编辑指令起笔，写清可见主体、构图与必要细节。用户未指定新图画面时自行设计。借参考创作新图时，写清要沿用的特征，以及在动作、视角或主体布局上明显不同的新构思。复刻、修复和局部编辑按用户指定范围。任务名放在外层 title，请求者和聊天经过留在会话中。画面需要印出的原文用引号标明。",
                 "minLength": 1,
                 "maxLength": 12000
               },
@@ -424,10 +443,16 @@
                 "maximum": 2000,
                 "description": "仅 GIF 动图使用，每帧时长，单位毫秒。"
               },
+              "referenceOrder": {
+                "type": "array",
+                "maxItems": 10,
+                "description": "可选，指定参考图的发送顺序。ref1 至 ref4 是 references 中的原图或首帧，frames1 至 frames4 是对应动图的动作拼图，role1、role2 是本次自拍提供的角色视图。只列需要优先排列的项，其余自动跟随。",
+                "items": { "type": "string", "enum": ["ref1", "ref2", "ref3", "ref4", "frames1", "frames2", "frames3", "frames4", "role1", "role2"] }
+              },
               "references": {
                 "type": "array",
                 "maxItems": 4,
-                "description": "普通生图、改图和自拍均可传入最多四张图，静态和 GIF 均适用。按传入顺序在提示词里称图1、图2等，并写清各图用途。自拍的角色形象图由插件另外附上。",
+                "description": "普通生图、改图和自拍均可传入最多四张图，静态和 GIF 均适用。按最终发送顺序在提示词里称图1、图2等，并写清各图用途。自拍的角色形象图由插件另外附上。",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -574,7 +599,7 @@
       ],
       "ui": {
         "version": 1,
-        "readinessAction": "readiness",
+        "settingsCheck": "readiness",
         "sections": [
           {
             "id": "settings",
@@ -582,7 +607,9 @@
             "fields": [
               "imageEnabled",
               "selfieEnabled",
-              "allowNonOwnerDrawing"
+              "allowNonOwnerDrawing",
+              "customService",
+              "customOutput"
             ]
           },
           {
@@ -597,15 +624,33 @@
         ],
         "globalSections": [
           {
-            "id": "settings",
-            "title": "设置",
+            "id": "service",
+            "title": "画图服务",
             "fields": [
-              "provider",
+              "provider"
+            ]
+          },
+          {
+            "id": "output",
+            "title": "输出设置",
+            "fields": [
               "size",
               "quality"
-            ],
+            ]
+          },
+          {
+            "id": "skill",
+            "title": "生图 Skill",
+            "fields": [],
             "widgets": [
-              { "type": "skill-upload", "title": "生图 Skill", "skills": ["imagegen", "gpt-image"] }
+              {
+                "type": "skill-upload",
+                "title": "生图 Skill",
+                "skills": [
+                  "imagegen",
+                  "gpt-image"
+                ]
+              }
             ]
           },
           {
@@ -777,6 +822,31 @@
               "selfie_reference"
             ]
           }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "customService",
+            "sections": [
+              "service",
+              "openai",
+              "compatible",
+              "codex"
+            ],
+            "summary": "provider"
+          },
+          {
+            "mode": "customOutput",
+            "sections": [
+              "output"
+            ],
+            "summary": "size"
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
         ]
       },
       "metadata": {
@@ -789,7 +859,7 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。"
+        "changelog": "用户只给主题或参考图时，Bot 会自行构思画面。参考图用于创作新图时，会设计明显不同的动作、视角或构图。"
       }
     }
   }

@@ -114,6 +114,7 @@ module.exports = async function checkUi({ hostRequire, runtime, channel, plugin,
     await view.locator("#settings").click();
     const preferences = page.frameLocator('iframe[title="表情设置"]');
     await expect(preferences.locator('#setting-chat option')).toHaveText(['实例默认', '表情交流群（123456）', '表情交流群（876543）']);
+    await preferences.locator("#inherit").selectOption("override");
     await preferences.locator("#frequency").fill("90"); await preferences.locator("#cooldown").fill("0");
     await expect(preferences.getByText("随手配表情的频率")).toBeVisible();
     await expect(preferences.locator("#collect-generated")).toBeChecked();

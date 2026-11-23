@@ -114,8 +114,10 @@ def read_preview(args, fetch=None):
 
         view = api("/x/web-interface/view", {"bvid": bvid})
         pages = view.get("pages") or []
-        if view.get("bvid") != bvid or not 1 <= part <= len(pages):
-            raise WatchError("预览视频或分P不匹配")
+        if view.get("bvid") != bvid:
+            raise WatchError("预览视频编号不匹配")
+        if not 1 <= part <= len(pages):
+            raise WatchError("预览分P编号超出范围")
         page = pages[part - 1]
         cid = page.get("cid")
         if not isinstance(cid, int) or isinstance(cid, bool) or cid <= 0:

@@ -1,0 +1,11 @@
+{
+  "name": "bphone-device-tools",
+  "version": "4.1.1",
+  "private": true,
+  "dependencies": {
+    "sharp": "0.35.5"
+  },
+  "optionalDependencies": {
+    "@mobilenext/mobilecli-windows-amd64": "1.0.21"
+  }
+}

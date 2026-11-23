@@ -172,7 +172,7 @@ class Jobs:
     def _record(self, job_id):
         record = self.records.get(token(job_id))
         if record is None:
-            raise WatchError("任务不存在或已过期")
+            raise WatchError("找不到此任务记录")
         return record
 
     def _save(self, record):
@@ -211,7 +211,7 @@ class Jobs:
                 raise WatchError("只能复用已经就绪的读取任务")
             if source.startswith("import:"):
                 if not contained(self.root, "imports", source[7:], "source.json").is_file():
-                    raise WatchError("导入标识不存在或已过期")
+                    raise WatchError("找不到此导入标识对应的来源记录")
             from sources import remote_source
             needs_downloader = remote_source(source) and not media.direct_source(source, request.get("source_type", "auto"))
             missing = [name for name, ready in dependencies().items() if not ready and (name != "yt-dlp" or needs_downloader)]

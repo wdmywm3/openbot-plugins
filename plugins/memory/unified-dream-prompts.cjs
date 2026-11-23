@@ -26,6 +26,7 @@ function build(ctx, storage, scope) {
     ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, EXPERIENCE,
     "整理经历时，真人发言标记 experienceEvidence=heard，Bot 已送达的回复标记 experienceEvidence=sent。",
     require("./unified-memes.cjs").PROMPT,
-    require("./unified-profile-policy.cjs").STANDARD].join("\n\n") };
+    require("./unified-profile-policy.cjs").STANDARD, require("./unified-profile-policy.cjs").USAGE_PROMPT,
+    require("./unified-profile-impressions.cjs").GENDER_PROMPT].join("\n\n") };
 }
 module.exports = { build };

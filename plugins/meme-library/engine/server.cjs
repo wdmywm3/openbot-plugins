@@ -103,7 +103,8 @@ function createEngine(root) {
       const file = imagePath(input.hash), offset = input.offset;
       if (!Number.isSafeInteger(offset) || offset < 0 || typeof input.data !== "string" || input.data.length > 48000) throw Error("图片分块无效");
       const chunk = Buffer.from(input.data, "base64");
-      if (chunk.toString("base64") !== input.data || offset + chunk.length > MAX_IMAGE) throw Error("图片分块过大或编码无效");
+      if (chunk.toString("base64") !== input.data) throw Error("图片分块的 Base64 编码无效");
+      if (offset + chunk.length > MAX_IMAGE) throw Error(`图片超过 ${MAX_IMAGE} 字节上限`);
       for (const [hash, entry] of uploads) if (entry.at < Date.now() - 30000) discardUpload(hash);
       let entry = uploads.get(input.hash);
       if (offset === 0) {

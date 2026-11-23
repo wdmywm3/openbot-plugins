@@ -1,36 +1,26 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "android-roamer",
-  "version": "2.5.1",
-  "description": "Bot 自己的手机：按需使用应用、延续活动进度，空闲时自行安排兴趣与游戏",
+  "version": "4.1.1",
+  "description": "让 Bot 读取已绑定安卓设备的屏幕、查看应用并执行指定的手机操作",
   "extensions": {
     "com.openbot": {
       "main": "index.js",
+      "execution": { "concurrency": "parallel" },
       "category": "ai",
       "permissions": [
         "agent",
         "memory:read",
         "memory:write",
         "retrieval",
-        "resource:android",
-        "resource:android:autonomous",
         "hook:context",
         "state",
         "reply",
-        "share",
-        "resource:android:self"
+        "mcp",
+        "assets",
+        "state:global",
+        "script:run"
       ],
-      "background": {
-        "agent": true,
-        "export": "poll",
-        "intervalSeconds": 60,
-        "startupDelaySeconds": 60
-      },
-      "execution": {
-        "concurrency": "resource",
-        "resourceType": "android",
-        "resourceIdField": "deviceId"
-      },
       "hooks": [
         {
           "type": "context",
@@ -48,9 +38,10 @@
           "aliases": [
             "手机任务"
           ],
-          "description": "在主人私聊中交办手机任务：/phone [--device 设备] 目标",
+          "description": "让当前 Bot 使用手机完成交办事项",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         },
         {
           "name": "phonestatus",
@@ -60,18 +51,20 @@
         },
         {
           "name": "phoneresume",
-          "description": "继续当前主人私聊中的手机任务",
+          "description": "让当前 Bot 核对历史和设备画面后继续",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         },
         {
           "name": "roam",
           "aliases": [
             "手机闲逛"
           ],
-          "description": "开始自己的手机活动：/roam [--device 设备] [兴趣]",
+          "description": "让当前 Bot 按兴趣使用手机",
           "scope": "private",
-          "permission": "owner"
+          "permission": "owner",
+          "responseMode": "agent"
         }
       ],
       "configSchema": {
@@ -83,20 +76,6 @@
             "scope": "instance",
             "default": true
           },
-          "autonomyEnabled": {
-            "type": "boolean",
-            "title": "闲时自行活动",
-            "scope": "instance",
-            "default": false
-          },
-          "interests": {
-            "type": "string",
-            "title": "兴趣与想做的事",
-            "default": "按自己的兴趣选择阅读、游戏、应用体验，也可以继续上次未完成的事情",
-            "ui": {
-              "widget": "multiline"
-            }
-          },
           "prohibitions": {
             "type": "string",
             "title": "不希望做的事",
@@ -104,16 +83,6 @@
             "ui": {
               "widget": "multiline"
             }
-          },
-          "shareDiscoveries": {
-            "type": "boolean",
-            "title": "有适合的发现时提议分享",
-            "default": true
-          },
-          "screenshots": {
-            "type": "boolean",
-            "title": "分享时可附公开画面",
-            "default": true
           },
           "allApps": {
             "type": "boolean",
@@ -140,49 +109,6 @@
               }
             },
             "scope": "instance"
-          },
-          "autonomyRestMinutes": {
-            "type": "integer",
-            "title": "空闲后先休息（分钟）",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 1440,
-            "default": 10,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "autonomyMeanMinutes": {
-            "type": "integer",
-            "title": "休息后平均等待（分钟）",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 1440,
-            "default": 30,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "autonomyDailyLimit": {
-            "type": "integer",
-            "title": "每天最多闲时活动次数",
-            "scope": "instance",
-            "minimum": 1,
-            "maximum": 48,
-            "default": 6,
-            "ui": {
-              "advanced": true
-            }
-          },
-          "maxSteps": {
-            "type": "integer",
-            "title": "每次活动最多操作次数",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 40,
-            "ui": {
-              "advanced": true
-            }
           }
         }
       },
@@ -190,7 +116,7 @@
       "tools": [
         {
           "name": "use",
-          "description": "为你当前的目标按需使用自己的手机，包括查资料、体验应用、玩游戏或继续上次活动；无需等待别人明确要求。私人任务只能来自主人私聊。",
+          "description": "读取手机控件、截图或应用列表。等待已知状态控件时用 wait，一次调用取得最终结果。",
           "export": "agentTool",
           "scope": "all",
           "permission": "member",
@@ -202,13 +128,39 @@
                 "maxLength": 128,
                 "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
               },
-              "goal": {
-                "type": "string",
-                "maxLength": 2000
-              },
               "private": {
                 "type": "boolean",
                 "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "operation": {
+                "type": "string",
+                "enum": [
+                  "observe",
+                  "screenshot",
+                  "apps",
+                  "wait"
+                ]
+              },
+              "waitFor": {
+                "type": "object",
+                "description": "operation 为 wait 时指定。按资源 ID 精确查找当前应用内的一个控件。",
+                "properties": {
+                  "app": { "type": "string", "maxLength": 255, "description": "读屏确认的应用包名" },
+                  "identifier": { "type": "string", "minLength": 1, "maxLength": 512, "description": "状态控件的资源 ID" },
+                  "anchorText": { "type": "string", "minLength": 1, "maxLength": 512, "description": "应一直可见的文件名或页面标题；完全匹配文字或无障碍标签，消失时结束等待。" },
+                  "field": { "type": "string", "enum": ["text", "label"], "description": "读取的文字字段，默认 text" },
+                  "values": {
+                    "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string", "maxLength": 1024 },
+                    "description": "任一完整值命中即返回。省略时等待该字段相对首次读取发生变化。"
+                  },
+                  "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 90, "description": "最长等待秒数，默认 30" }
+                },
+                "required": ["app", "identifier"],
+                "additionalProperties": false
+              },
+              "goal": {
+                "type": "string",
+                "maxLength": 2000
               },
               "activityId": {
                 "type": "string",
@@ -216,6 +168,123 @@
                 "description": "继续活动列表中的指定活动。"
               }
             },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "act",
+          "description": "执行一项由你选定的手机动作。携带刚读屏得到的 observationId，每个编号只能操作一次。设备返回后由你判断结束或重新观察。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "observationId": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "tap",
+                  "longpress",
+                  "swipe",
+                  "back",
+                  "home",
+                  "rotate",
+                  "type",
+                  "fill",
+                  "launch",
+                  "terminate"
+                ]
+              },
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "toX": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "toY": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16384
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "app": {
+                "type": "string",
+                "maxLength": 255
+              },
+              "orientation": {
+                "type": "string",
+                "enum": [
+                  "portrait",
+                  "landscape"
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "observationId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "script",
+          "title": "执行手机脚本",
+          "description": "由你编写一次 JavaScript 函数体，按每次实际读到的画面连续操作。变量 screen、step、state；返回 {tap:{text:\"设置\"}}、{act:{action:\"back\"}}、{done:结果} 或 {stop:\"原因\"}。观察编号由工具逐步绑定。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "code": {
+                "type": "string",
+                "maxLength": 8192,
+                "description": "每次读屏后执行的 JavaScript 函数体。step 为已确认动作数，从 0 开始。可随动作返回 state。"
+              },
+              "maxActions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16,
+                "description": "本次最多执行的设备动作数，默认 8。纯查询填 0。"
+              }
+            },
+            "required": [
+              "code"
+            ],
             "additionalProperties": false
           }
         },
@@ -277,7 +346,7 @@
         },
         {
           "name": "resume",
-          "description": "继续中断的活动；结果不明时先核对，不重放动作。",
+          "description": "恢复观察：读取当前屏幕并返回新的观察编号。请根据当前画面自行决定下一步。",
           "export": "agentTool",
           "scope": "private",
           "permission": "owner",
@@ -298,6 +367,132 @@
                 "description": "继续活动列表中的指定活动。"
               }
             },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "record",
+          "description": "保存你撰写的手机活动总结和有依据的经验，不操作设备。同一活动可携带已有 activityId。",
+          "export": "agentTool",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "手机编号或名称；未指定时用默认或唯一手机，多台无默认先询问。"
+              },
+              "private": {
+                "type": "boolean",
+                "description": "仅主人私聊可设 true；默认 false，用于 Bot 自己的公开活动。"
+              },
+              "activityId": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "goal": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "report": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "progress": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "next": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "blocked": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "reflections": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "topic": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "understanding": {
+                      "type": "string",
+                      "maxLength": 1200
+                    },
+                    "application": {
+                      "type": "string",
+                      "maxLength": 800
+                    },
+                    "uncertainty": {
+                      "type": "string",
+                      "maxLength": 600
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "maxItems": 3,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "quote": {
+                            "type": "string",
+                            "maxLength": 600
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "quote"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "topic",
+                    "understanding",
+                    "evidence",
+                    "application"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "questions": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "question": {
+                      "type": "string",
+                      "maxLength": 600
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "question"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "goal",
+              "report"
+            ],
             "additionalProperties": false
           }
         },
@@ -418,71 +613,35 @@
         }
       ],
       "ui": {
-        "version": 1,
-        "layout": "resource-manager",
-        "resourceType": "android",
+        "version": 2,
+        "layout": "settings",
         "sections": [
           {
             "id": "settings",
             "title": "使用设置",
             "fields": [
               "useEnabled",
-              "autonomyEnabled",
-              "interests",
               "prohibitions",
-              "shareDiscoveries",
-              "screenshots",
               "allApps",
-              "playApps",
-              "autonomyRestMinutes",
-              "autonomyMeanMinutes",
-              "autonomyDailyLimit",
-              "maxSteps"
-            ],
-            "widgets": [
-              {
-                "type": "action",
-                "action": "activity"
-              }
+              "playApps"
             ]
           }
         ],
         "labels": {
           "settings": "使用设置",
-          "model": "闲时活动模型",
           "save": "保存使用设置"
-        }
-      },
-      "resources": [
-        {
-          "type": "android",
-          "settingsFields": [
-            "useEnabled",
-            "autonomyEnabled",
-            "interests",
-            "prohibitions",
-            "shareDiscoveries",
-            "screenshots",
-            "allApps",
-            "playApps",
-            "autonomyRestMinutes",
-            "autonomyMeanMinutes",
-            "autonomyDailyLimit",
-            "maxSteps"
-          ],
-          "policy": {
-            "enabledField": "useEnabled",
-            "unrestrictedAppsField": "allApps",
-            "allowedAppsField": "playApps"
-          },
-          "autonomy": {
-            "enabled": "autonomyEnabled",
-            "rest": "autonomyRestMinutes",
-            "mean": "autonomyMeanMinutes",
-            "limit": "autonomyDailyLimit"
+        },
+        "views": [
+          {
+            "id": "devices",
+            "title": "设备",
+            "entry": "ui/devices.html",
+            "actions": [
+              "devices"
+            ]
           }
-        }
-      ],
+        ]
+      },
       "actions": [
         {
           "id": "activity",
@@ -504,17 +663,133 @@
             "additionalProperties": false
           },
           "resultTemplate": "{summary}"
+        },
+        {
+          "id": "devices",
+          "title": "设备管理",
+          "kind": "native",
+          "export": "deviceSettings",
+          "readOnly": false,
+          "inputSchema": {
+            "type": "object",
+            "required": [
+              "op"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "scan",
+                  "preview",
+                  "save",
+                  "update",
+                  "remove",
+                  "transfer",
+                  "activity",
+                  "pick",
+                  "picked",
+                  "history",
+                  "detail"
+                ]
+              },
+              "deviceId": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "adbPath": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "host": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "token": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "isDefault": {
+                "type": "boolean"
+              },
+              "connected": {
+                "type": "boolean"
+              },
+              "settings": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "useEnabled": {
+                    "type": "boolean"
+                  },
+                  "prohibitions": {
+                    "type": "string"
+                  },
+                  "allApps": {
+                    "type": "boolean"
+                  },
+                  "playApps": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^(?=.{3,255}$)[A-Za-z][A-Za-z0-9_.]*\\.[A-Za-z0-9_]+$"
+                    }
+                  }
+                }
+              },
+              "target": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "ticket": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "cursor": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "additionalProperties": false
+          }
         }
       ],
       "metadata": {
-        "usage": "绑定手机并启用插件后，Bot 可为当前目标按需使用。闲时自行活动单独开启；私人任务在主人私聊中交办。",
+        "usage": "绑定设备后，在聊天中告诉 Bot 目标。Bot 可以读屏、查看截图和逐项调用手机动作。",
         "requirements": [
-          "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存跨会话经验",
+          "已在 Windows x64、OpenBot 0.1.119 验证",
           "配置并通过截图确认手机连接",
           "角色启用插件工具与技能"
         ],
-        "changelog": "探索经验接入共享混合检索，复用宿主模型并核对当前经验版本。"
-      }
+        "changelog": "在 OpenBot 0.1.128 中可同时操作不同手机，同一台手机的操作按顺序执行。"
+      },
+      "dependencies": {
+        "node": {
+          "lockfile": "package-lock.json"
+        }
+      },
+      "requiredFeatures": [
+        "instanceSettingsViews",
+        "mediaHandoff",
+        "scriptExecution"
+      ]
     }
   }
 }

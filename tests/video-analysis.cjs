@@ -4,6 +4,7 @@ const code = fs.readFileSync(path.join(__dirname, "../plugins/bilibili-explorer/
 function fixture({ captions = true, captionText = "先介绍原理，再演示操作。", duration = 40, decision = {}, decisions = {}, preview = false, unavailable = false, asynchronous = false } = {}) {
   const state = new Map(), models = [], media = [], requests = [];
   const ctx = { config: {}, message: { chatId: "onebot:private:1" }, api: {
+    isOwnerPrivateChat: async id => ["onebot:private:1", "onebot:private:2"].includes(id),
     getState: async (key, scope) => structuredClone(state.get(`${ctx.message.chatId}:${scope}:${key}`)),
     setState: async (key, value, scope) => state.set(`${ctx.message.chatId}:${scope}:${key}`, structuredClone(value)),
     fetchJson: async url => {

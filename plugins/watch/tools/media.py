@@ -194,7 +194,7 @@ def single_video_info(info):
         if not isinstance(entries, list) or len(entries) != 1:
             break
         info = entries[0]
-    raise WatchError("页面包含多个视频或未指定视频，请打开需要观看的具体视频链接")
+    raise WatchError("未能从页面选定一个视频，请打开需要观看的具体视频链接")
 
 
 def acquire(source, directory, root, runner, stage, source_type="auto", transcript_only=False):
@@ -301,8 +301,15 @@ def acquire(source, directory, root, runner, stage, source_type="auto", transcri
                               "--merge-output-format", "mp4", "--no-write-subs", "--no-write-auto-subs",
                               "-o", prefix + "/media.%(ext)s", *from_info], 600)
             files = [p for p in directory.glob("media.*") if p.suffix in MEDIA_EXTENSIONS and not re.search(r"\.f\d+\.", p.name)]
-            if len(files) != 1 or not 0 < files[0].stat().st_size <= MAX_MEDIA:
-                raise WatchError(f"没有取得完整媒体文件，或文件超过 {MAX_MEDIA // (1024 * 1024)} MiB 限制")
+            if not files:
+                raise WatchError("下载未产生完整媒体文件")
+            if len(files) != 1:
+                raise WatchError("下载产生了多个媒体文件，无法选择本次结果")
+            size = files[0].stat().st_size
+            if not size:
+                raise WatchError("下载的媒体文件为空")
+            if size > MAX_MEDIA:
+                raise WatchError(f"媒体文件为 {size} 字节，超过 {MAX_MEDIA // (1024 * 1024)} MiB 限制")
             video = files[0]
         except Cancelled:
             raise

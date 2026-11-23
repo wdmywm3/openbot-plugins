@@ -50,7 +50,8 @@ async function all(ctx, includeDeleted = false) {
   return includeDeleted ? rows : rows.filter(row => !row.value.deleted);
 }
 async function settings(ctx, chatId = ctx.message?.chatId || "") {
-  return { ...DEFAULTS, ...(await db(ctx, "settings", "default")).record?.value,
+  return { ...DEFAULTS, frequency: ctx.config?.frequency ?? DEFAULTS.frequency, cooldownSeconds: ctx.config?.cooldownSeconds ?? DEFAULTS.cooldownSeconds,
+    ...(await db(ctx, "settings", "default")).record?.value,
     ...(chatId ? (await db(ctx, "settings", chatId)).record?.value : {}) };
 }
 async function retrievalStatus(ctx, config = {}) {
@@ -83,13 +84,14 @@ async function transfer(ctx, ref) {
 const usableRef = (v, chat) => v.refs?.find(r => !chat || r.shared || r.chatId === chat || r.chats?.includes(chat));
 const roleProfileId = value => Object.hasOwn(value, "roleProfileId") ? text(value.roleProfileId, 200)
   : value.source?.type === "profile" ? value.source.profileId || (value.profileIds?.length === 1 ? value.profileIds[0] : "") : "";
-function visible(ctx, v) {
+function inChatScope(ctx, v) {
   const chat = ctx.message?.chatId || "";
-  return !v.deleted && v.enabled !== false && !!usableRef(v, chat)
+  return !!usableRef(v, chat)
     && (!roleProfileId(v) || roleProfileId(v) === ctx.profile?.id)
     && (!v.profileIds?.length || v.profileIds.includes(ctx.profile?.id))
     && (v.chatMode !== "include" || v.chatIds?.includes(chat)) && (v.chatMode !== "exclude" || !v.chatIds?.includes(chat));
 }
+function visible(ctx, v) { return !v.deleted && v.enabled !== false && inChatScope(ctx, v); }
 function isRoleSticker(ctx, value) {
   return !!ctx.profile?.id && roleProfileId(value) === ctx.profile.id;
 }
@@ -455,7 +457,13 @@ module.exports.collect = async ctx => {
   const url = text(ctx.input?.url, 1000);
   if (!!messageId === !!url) throw Error("请选择当前聊天的一条图片消息或工具返回的图片地址");
   const asset = await ctx.api.assets(url ? { action: "fromPublished", url }
-    : { action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 });
+    : { action: "fromMessage", messageId, kind: "image", index: ctx.input?.imageIndex || 0 }).catch(error => {
+      ctx.signal?.throwIfAborted();
+      if (messageId && (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用"))
+        return { available: false, reason: "not_retained" };
+      throw error;
+    });
+  if (asset.available === false) return { collected: false, skipped: true, reason: asset.reason };
   const saved = await ingest(ctx, asset.ref, { type: asset.publication?.metadata?.generated ? "generated" : "chat", chatId: ctx.message.chatId,
     ...(url ? { url, pluginId: asset.publication?.pluginId } : { messageId }), automatic: ctx.input?.automatic === true });
   return { collected: true, id: saved.key, processing: saved.value.indexStatus !== "ready" };
@@ -537,13 +545,45 @@ module.exports.save = async ctx => {
   if (changed) await enqueue(ctx, [input.id], `edit:${input.id.slice(0, 64)}:${requestId(input.id)}:${value.descriptionVersion}`);
   return { saved: true, rebuilding: changed };
 };
+async function removeItem(ctx, row) {
+  if (!row.value.deleted) await put(ctx, row.key, { ...row.value, deleted: true, updatedAt: Date.now() }, row.revision);
+  await ctx.api.vectorIndex({ action: "delete", scope: "channel", collection: "items", ids: [row.key] });
+  return { removed: true };
+}
 module.exports.remove = async ctx => {
   const row = await get(ctx, ctx.input?.id);
   if (!row || row.revision !== ctx.input?.revision) throw Error("表情已变化，请刷新后再试");
-  await put(ctx, row.key, { ...row.value, deleted: true, updatedAt: Date.now() }, row.revision);
-  await ctx.api.vectorIndex({ action: "delete", scope: "channel", collection: "items", ids: [row.key] });
-  return { removed: true };
+  return removeItem(ctx, row);
 };
+async function removeCollected(ctx) {
+  if (ctx.principal?.role !== "owner") throw Error("只有实例主人可以在聊天中删除表情");
+  if (!ctx.message?.chatId) throw Error("请在这张表情所在的聊天中删除");
+  const { url, messageId, imageIndex } = ctx.input;
+  if (url && messageId) throw Error("删除时只能指定一张图片");
+  if (!url && !messageId) throw Error("请指定要删除的图片消息或成品图片地址");
+  if (messageId && !Number.isInteger(imageIndex)) throw Error("请指定要删除消息中的第几张图片");
+  // Generated collections already retain the original publication, including older versions.
+  let row;
+  if (url) {
+    const page = await ctx.api.database({ name: "library", scope: "channel", collection: "items", action: "query",
+      where: { "source.chatId": ctx.message.chatId, "source.url": url }, limit: 1 });
+    row = page.records[0];
+  }
+  if (!row) {
+    const asset = await ctx.api.assets(url ? { action: "fromPublished", url }
+      : { action: "fromMessage", messageId, kind: "image", index: imageIndex });
+    if (asset.available === false) throw Error("这条消息的图片原件不可用");
+    row = await get(ctx, asset.sha256);
+  }
+  for (let attempt = 0; ; attempt++) {
+    if (!row || !inChatScope(ctx, row.value)) throw Error("当前聊天的表情库里没有这张图片");
+    try { return await removeItem(ctx, row); }
+    catch (error) {
+      if (attempt >= 2 || !conflict(error)) throw error;
+      row = await get(ctx, row.key);
+    }
+  }
+}
 module.exports.update = async ctx => {
   const input = ctx.input || {};
   if (input.reanalyze === true && (!Array.isArray(input.ids) || !input.ids.length || input.ids.length > 500 || input.ids.some(id => typeof id !== "string" || !id.trim() || id.length > 256))) throw Error("请选择 1–500 张表情重新识别");
@@ -578,6 +618,7 @@ module.exports.saveSettings = async ctx => {
     if (!model.modalities?.includes("image")) throw Error("请选择支持图片的检索模型");
   }
   if (key === "default") {
+    if (p.inherit === true) { delete value.frequency; delete value.cooldownSeconds; }
     value.visionModelId = text(p.visionModelId, 200);
   }
   await db(ctx, "settings", key, "put", { value, expectedRevision: row?.revision || 0 });
@@ -625,7 +666,7 @@ module.exports.list = async ctx => {
     counts: { total: rows.length, ready: rows.filter(r => r.value.indexStatus === "ready").length,
       searchable: rows.filter(r => r.value.analysisStatus === "ready").length, failed: rows.filter(r => r.value.error).length },
     retrievalStatus: await ctx.api.getState("retrievalStatus", "channel"),
-    inherited: !!(input.settingsChatId ?? input.chatId) && !pref,
+    inherited: input.settingsChatId || input.chatId ? !pref : pref?.value?.frequency == null && pref?.value?.cooldownSeconds == null,
     preferences: { ...await settings(ctx, input.settingsChatId ?? input.chatId ?? ""), revision: pref?.revision || 0 },
     contexts: { ...contexts, chats: contexts.chats.map(chat => ({ ...chat, name: contextChatLabel(chat) })) },
     models: await ctx.api.listModels(), retrievalModels: (await ctx.api.embeddings({ action: "models" })).models,
@@ -830,7 +871,7 @@ async function search(ctx, input) {
   await finishEvent(ctx, event, candidates.length ? "pending" : "no_match", { candidates: candidates.map(({ id, score }) => ({ id, score })) });
   await ctx.api.setState("lastSearch", { key: event.key, candidates: candidates.map(({ id, url }) => ({ id, url })) }, "chat");
   return { searchId: event.key, usage, candidates, attachments, retrieval, ...(warning ? { warning } : {}),
-    instruction: "专属角色表情画的是你自己，包括 Q 版。有符合当前语境的专属角色表情时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
+    instruction: "按这条回复想表达的心情和语气选图，画面可以与聊天话题不同。专属角色表情画的是你自己，包括 Q 版；同样贴切时优先选择。选中普通表情时使用其 url；选中 textTemplate 表情时，用本次 searchId、候选 id 和想公开表达的短句调用 action=render，再使用返回的 url。查看候选和含义，不合适就不发。" };
 }
 async function renderTemplate(ctx, input) {
   const searchId = text(input.searchId, 256), id = text(input.id, 256);
@@ -864,6 +905,7 @@ async function renderTemplate(ctx, input) {
 module.exports.stickers = async ctx => {
   const action = ctx.input?.action || "search";
   if (["collect", "add"].includes(action)) return module.exports.collect(ctx);
+  if (action === "remove") return removeCollected(ctx);
   if (action === "search") return search(ctx, ctx.input || {});
   if (action === "render") return renderTemplate(ctx, ctx.input || {});
   if (["feedback", "no_match"].includes(action)) {
@@ -953,12 +995,13 @@ module.exports.beforeModel = async ctx => {
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
   const systemPromptAppend = [
     '表情可用时，每条独立回复在提交 qqReply 前必须先调用 plugin__meme-library__stickers 搜索一次并查看候选。外层传 action=start 和稳定的 requestKey，input 传 action=search 和 query。只有任务仍在 running 时才按 jobId 查状态。',
-    'query 写这次想表达的意思、态度和对象，比如「被夸后得意叉腰」。找图上的原话用 mode=text。明确想填字时用 kind=template，并按用途搜索，比如「半垂眼想吐槽的思考框」。',
-    '结合候选原图、含义和 avoidContexts 选图。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
+    '日常配图的 query 用一个简短的心情或反应：想看看可以搜「好奇」，有了发现可以搜「小得意」，等对方确认可以搜「期待」。省去话题名称、办事经过和整句回复。用户点名角色、动作或特定表情时保留指定特征；找图上的原话用 mode=text，填字用 kind=template。',
+    '结合候选原图、含义和 avoidContexts 判断这张图的语气是否合适；图中可以是另一件事。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
     '选中可填字表情后用同一工具启动 input.action=render，传 searchId、id 和公开短句 text，思考框尽量在 20 字以内。短句可以表达想法、玩梗或对熟人轻轻吐槽。',
     '搜索时用 usage=required 表示用户明确要表情、斗图或删掉图片就不能完成这条回复；这种表情不受随手配图的频率和间隔限制。普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。用途只对本次回复有效，每条独立回复使用本次搜索结果。',
     '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。插件关闭或没有合适素材时按实际情况回复。',
     '用户要求收藏、出现图库缺少且以后能复用的表情、或形成当前聊天的常用梗时，主动用 action=collect 收藏：聊天图片传 messageId 和 imageIndex，工具产物传完整 url。不要收藏普通照片、私人截图、改稿中间版或重复图片。自制表情成品发送后可自动收藏，不必再调用一次。',
+    '实例主人明确要求删掉已收藏的某张表情时，用 action=remove，从本次实例的表情库删除该图。优先用对应绘图成品的完整 url，也可以用当前聊天中那条图片消息的 messageId 和 imageIndex。只说画得不好时不删除；指向不清时请对方引用原图，不用相似搜索结果代替。',
   ].join("\n");
   let status;
   const cooldownUntil = last + cfg.cooldownSeconds * 1000;

@@ -103,7 +103,7 @@ def local_file(source, roots):
         # Resolving before the root check keeps symlinks/junctions from escaping.
         return file
     except (ValueError, TypeError, OSError, RuntimeError):
-        raise WatchError("本地视频不在配置的可读目录内，或文件不存在；请提供附件或配置该文件所在目录") from None
+        raise WatchError("在配置的可读目录中找不到此视频文件") from None
 
 
 def configured_local_file(source, root):

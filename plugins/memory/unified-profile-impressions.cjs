@@ -1,0 +1,76 @@
+"use strict";
+const { admit } = require("./unified-material-policy.cjs");
+const { DAY, occasions, mediaOnly } = require("./unified-profile-usage.cjs");
+
+const { genderValue } = require("./lib/features/channels/channel-member-memory-proof.cjs");
+const boundary = /(?:MBTI|心理疾病|精神病|抑郁症|躁郁|双相障碍|自闭症|人格障碍|性取向|宗教信仰|政治立场|真实性别)/iu;
+const sample = source => source?.id && source.version && source.direction === "in" && source.sender?.id && !source.sender.isBot
+  && !source.forwarded && admit(source) && source.content.trim().length >= 6 && !mediaOnly(source.content)
+  && !/\[(?:合并转发|转发消息)\]/u.test(source.content);
+const text = (value, limit) => typeof value === "string" && value.trim().length >= 2 && value.trim().length <= limit
+  && !boundary.test(value) && !/[\u0000-\u001f<>]/u.test(value) ? value.trim().replace(/[。；，,]+$/u, "") : "";
+const PROMPT = `聊天印象是根据成员在多次交流中怎样做事、怎样与人互动形成的印象。可给 impressions:[{subjectId,behavior:"能从多次交流中看到的具体做法",impression:"这些互动给人的感觉",evidence:[{id,quote}]}]。例如遇到群友求助时先问对方试过什么、再分步给出建议，可以写“讲解耐心、有条理”。请自己分析原消息，不套例句，不把喜欢吃什么、兴趣清单、单次情绪或单张表情改写成人物印象。至少三次不同场合的本人发言，每次相隔至少 24 小时。逐字摘录能支持这次判断的动作或表达，只从本聊天理解此人，不推断真实身份、性别、健康、心理诊断或人格测评。没有这样的材料就留空。`;
+const GENDER_PROMPT = `性别属于基础资料，只有本人明确表述时才给 facts，使用 profileSection:"identity" 和 fact:{subjectId,facet:"性别",value:"本人的性别表述",assertion:"self"}。昵称、头像、声线、称谓或他人猜测都不提供性别依据。`;
+
+function records(proposals, scope, materials, history) {
+  if (!Array.isArray(proposals)) return [];
+  const rows = new Map([...history, ...materials].filter(sample).map(s => [s.id, s]));
+  const current = new Set(materials.map(s => s.id)), used = new Set(), result = [];
+  for (const proposal of proposals.slice(0, 8)) {
+    const who = proposal?.subjectId, behavior = text(proposal?.behavior, 140), impression = text(proposal?.impression, 70);
+    if (!who || used.has(who) || !behavior || !impression || /^(?:(?:很|比较|经常|特别|一直|好像|似乎|可能))*[最]?喜欢|^(?:爱吃|爱看|不吃|偏爱|常用表情)/u.test(behavior)
+      || /(?:喜欢吃|不吃鱼|爱吃|爱看|性别|男生|女生|男性|女性|[IE][NS][TF][JP])/iu.test(impression)
+      || !Array.isArray(proposal.evidence) || proposal.evidence.length < 3 || proposal.evidence.length > 8) continue;
+    const sources = [], times = [], ids = new Set(), excerpts = new Set();
+    for (const evidence of proposal.evidence) {
+      const row = rows.get(evidence?.id), quote = text(evidence?.quote, 320);
+      if (!row || row.chatId && row.chatId !== scope.chatId || String(row.sender.id) !== who || ids.has(row.id) || quote.length < 4 || !row.content.includes(quote) || mediaOnly(quote)) break;
+      ids.add(row.id); excerpts.add(quote); times.push(row.createdAt);
+      sources.push({ chatId: scope.chatId, id: row.id, version: row.version, quote });
+    }
+    if (sources.length !== proposal.evidence.length || excerpts.size < 3 || !sources.some(r => current.has(r.id))
+      || sources.every(r => /(?:喜欢吃|爱吃|不吃|我喜欢|我的爱好|我的性别)/u.test(r.quote))
+      || !times.every(Number.isFinite) || occasions(times.map(at => ({ at }))).length < 3) continue;
+    const content = `${behavior}，给人的印象是${impression}。`;
+    result.push({ kind: "fact", category: "profile", status: "active", tier: "working", content, subjectRefs: [who], sources,
+      attributes: { profile: { section: "impression", field: "impression", basis: "chat_observation" },
+        retention: { version: 1, protected: false, basis: "stable", observedAt: Math.max(...times), reason: "理解成员在本聊天中与人交流的方式。" } } });
+    used.add(who);
+  }
+  return result;
+}
+function basicGender(item, sources, materials) {
+  if (item.fact?.facet !== "性别" || item.fact.assertion !== "self") return null;
+  const original = sources.filter(ref => materials.some(row => row.id === ref.id && sampleGenderSource(row, item.fact.subjectId)
+    && String(row.content).includes(ref.quote) && genderValue(item.fact.value, [row.content])));
+  const value = genderValue(item.fact.value, original.map(r => r.quote));
+  return value ? { section: "identity", field: "gender", value, basis: "self_report" } : null;
+}
+function sampleGenderSource(row, subject) { return admit(row) && !row.forwarded && row.direction === "in" && !row.sender?.isBot && String(row.sender?.id) === subject; }
+function addField(record, existing, operations, before, reserved, actor) {
+  const field = record.attributes.profile.field, who = record.subjectRefs[0];
+  const old = existing.filter(r => r.category === "profile" && r.subjectRefs?.length === 1 && r.subjectRefs[0] === who && r.attributes?.profile?.field === field)
+    .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  if (!old) {
+    if (!operations.some(op => op.record?.attributes?.profile?.field === field && op.record.subjectRefs[0] === who)) {
+      operations.push({ action: "create", record }); before.push(null);
+    }
+    return;
+  }
+  if (reserved.has(old.id) || old.createdBy !== actor || old.updatedBy !== actor || old.attributes.profile.basis === "manual"
+    || old.sources?.every(ref => record.sources.some(r => r.id === ref.id && r.version === ref.version)) && old.sources?.length === record.sources.length
+    || record.attributes.retention?.observedAt <= (old.attributes.retention?.observedAt || 0)
+    || field === "gender" && old.attributes.profile.value === record.attributes.profile.value) return;
+  if (field === "impression") {
+    const added = record.sources.filter(ref => !old.sources.some(prior => prior.id === ref.id));
+    if (added.length < 2 || record.attributes.retention.observedAt - (old.attributes.retention?.observedAt || 0) < DAY) return;
+  }
+  reserved.add(old.id);
+  const correction = field === "gender" && record.sources.some(ref => /更正|纠正|说错|写错/u.test(ref.quote || ""));
+  const changeType = field === "impression" ? "edit" : correction ? "correction" : "change";
+  operations.push({ action: "revise", id: old.id, expectedRevision: old.revision, changeType, patch: {
+    content: record.content, sources: record.sources, attributes: { ...old.attributes, ...record.attributes },
+    ...(changeType === "change" ? { validFrom: record.validFrom || record.attributes.retention.observedAt } : {}) } });
+  before.push({ id: old.id, revision: old.revision });
+}
+module.exports = { PROMPT, GENDER_PROMPT, sample, records, basicGender, genderValue, addField };

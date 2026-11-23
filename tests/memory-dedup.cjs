@@ -4,7 +4,7 @@ const { DatabaseSync } = require("node:sqlite");
 const host = process.env.OPENBOT_HOST_ROOT || path.resolve(__dirname, "../../openbot");
 const { createUnifiedMemoryRepository } = require(path.join(host, "electron/lib/context/unified-memory-repository.cjs"));
 const { candidates, identity } = require("../plugins/memory/unified-candidates.cjs");
-const { resolveExisting, MAX_PAGES, PAGE_SIZE } = require("../plugins/memory/unified-existing.cjs");
+const { resolveExisting, PAGE_SIZE } = require("../plugins/memory/unified-existing.cjs");
 const { factProjection } = require("../plugins/memory/lib/features/channels/channel-memory-write.cjs");
 const db = new DatabaseSync(":memory:"), sources = new Map();
 const scope = { channelId: "bot", chatId: "onebot:group:one" }, other = { ...scope, chatId: "onebot:group:other" };
@@ -106,8 +106,21 @@ async function main() {
     await assert.rejects(resolveExisting({ signal: new AbortController().signal, api: { memory: async input => {
       assert.equal(input.action, "search"); pages++;
       return { items: [], nextOffset: (input.offset || 0) + PAGE_SIZE, snapshot: "same", at: 1 };
-    } } }, scope, [], [paraphrase]), /缩小查重范围/);
-    assert(pages <= MAX_PAGES * 2, "an unfinished range is rejected instead of assumed empty");
+    } } }, scope, [], [paraphrase]), /分页没有前进/);
+    assert(pages <= 2, "invalid cursors cannot loop or silently skip records");
+    const many = Array.from({ length: PAGE_SIZE * 4 + 1 }, (_, i) => ({ ...initial, id: "more-" + i, revision: 1,
+      status: "active", attributes: { fact: { ...initial.attributes.fact, value: String(i) } } }));
+    many[many.length - 1] = { ...initial, id: "last-match", status: "active", revision: 1 };
+    const indexed = new Map(many.map(row => [row.id, row]));
+    const tail = await resolveExisting({ signal: new AbortController().signal, api: { memory: async input => {
+      if (input.action === "read") return { item: indexed.get(input.id) };
+      const offset = input.offset || 0, rows = input.status === "active" ? many : [];
+      return { items: rows.slice(offset, offset + input.limit), nextOffset: offset + input.limit < rows.length ? offset + input.limit : null, snapshot: "s", at: 1 };
+    } } }, scope, [], [paraphrase]);
+    assert.deepEqual(tail.map(row => row.id), ["last-match"]);
+    const supplied = many.slice(0, 257);
+    const checked = await resolveExisting({ signal: ctx.signal, api: { memory: async input => ({ item: indexed.get(input.id) }) } }, scope, supplied);
+    assert.deepEqual(checked.map(row => row.id), supplied.map(row => row.id));
     console.log("Memory deduplication: per-proposal scope lookup, pending reuse, structured paraphrases, source merging, changed-value isolation, protection, cancellation and version races passed.");
   } finally { db.close(); }
 }

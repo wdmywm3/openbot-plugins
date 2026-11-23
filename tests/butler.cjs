@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const code = fs.readFileSync(path.join(__dirname, "../plugins/bilibili-explorer/index.js"), "utf8");
 const load = () => { const sandbox = { module: { exports: {} } }; vm.runInNewContext(code, sandbox); return sandbox.module.exports; };
-function fixture() {
+function fixture(ownerChat = "onebot:private:99") {
   const state = new Map(), writes = [], agents = [], pushes = [], reads = [];
   const folders = [{ id: 10, title: "待整理" }, { id: 20, title: "天文" }];
   let tags = [{ tag_name: "天文" }, { tag_name: "宇宙" }];
@@ -12,12 +12,13 @@ function fixture() {
     folderRules: [{ folderId: "20", description: "天文" }], commentMode: "draft", dailyCommentLimit: 1 },
     message: { chatId: "onebot:private:99" }, command: {}, args: "",
     api: {
+      isOwnerPrivateChat: async id => id === ownerChat,
       getSecret: async key => key === "bilibiliMainCookie" ? "user=1; bili_jct=secret-one" : "user=2; bili_jct=secret-two",
       getState: async key => structuredClone(state.get(key)),
       setState: async (key, value) => { state.set(key, structuredClone(value)); },
       updateState: async (key, reducer) => { const value = reducer(structuredClone(state.get(key))); state.set(key, structuredClone(value)); return structuredClone(value); },
       sleep: async () => {},
-      push: async (chatId, blocks) => { pushes.push({ chatId, blocks }); return { id: "sent" }; },
+      push: async (chatId, blocks) => { pushes.push({ chatId, blocks }); return { networkStatus: "sent" }; },
       runAgent: async request => {
         agents.push(request);
         assert.ok(!/secret-one|secret-two|bili_jct/.test(JSON.stringify(request)));
@@ -111,13 +112,51 @@ if (require.main === module) (async () => {
   g.memberships.get("20").add("100"); assert.match(await g.invoke("biliapply"), /1\/1/); assert.equal(g.writes.length, 1);
   const h = fixture(); h.ctx.config.commentMode = "off";
   assert.match(await h.invoke("bilidraft", "BV1234567890 hi"), /开启/); assert.equal(h.agents.length, 0);
-  const automatic = fixture();
-  automatic.ctx.config.autoOrganize = true; automatic.ctx.config.organizeChat = "onebot:private:99";
-  for (let round = 0; round < 5; round++) await load().poll(automatic.ctx);
-  assert.equal(automatic.writes.length, 1, "automatic scan/plan/apply runs once then waits for its schedule");
-  assert.equal(automatic.pushes.length, 1);
-  assert.equal(automatic.pushes[0].chatId, "onebot:private:99");
-  assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
+  for (const ownerChat of ["onebot:private:99", "onebot:private:owner@im.wechat"]) {
+    const automatic = fixture(ownerChat);
+    automatic.ctx.message.chatId = "";
+    automatic.ctx.config.autoOrganize = true;
+    automatic.ctx.config.organizeChat = "onebot:private:other";
+    await load().poll(automatic.ctx);
+    assert.equal(automatic.state.has("bili:1:scan"), false);
+    automatic.ctx.config.organizeChat = ownerChat;
+    for (let round = 0; round < 5; round++) await load().poll(automatic.ctx);
+    assert.equal(automatic.writes.length, 1, "automatic scan/plan/apply runs once then waits for its schedule");
+    assert.equal(automatic.pushes.length, 1);
+    assert.equal(automatic.pushes[0].chatId, ownerChat);
+    assert.equal(automatic.state.get("bili:1:schedule").reported, automatic.state.get("bili:1:scan").id);
+    assert.ok(automatic.memberships.get("10").has("100"), "default copy preserves the original collection");
+  }
+  for (const [receipt, reason, state, status] of [
+    [{ skipped: true, reason: "disabled_for_chat" }, "插件在目标聊天中不可用", "unsent", "failed"],
+    [{ skipped: true }, "宿主跳过了本次推送", "unsent", "failed"],
+    [{ networkStatus: "canceled" }, "已取消发送", "unsent", "failed"],
+    [{ networkStatus: "partial", note: "附件发送失败" }, "通知仅部分送达（附件发送失败）", "partial", "review"],
+    [{ networkStatus: "error", note: "微信未连接" }, "通知发送返回状态 error（微信未连接）", "failed", "failed"],
+    [undefined, "未收到通知送达状态", "unconfirmed", "review"],
+    [Object.assign(new Error("绑定已更新"), { code: "PLUGIN_PUSH_UNBOUND_CHAT" }), "绑定已更新", "unsent", "failed"],
+    [Object.assign(new Error("提交后连接中断"), { code: "CONNECTION_LOST" }), "提交后连接中断", "unconfirmed", "review"],
+  ]) {
+    const id = "onebot:private:owner@im.wechat", f = fixture(id);
+    Object.assign(f.ctx.config, { autoOrganize: true, organizeChat: id });
+    const logs = [], attempts = [];
+    f.ctx.api.log = async event => logs.push(event);
+    f.ctx.api.push = async chat => { attempts.push(chat); if (receipt instanceof Error) throw receipt; return receipt; };
+    for (let round = 0; !attempts.length && round < 8; round++) await load().poll(f.ctx);
+    const schedule = () => f.state.get("bili:1:schedule");
+    assert.equal(schedule().reported, undefined);
+    const retry = state === "unsent";
+    assert.equal(schedule().report.state, state);
+    const notice = logs.findLast(row => row.operation === "notify");
+    assert.equal(notice.detail, reason);
+    assert.equal(notice.status, status);
+    assert.equal(f.state.get("bili:1:lastError").code, receipt?.code || "");
+    f.ctx.api.push = async chat => { attempts.push(chat); return { networkStatus: "ok" }; };
+    await load().poll(f.ctx); await load().poll(f.ctx);
+    assert.equal(attempts.length, retry ? 2 : 1);
+    assert.equal(!!schedule().reported, retry);
+    assert.equal(f.writes.length, 1);
+  }
   const interrupted = fixture(); await interrupted.invoke("biliscan");
   const persist = interrupted.ctx.api.setState;
   let failCache = true;

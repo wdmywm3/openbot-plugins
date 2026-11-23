@@ -62,8 +62,13 @@ def direct(url, output):
         with build_opener(ProxyHandler({})).open(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=20) as response:
             validate_url(response.url)
             length = response.headers.get("Content-Length")
-            if length and (not length.isdigit() or not 0 < int(length) <= MAX_MEDIA):
-                raise WatchError(f"视频为空或超过 {MAX_MEDIA // (1024 * 1024)} MiB")
+            if length:
+                if not length.isdigit():
+                    raise WatchError("视频下载响应的 Content-Length 无效")
+                if int(length) == 0:
+                    raise WatchError("视频下载响应为空")
+                if int(length) > MAX_MEDIA:
+                    raise WatchError(f"视频超过 {MAX_MEDIA // (1024 * 1024)} MiB")
             if response.headers.get_content_type() in {"text/html", "application/json"}:
                 raise WatchError("来源返回了网页或错误信息，请使用平台页面读取或更新附件地址")
             count = 0

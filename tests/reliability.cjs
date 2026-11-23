@@ -63,8 +63,10 @@ function stateApi(initial = {}) {
         push: async () => { calls++; if (current instanceof Error) throw current; return current; } } };
     return { ...f, ctx, calls: () => calls, result: value => { current = value; }, cursor: () => f.state.get("cursors").s };
   }
-  for (const result of [{ skipped: true, reason: "disabled_for_chat" }, { networkStatus: "canceled" }]) {
+  for (const [result, detail] of [[{ skipped: true, reason: "disabled_for_chat" }, "插件在目标聊天中不可用"],
+    [{ skipped: true }, "宿主跳过了本次推送"], [{ networkStatus: "canceled" }, "已取消发送"]]) {
     const f = monitoring(result); assert.equal((await monitor.poll(f.ctx)).pushed, 0);
+    assert((await monitor.handle(f.ctx)).text.includes(detail));
     assert.equal(f.cursor().seenIds.includes("new"), false); assert.equal(Object.keys(f.cursor().pendingDeliveries).length, 1);
     f.result({ networkStatus: "sent" }); await monitor.handle({ ...f.ctx, command: { name: "monitorcheck" } });
     assert.equal(f.calls(), 2); assert.equal(f.cursor().seenIds.includes("new"), true); assert.equal(f.cursor().lastError, "");
@@ -78,6 +80,22 @@ function stateApi(initial = {}) {
     await monitor.handle({ ...f.ctx, command: { name: "monitorcheck" } }); assert.equal(f.calls(), 1); assert.equal(f.cursor().seenIds.includes("new"), true);
   }
   const retry = monitoring({ networkStatus: "pending" }); await monitor.poll(retry.ctx);
+  for (const [receipt, reason] of [
+    [{ networkStatus: "partial", note: "附件发送失败" }, "仅部分送达（附件发送失败）"],
+    [{ networkStatus: "queued" }, "上游状态为 queued"],
+    [{ networkStatus: "failed", code: "SEND_REFUSED", note: "连接已关闭" }, "上游状态为 failed（连接已关闭）"],
+    [{}, "未收到送达状态"], [null, "未收到送达状态"],
+  ]) {
+    const scenario = monitoring(receipt);
+    const check = await monitor.handle({ ...scenario.ctx, command: { name: "monitorcheck" } });
+    assert(check.text.includes("推送 0 条") && check.text.includes(reason));
+    await monitor.handle({ ...scenario.ctx, command: { name: "monitorcheck" } });
+    assert((await monitor.handle(scenario.ctx)).text.includes(reason));
+    assert.equal(scenario.cursor().lastErrorCode, receipt?.code || "");
+    assert.equal(scenario.calls(), 1);
+    assert(!scenario.cursor().seenIds.includes("new"));
+  }
+  assert.equal((await monitor.poll(monitoring({ networkStatus: "ok" }).ctx)).pushed, 1);
   const retryKey = Object.keys(retry.cursor().pendingDeliveries)[0];
   await monitor.handle({ ...retry.ctx, command: { name: "monitorresolve" }, args: `s ${encodeURIComponent(retryKey)} onebot:group:OPEN_ID-a_b retry` });
   retry.result({ networkStatus: "sent" }); await monitor.handle({ ...retry.ctx, command: { name: "monitorcheck" } }); assert.equal(retry.calls(), 2);
@@ -88,6 +106,21 @@ function stateApi(initial = {}) {
   await monitor.handle({ ...partial.ctx, command: { name: "monitorcheck" } });
   assert.deepEqual(recipients, ["onebot:group:OPEN_ID-a_b", "onebot:group:123", "onebot:group:123"], "retry only the destination that was not sent");
   const semantic = monitoring({ networkStatus: "sent" }); let vectorCalls = 0;
+  const wechat = monitoring({ networkStatus: "sent" });
+  const wechatTarget = "onebot:private:owner@im.wechat";
+  const targetSchema = require("../plugins/content-monitor/plugin.json").configSchema.properties.subscriptions.items.properties.targetChatIds.items;
+  assert.ok(!targetSchema.pattern || new RegExp(targetSchema.pattern).test(wechatTarget));
+  wechat.ctx.config.subscriptions[0].targetChatIds = [wechatTarget];
+  const targets = [];
+  wechat.ctx.api.push = async id => { targets.push(id); return { networkStatus: "sent" }; };
+  assert.match((await monitor.handle({ ...wechat.ctx, command: { name: "monitorcheck" } })).text, /已检查 1\/1 个订阅，推送 1 条/);
+  await monitor.poll(wechat.ctx);
+  assert.deepEqual(targets, [wechatTarget]);
+  const unbound = monitoring(Object.assign(new Error("微信推送只能发送到当前绑定的私聊"), { code: "PLUGIN_PUSH_UNBOUND_CHAT" }));
+  unbound.ctx.config.subscriptions[0].targetChatIds = [wechatTarget];
+  await monitor.poll(unbound.ctx);
+  assert.match((await monitor.handle(unbound.ctx)).text, /微信推送只能发送到当前绑定的私聊/);
+  assert.deepEqual(Object.values(unbound.cursor().pendingDeliveries)[0].uncertainChatIds, []);
   Object.assign(semantic.ctx.config.subscriptions[0], { semantic: true, include: ["新鲜资讯"] });
   semantic.ctx.api.getCapabilities = async () => ({ features: { hybridRetrieval: true } });
   semantic.ctx.api.vectorIndex = async input => { vectorCalls++; return input.action === "sync" ? { indexed: 1 } : { matches: [{ id: "0", similarity: 0.9 }] }; };

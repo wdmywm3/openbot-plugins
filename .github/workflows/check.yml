@@ -26,6 +26,7 @@ jobs:
           node-version: 24
       - name: Install locked plugin test dependencies
         run: |
+          npm ci --prefix plugins/android-roamer --ignore-scripts --no-audit --no-fund
           npm ci --prefix plugins/memory --ignore-scripts --no-audit --no-fund
           npm ci --prefix plugins/meme-library --ignore-scripts --no-audit --no-fund
       - name: Check standalone plugins without a host checkout

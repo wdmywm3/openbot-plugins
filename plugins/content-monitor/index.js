@@ -138,6 +138,7 @@ function normalizeSubscription(value, index) {
   const item = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const provider = item.provider === "rss" ? "rss" : "bilibili";
   const events = list(item.events).filter((event) => ["post", "video", "liveStart", "liveEnd"].includes(event));
+  const targets = Array.isArray(item.targetChatIds) ? item.targetChatIds.filter(id => typeof id === "string") : [];
   return {
     id: text(item.id) || `monitor-${index + 1}`,
     name: text(item.name) || (provider === "rss" ? "RSS 订阅" : "Bilibili 订阅"),
@@ -145,7 +146,7 @@ function normalizeSubscription(value, index) {
     provider,
     source: text(item.source),
     events: events.length ? events : (provider === "rss" ? ["post"] : ["post", "video", "liveStart"]),
-    targetChatIds: list(item.targetChatIds).filter((chatId) => /^onebot:(?:group|private):[A-Za-z0-9_-]+$/.test(chatId)),
+    targetChatIds: list(targets).filter(id => id.length <= 256),
     include: list(item.include),
     exclude: list(item.exclude),
     semantic: item.semantic === true,
@@ -215,18 +216,38 @@ async function pushEvent(ctx, subscription, delivery, commit) {
   for (const chatId of [...new Set(subscription.targetChatIds)]) {
     if (delivered.has(chatId)) continue;
     if (!hasBudget(ctx, 30000)) return false;
-    if (list(delivery.uncertainChatIds).includes(chatId)) throw new Error(`推送到 ${chatId} 的结果尚未确认，已暂停这条更新以避免重复发送`);
+    if (list(delivery.uncertainChatIds).includes(chatId)) {
+      const previous = delivery.deliveryError;
+      if (previous?.chatId === chatId) throw Object.assign(new Error(previous.message), { code: previous.code });
+      throw new Error(`推送到 ${chatId} 的结果尚未确认，已暂停这条更新以避免重复发送`);
+    }
     // Save an in-flight marker before the side effect. A worker interruption
     // must not silently resend a message whose delivery is unknown.
     delivery.uncertainChatIds = [...list(delivery.uncertainChatIds), chatId];
     await commit();
-    const result = await ctx.api.push(chatId, blocks);
-    if (result?.skipped || result?.networkStatus === "canceled") {
-      delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
+    let notSent = false;
+    try {
+      const result = await ctx.api.push(chatId, blocks);
+      if (result?.skipped || result?.networkStatus === "canceled") {
+        notSent = true;
+        const reason = result.reason === "disabled_for_chat" ? "插件在目标聊天中不可用" : result.reason;
+        const detail = result.note || reason || (result.skipped ? "宿主跳过了本次推送" : "已取消发送");
+        throw Object.assign(new Error(`推送到 ${chatId} 尚未发送：${detail}`), { code: result.code });
+      }
+      if (!["sent", "ok"].includes(result?.networkStatus)) {
+        const status = result?.networkStatus;
+        const detail = status === "partial" ? "仅部分送达" : status ? `上游状态为 ${status}` : "未收到送达状态";
+        throw Object.assign(new Error(`推送到 ${chatId}：${detail}${result?.note ? `（${result.note}）` : ""}`), { code: result?.code });
+      }
+    } catch (error) {
+      if (notSent || ["PLUGIN_PUSH_UNBOUND_CHAT", "PLUGIN_PUSH_INVALID_TARGET"].includes(error?.code)) {
+        delivery.uncertainChatIds = delivery.uncertainChatIds.filter(id => id !== chatId);
+      } else {
+        delivery.deliveryError = { chatId, message: String(error?.message || error).slice(0, 1000), code: error?.code || "" };
+      }
       await commit();
-      throw new Error(`推送到 ${chatId} 尚未发送：${result.note || result.reason || "已取消"}`);
+      throw error;
     }
-    if (!result || ["error", "failed", "pending"].includes(result.networkStatus)) throw new Error(`推送到 ${chatId} 结果未确认：${result?.note || "请检查聊天记录"}`);
     delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
     delivered.add(chatId);
     delivery.deliveredChatIds = [...delivered];
@@ -426,6 +447,7 @@ async function poll(ctx, options = {}) {
         lastCheckedAt: checkedAt,
         lastSuccessAt: checkedAt,
         lastError: "",
+        lastErrorCode: "",
         consecutiveFailures: 0,
         nextRetryAt: 0,
       };
@@ -441,11 +463,12 @@ async function poll(ctx, options = {}) {
         ...current,
         lastCheckedAt: failedAt,
         lastError: error && error.message ? error.message : String(error),
+        lastErrorCode: error?.code || "",
         consecutiveFailures: failures,
         nextRetryAt: failedAt + Math.min(6 * 3600000, base * (2 ** Math.min(failures, 8))),
       };
       await commit();
-      summaries.push(`${subscription.name}：检查失败`);
+      summaries.push(`${subscription.name}：${cursor.lastError}`);
     }
   }
 
@@ -463,8 +486,9 @@ async function handle(ctx) {
     const cursor = cursors[subscriptionId], delivery = cursor?.pendingDeliveries?.[key];
     if (!delivery || !list(delivery.uncertainChatIds).includes(chatId)) return { text: "没有找到这条待确认推送，请查看 /monitorstatus" };
     delivery.uncertainChatIds = list(delivery.uncertainChatIds).filter(id => id !== chatId);
+    if (delivery.deliveryError?.chatId === chatId) delete delivery.deliveryError;
     if (action === "delivered") delivery.deliveredChatIds = [...new Set([...list(delivery.deliveredChatIds), chatId])];
-    cursor.nextRetryAt = 0; cursor.lastError = "";
+    cursor.nextRetryAt = 0; cursor.lastError = ""; cursor.lastErrorCode = "";
     await storage.save(subscriptionId, cursor);
     return { text: action === "delivered" ? "已标记送达，下一轮继续检查" : "已允许这条推送在下一轮重试" };
   }
@@ -478,7 +502,7 @@ async function handle(ctx) {
   if (!subscriptions.length) return { text: "还没有内容监控订阅，请在桌面端机器人插件配置中添加" };
   return { text: subscriptions.map((subscription) => {
     const cursor = cursors[subscription.id] || {};
-    const status = cursor.lastError ? `失败：${cursor.lastError}` : (cursor.initializedAt ? "运行中" : "等待首次检查");
+    const status = cursor.lastError || (cursor.initializedAt ? "运行中" : "等待首次检查");
     const unresolved = Object.entries(pendingDeliveries(cursor.pendingDeliveries)).flatMap(([key, item]) => list(item.uncertainChatIds)
       .map(chatId => `${subscription.id} ${encodeURIComponent(key)} ${chatId}`)).slice(0, 5);
     return `${subscription.enabled ? "启用" : "停用"} · ${subscription.name} · ${status}${unresolved.length ? `\n待确认：\n${unresolved.join("\n")}\n核对聊天记录后用 /monitorresolve 加上述一行及 delivered 或 retry` : ""}`;

@@ -43,6 +43,25 @@ function fixture() {
     older.ctx.api.readHistory = async () => ++page === 22 ? { items: [older.entry] } : { items: [], nextCursor: String(page) };
     assert.equal((await start(older.ctx)).job_id, "job"); assert.equal(page, 22);
   }
+  for (const legacy of [true, false]) {
+    const skipped = fixture();
+    let historyReads = 0;
+    skipped.ctx.api.readHistory = async () => { historyReads++; return { items: [skipped.entry], nextCursor: "older" }; };
+    skipped.ctx.api.readMessageAttachment = async () => {
+      if (legacy) throw Error("附件文件不可用");
+      return { available: false, reason: "not_retained" };
+    };
+    assert.deepEqual(plain(await start(skipped.ctx)), { skipped: true, reason: "not_retained" });
+    assert.equal(historyReads, 1); assert.equal(skipped.calls.length, 0);
+  }
+  {
+    const partial = fixture();
+    partial.ctx.api.getCapabilities = async () => ({ limits: { attachmentPageBytes: 4096, attachmentFileBytes: 100000 } });
+    partial.ctx.api.readMessageAttachment = async ({ maxBytes }) => maxBytes === 1
+      ? { type: "file", size: partial.bytes.length, revision: "rev", data: "eA==" } : { available: false, reason: "not_retained" };
+    assert.equal((await start(partial.ctx)).skipped, true);
+    assert.deepEqual(partial.calls.map(call => call.arguments.action), ["begin", "discard"]);
+  }
   const f = fixture();
   assert.equal((await start(f.ctx)).job_id, "job");
   assert.deepEqual(Buffer.concat(f.chunks), f.bytes);

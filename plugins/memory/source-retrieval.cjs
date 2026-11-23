@@ -1,6 +1,6 @@
 "use strict";
 const { get, put, hash } = require("./unified-state.cjs");
-const { sourceImage, imageFailureStore, findSkippedImages, writeImageBatch } = require("./image-indexing.cjs");
+const { attachmentFailureCode, sourceImage, imageFailureStore, findSkippedImages, writeImageBatch } = require("./image-indexing.cjs");
 const COLLECTION = "chat-sources-v1";
 const cursorKey = scope => `plus:source-index:${scope.chatId}`;
 const readable = item => item && !item.deleted && !item.routeBlocked && !item.memoryExcluded && item.direction === "in"
@@ -26,7 +26,7 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
     ctx.signal.throwIfAborted();
     const item = (await ctx.api.sources({ action: "read", chatId: scope.chatId, id, limit: 32000 })).item;
     const old = storage.db.prepare("SELECT * FROM source_embedding_receipts WHERE chat_id=? AND id=?").get(scope.chatId, id);
-    if (readable(item) && old?.version === item.version && old.model === model.version && !old.retry_at) continue;
+    if (readable(item) && old?.version === item.version && old.model === model.version && (!old.retry_at || old.retry_at > Date.now())) continue;
     const records = [], revision = parseInt(hash(item?.version || `removed:${id}`).slice(0, 12), 16);
     const available = readable(item);
     let retryAt = 0;
@@ -38,10 +38,19 @@ async function index(ctx, storage, scope, { limit = 16 } = {}) {
         if (failures.known(photo, model.version)) continue;
         try {
           const asset = await ctx.api.assets({ action: "fromMessage", chatId: scope.chatId, messageId: id, sourceVersion: item.version, index: image.index, kind: "image" });
+          if (asset.available === false && asset.reason === "not_retained") {
+            failures.record(photo, model.version, "ATTACHMENT_FILE_MISSING");
+            continue;
+          }
           records.push({ id: imageId, revision, text: model.modalities.includes("joint") ? String(item.content || "").slice(0, 768) : "",
             assetRef: asset.ref, metadata: { ...metadata, imageIndex: image.index } });
           images.set(imageId, photo);
-        } catch { ctx.signal.throwIfAborted(); retryAt = Date.now() + 300000; }
+        } catch (error) {
+          ctx.signal.throwIfAborted();
+          const code = attachmentFailureCode(error);
+          if (code) failures.record(photo, model.version, code);
+          else retryAt = Date.now() + 300000;
+        }
       }
     }
     const live = new Set(records.map(record => record.id));

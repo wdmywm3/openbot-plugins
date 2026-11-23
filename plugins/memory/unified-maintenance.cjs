@@ -56,7 +56,8 @@ function decisions(value, records) {
     if (item.action === "archive" && !["low_value", "expired", "superseded"].includes(item.basis)) throw Error("归档需要低价值、过期或被替代的依据");
     if (item.action === "merge") {
       const target = known.get(item.targetId);
-      if (!target || target.id === record.id || target.revision !== item.targetRevision || identity(target) !== identity(record)) throw Error("只能合并同一主体、取值和条件的重复记忆");
+      if (!target || target.id === record.id || target.revision !== item.targetRevision || identity(target) !== identity(record)
+        || record.category === "profile" && target.category !== "profile") throw Error("只能合并同一主体、取值和条件的重复记忆，并保留人物画像");
     }
     return { id: item.id, revision: item.revision, action: item.action, reason: item.reason.trim(),
       ...(item.basis ? { basis: item.basis } : {}), ...(item.basis === "ongoing" && item.action === "promote" ? { tier: "working" } : item.tier ? { tier: item.tier } : {}),
@@ -151,7 +152,8 @@ async function page(ctx, storage, scope, cycle) {
   for (const item of cycle.references.slice(cycle.reviewOffset)) loaded.push(await read(ctx, scope, cycle.spaceId, item.id, item.revision));
   const structured = loaded.filter(record => record && own(ctx, record) && !protectedRecord(record) && factIdentity(record));
   const existing = structured.length ? await resolveExisting(ctx, scope, [], structured) : [];
-  const preferred = (left, right) => Number(right.status === "active") - Number(left.status === "active")
+  const preferred = (left, right) => Number(right.category === "profile") - Number(left.category === "profile")
+    || Number(right.status === "active") - Number(left.status === "active")
     || (left.createdAt || 0) - (right.createdAt || 0) || left.id.localeCompare(right.id);
   for (const record of loaded) {
     if (!record || !own(ctx, record) || protectedRecord(record)) { offset++; continue; }

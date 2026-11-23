@@ -3,11 +3,13 @@
 const { get, put, state, save, hash, readMemory } = require("./unified-state.cjs");
 const { FACT_PROMPT, REVISION_PROMPT, parseResult, validateStyle } = require("./lib/features/channels/channel-dream-analysis.cjs");
 const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-settings.cjs");
-const { STANDARD } = require("./unified-profile-policy.cjs");
+const { STANDARD, USAGE_PROMPT } = require("./unified-profile-policy.cjs");
 const { EXTRACTION: MEMES } = require("./unified-memes.cjs");
 const { human, delivered } = require("./unified-material-policy.cjs");
 const { PROMPT: EXPERIENCE, MAX_RECORDS } = require("./unified-experience.cjs");
 const dream = require("./unified-dream.cjs");
+const observations = require("./unified-profile-observations.cjs");
+const impressions = require("./unified-profile-impressions.cjs");
 const retries = require("./unified-fork-retries.cjs");
 
 const planKey = ({ chatId }) => `plus:fork-plan:${chatId}`;
@@ -35,14 +37,16 @@ function branches(scope, materials, topicTitles = [], operationReceipts = false)
   const edit = `只在上方已经显示本聊天的记忆编号和版本，且本批原话明确纠正旧事实或改变事项时提交变更。${REVISION_PROMPT}`;
   const instructions = [
     ["facts", `${humanSources}
-提取稳定事实、明确达成的约定和决定。最多 16 条 facts，每条使用 kind:"fact"、content、evidence、retention:{basis:"explicit|boundary|stable|ongoing",reason:"以后在什么情形下用得上"}。${FACT_PROMPT}
+提取稳定事实、明确达成的约定和决定。本人稳定习惯、饮食偏好等个人属性由画像分支保存，同一原话只需一条记忆。最多 16 条 facts，每条使用 kind:"fact"、content、evidence、retention:{basis:"explicit|boundary|stable|ongoing",reason:"以后在什么情形下用得上"}。${FACT_PROMPT}
 可给至多 12 条 topics 供后续查找原文，格式 {title,keywords,sourceIds,status:"open|closed"}。只给确有后续用途的讨论建立索引。
 已有主题标题供匹配：${JSON.stringify(topicTitles)}。同一主题用已有标题并链接本批新原文。只引用本批明确支持的进展。
 ${operationReceipts ? '如果本批有真人明确交办给机器人的状态变更，而结果仍需核实，可给出 verificationRequests，最多 4 项，每项 {evidence:[{id:"本批原交办消息编号",quote:"原交办的逐字摘录"}]}。例如要求机器人以后在本群不再回复某成员、取消一条提醒。个人偏好、建议、玩笑、引用、已撤回的请求、已经有明确成功回执的动作和普通咨询不填。' : ""}
 ${privateChat ? `另可给出 records 和 updates，最多各 8 条。records 保存有后续用途的私聊事项，kind:"matter"，subtype:"goal|question|followup"，progress:"active|waiting|completed|canceled|closed"，附 content 和 evidence。updates 使用现有 id、revision、content、progress、evidence。终止事项只有本人明确重开才填 reopen:true。只在本人明确要求复查时填写 nextReviewAt、reviewIntervalMinutes、reviewOnChange 或 watchActivityId。日期按发言时间计算。` : "群聊只提取事实和群内约定。发言人的主张要保留归属。"}
 ${edit}`],
     ["profiles", `${humanSources}
-只提取本人明确自述的稳定偏好、称呼或交流边界。最多 16 条 facts，每条使用 kind:"preference" 或 "fact"、content、subjectId（真实发言人 ID）、evidence、retention:{basis:"explicit|boundary|stable",reason:"将来适用的具体情形"}。
+facts 提取本人明确自述的个人事实、稳定偏好、称呼或交流边界。为每项提供 profileSection，最多 16 条。每条使用 kind:"preference" 或 "fact"、content、subjectId（真实发言人 ID）、evidence、retention:{basis:"explicit|boundary|stable",reason:"将来适用的具体情形"}。
+${USAGE_PROMPT}
+${impressions.GENDER_PROMPT}
 ${privateChat ? '对话方明确希望长期调整和我的交流方式时，可加 style:{values:{tone:"calm|warm|lively",length:"brief|balanced|detailed",formality:"casual|neutral|formal",humor:"little|moderate"},evidence}，只填有原话依据的字段。' : ""}
 ${STANDARD}
 ${FACT_PROMPT}
@@ -78,6 +82,8 @@ function merge(response, materials, refs) {
   for (const [branch, allowed] of Object.entries(fields)) {
     const value = payloads.get(branch);
     if (!value) throw Error("整理分支缺少结果");
+    if (branch === "profiles" && Array.isArray(value.usages)) output.usages = value.usages.slice(0, 24)
+      .filter(hint => rows.get(hint?.messageId)?.direction === "in");
     if (branch === "profiles" && evidence(value.style?.evidence, true)) {
       try { output.style = { values: validateStyle(value.style.values), evidence: value.style.evidence }; } catch { /* Skip invalid style values. */ }
     }
@@ -200,12 +206,13 @@ async function run(ctx, storage, scope, trigger, includeLatest = false, preferre
     ctx.signal.throwIfAborted();
     const parsed = merge(response, materials, memoryRefs);
     const existing = await existingTargets(ctx, scope, parsed);
+    const hints = observations.hints(scope, materials, parsed.usages, live.scanStart?.cursor || 0);
     const planned = await dream.plan(ctx, scope, parsed, materials, existing, { allowExperience: true });
     const fresh = state(storage, scope);
     if (trigger !== "manual" && !fresh.settings.enabled) return { pending: true, saved: 0 };
     job = { trigger, cutoff: snapshot.at, upper: offset };
     job.runId = storage.dreamRepository.runs.start(scope, job);
-    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark),
+    const ready = { ...planned, runId: job.runId, job, after: offset, position, marks: materials.map(mark), profileHints: hints,
       ...(operationReceipts && parsed.verificationRequests ? { verificationRequests: parsed.verificationRequests } : {}) };
     put(storage, planKey(scope), ready);
     return { ...await commit(ready), pending };

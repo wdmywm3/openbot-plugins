@@ -15,11 +15,15 @@ from common import DOWNLOAD_FORMAT, DOWNLOAD_SORT, WatchError, canonical_source,
 
 
 def video_state(detail, bvid):
-    if not isinstance(detail, dict) or detail.get("code") != 0:
-        raise WatchError("B 站视频信息不可用或需要登录")
+    if not isinstance(detail, dict):
+        raise WatchError("B 站视频信息响应格式无效")
+    if detail.get("code") != 0:
+        raise WatchError("B 站未返回视频信息")
     view = (detail.get("data") or {}).get("View") or {}
-    if view.get("bvid") != bvid or isinstance(view.get("cid"), bool) or not isinstance(view.get("cid"), int) or view["cid"] <= 0:
-        raise WatchError("B 站返回的视频身份或分 P 信息不匹配")
+    if view.get("bvid") != bvid:
+        raise WatchError("B 站返回的视频编号与请求不符")
+    if type(view.get("cid")) is not int or view["cid"] <= 0:
+        raise WatchError("B 站返回的分 P 标识无效")
     return {"videoData": view, "upData": view.get("owner") or {}}
 
 

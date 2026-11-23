@@ -64,19 +64,7 @@ async function main() {
     const models = createSharedModels({ root: dataRoot, getDefault: () => "fixture", providers: { fixture: { name: "fixture", dimension: 768, version: "fixture-768", modalities: ["text"], ready: () => true,
       create: () => createLocalEmbeddingIndex(dataRoot, { embed: async () => Array.from({ length: 768 }, (_, i) => i === 0 ? 1 : 0) }) } } });
     retrieval = { models, vectors: createVectorCollections({ root: dataRoot, models }) };
-    // The process transport checks runtime readiness from its own worker.
-    const environmentKey = environment.environmentKey(plugin);
-    const environmentDir = path.join(dataRoot, "managed-runtime", "plugins", plugin.id, environmentKey);
-    fs.mkdirSync(environmentDir, { recursive: true });
-    fs.writeFileSync(path.join(environmentDir, "ready.json"), JSON.stringify({ key: environmentKey, path: [] }));
-    if (!environment.availableAsset(dataRoot, "node")) {
-      const assets = fromHost("./electron/lib/plugins/runtime-assets.cjs"), spec = assets.manifest.assets.node;
-      const assetDir = path.join(dataRoot, "managed-runtime", "components", "node", assets.assetRevision("node").slice(0, 16));
-      const executable = path.join(assetDir, spec.executable);
-      fs.mkdirSync(path.dirname(executable), { recursive: true });
-      fs.copyFileSync(process.execPath, executable); fs.chmodSync(executable, 0o755);
-      fs.writeFileSync(path.join(assetDir, "openbot-runtime.json"), JSON.stringify({ sha256: spec.sha256 }));
-    }
+    await environment.prepareEnvironment(dataRoot, plugin);
     let installed = false, idleGenerations = 0;
     const media = createPluginAssets({ root: dataRoot });
     dataStore = createPluginDataStore({ rootFor: () => path.join(dataRoot, "files"), ...(postgres ? { postgres: () => postgres.connection } : {}) });

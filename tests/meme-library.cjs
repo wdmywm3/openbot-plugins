@@ -44,7 +44,8 @@ function fixture() {
       async database(input) {
         const key = input.collection + ":" + input.key, previous = records.get(key);
         if (input.action === "query") return { records: [...records.entries()].filter(([key, row]) => key.startsWith(input.collection + ":")
-          && (!input.where?.["source.type"] || row.value.source?.type === input.where["source.type"])).map(([, value]) => copy(value)), nextCursor: null };
+          && Object.entries(input.where || {}).every(([field, expected]) =>
+            field.split(".").reduce((value, part) => value?.[part], row.value) === expected)).map(([, value]) => copy(value)), nextCursor: null };
         if (input.action === "get") return { record: copy(previous) || null };
         if (input.action === "put") {
           if ((previous?.revision || 0) !== input.expectedRevision) throw Error("revision conflict");
@@ -154,6 +155,8 @@ async function main() {
   probability.ctx.api.database = originalDb; probability.ctx.api.assets = originalAssets;
   const prompt = await plugin.beforeModel(probability.ctx);
   assert.match(prompt.systemPromptAppend, /每条独立回复.*必须先/);
+  assert.match(prompt.systemPromptAppend, /query 用一个简短的心情或反应/);
+  assert.match(prompt.systemPromptAppend, /找图上的原话用 mode=text/);
   assert.match(prompt.contextItems[0].content, /0%/);
   assert.doesNotMatch(prompt.systemPromptAppend, /needs_review|preparationId/);
   probability.records.get("settings:default").value.cooldownSeconds = 3600;
@@ -183,6 +186,11 @@ async function main() {
   await assert.rejects(plugin.beforeSend({ ...probability.ctx, hook: { replyId: "required", content: requiredSegments } }), /已不可用/,
     "revocation still applies and does not silently leave a dependent text behind");
   drawValue = undefined;
+  const gone = fixture();
+  let reads = 0;
+  gone.ctx.api.assets = async () => { reads++; return { available: false, reason: "not_retained" }; };
+  assert.equal((await plugin.collect({ ...gone.ctx, input: { messageId: "missing" } })).skipped, true);
+  assert.equal(reads, 1);
   const collection = fixture(), generatedUrl = "openbot-asset://plugin-media/" + "d".repeat(64) + "/image";
   collection.publications.set(generatedUrl, { ref: "chat", pluginId: "any-producer", metadata: {
     generated: true, purpose: "sticker", reusable: true, roleProfileId: "p",
@@ -229,6 +237,31 @@ async function main() {
   collection.publications.get(generatedUrl).metadata = { generated: true, purpose: "sticker", reusable: true };
   assert.equal((await plugin.collectPublished(collectionContext)).collected, false,
     "automatic receipts never resurrect a manually deleted sticker");
+  const removal = fixture();
+  removal.publications.set(generatedUrl, { ref: "chat", pluginId: "drawing", metadata: { generated: true, purpose: "sticker", reusable: true } });
+  await plugin.collectPublished({ ...removal.ctx, input: { url: generatedUrl } });
+  await plugin.importFiles({ ...removal.ctx, input: { refs: ["import"] } });
+  const discard = (target, context = {}) => plugin.stickers({ ...removal.ctx, principal: { role: "owner" }, ...context, input: { action: "remove", ...target } });
+  await assert.rejects(discard({ url: generatedUrl }, { principal: { role: "member" } }), /只有实例主人可以在聊天中删除表情/);
+  await assert.rejects(discard({ url: generatedUrl }, { message: {} }), /请在这张表情所在的聊天中删除/);
+  await assert.rejects(discard({ url: generatedUrl }, { message: { chatId: "other" } }), /当前聊天的表情库里没有这张图片/);
+  await assert.rejects(discard({ query: "捂鼻子" }), /请指定要删除的图片消息或成品图片地址/);
+  await assert.rejects(discard({ messageId: "message", url: generatedUrl }), /删除时只能指定一张图片/);
+  await assert.rejects(discard({ messageId: "message" }), /请指定要删除消息中的第几张图片/);
+  await assert.rejects(discard({ messageId: "message", imageIndex: 0 }, { api: { ...removal.ctx.api, assets: async () => ({ available: false }) } }), /这条消息的图片原件不可用/);
+  assert.equal(removal.get("b").value.deleted, false);
+  removal.publications.delete(generatedUrl);
+  removal.records.get("items:" + "b".repeat(64)).value.enabled = false;
+  assert.equal((await discard({ url: generatedUrl })).removed, true, "old generated collections retain the exact drawing URL");
+  assert.equal((await discard({ url: generatedUrl })).removed, true, "duplicate deletion is safe");
+  assert.equal(removal.get("b").value.deleted, true);
+  assert.equal(removal.get("a").value.deleted, false, "another picture remains available");
+  await plugin.collect({ ...removal.ctx, input: { messageId: "message" } });
+  assert.equal((await discard({ messageId: "message", imageIndex: 1 }, { api: { ...removal.ctx.api, assets: async input => {
+    assert.equal(input.index, 1); return removal.assets.get("chat");
+  } } })).removed, true, "a quoted picture resolves by the selected image's exact bytes");
+  removal.publications.set(generatedUrl, { ref: "chat", metadata: { generated: true, purpose: "sticker", reusable: true } });
+  assert.equal((await plugin.collectPublished({ ...removal.ctx, input: { url: generatedUrl } })).collected, false);
   const templated = fixture(), templateId = "a".repeat(64);
   await plugin.importFiles({ ...templated.ctx, input: { refs: ["import"] } });
   const template = { version: 1, rect: { x: .1, y: .1, width: .7, height: .3 }, color: "#192550", align: "center", maxFontSize: .075 };
@@ -455,7 +488,7 @@ async function main() {
   assert.equal(preferred.candidates[0].roleSticker, true);
   assert.equal(preferred.candidates.find(item => item.id === genericKey).roleSticker, false, "role scope alone does not identify the character");
   assert.match(preferred.attachments[0].caption, /专属角色表情/);
-  assert.match(preferred.instruction, /符合当前语境的专属角色表情时优先/);
+  assert.match(preferred.instruction, /心情和语气.*专属角色表情.*同样贴切时优先/);
   assert.match((await plugin.beforeModel(preference.ctx)).systemPromptAppend, /专属角色表情.*贴合语境时优先/);
   ownScore = 0.1;
   const unrelated = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "求抱抱", limit: 4 } });

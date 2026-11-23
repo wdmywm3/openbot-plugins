@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memewiki",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
   "extensions": {
     "com.openbot": {
@@ -9,7 +9,8 @@
       "category": "utility",
       "apiVersion": 1,
       "requiredFeatures": [
-        "modelHookTextInput"
+        "modelHookTextInput",
+        "pluginSettingScopes"
       ],
       "main": "index.js",
       "commandPrefixes": [
@@ -103,7 +104,9 @@
             "type": "boolean",
             "title": "按描述查梗",
             "description": "使用共享检索模型建立词库索引，支持换一种说法查找。",
-            "default": false
+            "default": false,
+            "scope": "global",
+            "chatOverride": true
           },
           "replyMode": {
             "type": "string",
@@ -118,22 +121,29 @@
                 "图片卡片",
                 "文字"
               ]
-            }
+            },
+            "scope": "global",
+            "chatOverride": true
           },
           "online": {
             "type": "boolean",
             "title": "在线补查",
-            "default": true
+            "default": true,
+            "scope": "instance"
           },
           "preload": {
             "type": "boolean",
             "title": "唤醒后自动查词",
-            "default": true
+            "default": true,
+            "scope": "global",
+            "chatOverride": true
           },
           "injectGuidance": {
             "type": "boolean",
             "title": "提供接梗指引",
-            "default": true
+            "default": true,
+            "scope": "global",
+            "chatOverride": true
           },
           "searchMode": {
             "type": "string",
@@ -152,7 +162,8 @@
                 "交给模型搜索",
                 "仅本地词库"
               ]
-            }
+            },
+            "scope": "instance"
           },
           "maxQueryChars": {
             "type": "integer",
@@ -162,7 +173,9 @@
             "default": 10,
             "ui": {
               "advanced": true
-            }
+            },
+            "scope": "global",
+            "chatOverride": true
           },
           "guidance": {
             "type": "string",
@@ -172,7 +185,9 @@
             "ui": {
               "widget": "multiline",
               "advanced": true
-            }
+            },
+            "scope": "global",
+            "chatOverride": true
           },
           "searchServerId": {
             "type": "string",
@@ -181,7 +196,8 @@
             "maxLength": 160,
             "ui": {
               "advanced": true
-            }
+            },
+            "scope": "instance"
           },
           "searchTool": {
             "type": "string",
@@ -190,7 +206,8 @@
             "maxLength": 128,
             "ui": {
               "advanced": true
-            }
+            },
+            "scope": "instance"
           },
           "searchArgument": {
             "type": "string",
@@ -199,13 +216,14 @@
             "maxLength": 64,
             "ui": {
               "advanced": true
-            }
+            },
+            "scope": "instance"
           },
           "autoSync": {
             "type": "boolean",
             "title": "每天更新词库",
             "default": false,
-            "scope": "instance"
+            "scope": "global"
           },
           "syncHour": {
             "type": "integer",
@@ -213,13 +231,25 @@
             "minimum": 0,
             "maximum": 23,
             "default": 4,
-            "scope": "instance",
+            "scope": "global",
             "ui": {
               "when": {
                 "field": "autoSync",
                 "equals": true
               }
             }
+          },
+          "lookupPreferences": {
+            "type": "boolean",
+            "title": "查梗偏好",
+            "scope": "instance",
+            "default": false
+          },
+          "syncSchedule": {
+            "type": "boolean",
+            "title": "词库更新",
+            "scope": "instance",
+            "default": false
           }
         },
         "required": [],
@@ -260,18 +290,13 @@
             "id": "settings",
             "title": "设置",
             "fields": [
-              "replyMode",
               "online",
-              "preload",
-              "injectGuidance",
               "searchMode",
-              "maxQueryChars",
-              "guidance",
               "searchServerId",
               "searchTool",
               "searchArgument",
-              "autoSync",
-              "syncHour"
+              "lookupPreferences",
+              "syncSchedule"
             ],
             "widgets": [
               {
@@ -279,6 +304,50 @@
                 "action": "sync"
               }
             ]
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
+        ],
+        "globalSections": [
+          {
+            "id": "lookupPreferencesDefaults",
+            "title": "查梗偏好",
+            "fields": [
+              "semanticSearch",
+              "replyMode",
+              "preload",
+              "injectGuidance",
+              "maxQueryChars",
+              "guidance"
+            ]
+          },
+          {
+            "id": "syncScheduleDefaults",
+            "title": "词库更新",
+            "fields": [
+              "autoSync",
+              "syncHour"
+            ]
+          }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "lookupPreferences",
+            "sections": [
+              "lookupPreferencesDefaults"
+            ],
+            "summary": "semanticSearch"
+          },
+          {
+            "mode": "syncSchedule",
+            "sections": [
+              "syncScheduleDefaults"
+            ],
+            "summary": "autoSync"
           }
         ]
       },
@@ -292,7 +361,7 @@
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
         "usage": "/梗 词语；/网搜 状态",
-        "changelog": "修复词库后台更新时，新消息偶尔无法回复的问题。"
+        "changelog": "按实际失败原因显示提示。修复词库后台更新时，新消息偶尔无法回复的问题。"
       }
     }
   }

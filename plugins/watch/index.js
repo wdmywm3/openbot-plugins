@@ -41,8 +41,14 @@ const LEGACY_INLINE_BYTES = 6 * 1024 * 1024;
 const LEGACY_APPEND_BYTES = 36000;
 
 async function importAttachment(ctx, input, selected, index, namespace, limits, paged) {
-  const read = options => ctx.api.readMessageAttachment({ messageId: selected.id, index, ...options });
+  const read = options => ctx.api.readMessageAttachment({ messageId: selected.id, index, ...options }).catch(error => {
+    ctx.signal?.throwIfAborted();
+    if (error?.code === "ATTACHMENT_FILE_MISSING" || error?.message === "附件文件不可用")
+      return { available: false, reason: "not_retained" };
+    throw error;
+  });
   const attachment = await read(paged ? { offset: 0, maxBytes: 1 } : { maxBytes: limits.attachmentInlineBytes || LEGACY_INLINE_BYTES });
+  if (attachment.available === false) return attachment;
   const original = selected.media.filter(m => ["image", "file", "audio", "video"].includes(m.type))[index];
   if (!video(original) || !["file", "video", "audio"].includes(attachment.type) || !Number.isSafeInteger(attachment.size) || attachment.size <= 0
     || typeof attachment.data !== "string" || (paged ? !attachment.revision : attachment.data.length !== 4 * Math.ceil(attachment.size / 3)))
@@ -66,6 +72,10 @@ async function importAttachment(ctx, input, selected, index, namespace, limits, 
     let block;
     if (paged) {
       const page = await read({ offset, maxBytes: end - offset, revision: attachment.revision });
+      if (page.available === false) {
+        await call(ctx, "watch_ingest", { action: "discard", namespace, upload_id: begin.upload_id });
+        return page;
+      }
       if (page.revision !== attachment.revision || page.size !== attachment.size || page.offset !== offset || page.nextOffset !== (end < attachment.size ? end : null))
         throw new Error("视频附件读取期间已变化");
       block = page.data;
@@ -212,7 +222,9 @@ module.exports.watch_start = async ctx => {
     const local = String(item.assetRef || item.url || "").startsWith("openbot-asset://");
     const paged = local && limits.attachmentPageBytes > 0 && (!item.size || item.size <= limits.attachmentFileBytes);
     if (paged || (item.assetRef || !url) && (!item.size || item.size <= (limits.attachmentInlineBytes || LEGACY_INLINE_BYTES))) {
-      request.source = await importAttachment(ctx, input, selected, index, namespace, limits, paged);
+      const source = await importAttachment(ctx, input, selected, index, namespace, limits, paged);
+      if (source?.available === false) return { skipped: true, reason: source.reason };
+      request.source = source;
     } else if (url) {
       request.source = url; request.source_type = "direct";
     } else {

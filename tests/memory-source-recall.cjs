@@ -165,6 +165,41 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     assert.equal(get(storage, sources.cursorKey(scope)).after, beforeFailure, "infrastructure failures remain retryable");
     await sources.index(ctx, storage, scope);
     assert.equal(storage.db.prepare("SELECT 1 FROM source_image_failures WHERE source_id='mixed'").get(), undefined);
+    const attachments = Array.from({ length: 4 }, (_, i) => ({ type: "image", name: i + ".png" }));
+    record("incomplete", "这条文字仍可索引", attachments);
+    const readCounts = [0, 0, 0, 0];
+    let recovered = false;
+    const fileCtx = { ...ctx, api: { ...ctx.api, assets: async input => {
+      if (input.action === "fromMessage" && input.messageId === "incomplete") {
+        readCounts[input.index]++;
+        if (!recovered && input.index === 0) return { available: false, reason: "not_retained" };
+        if (!recovered && input.index === 1) throw Object.assign(Error("large"), { code: "ATTACHMENT_FILE_TOO_LARGE" });
+        if (!recovered && input.index === 2) throw Error("temporary read error");
+      }
+      return ctx.api.assets(input);
+    } } };
+    await sources.index(fileCtx, storage, scope);
+    const receipt = () => storage.db.prepare("SELECT ids_json,retry_at FROM source_embedding_receipts WHERE id='incomplete'").get();
+    assert.deepEqual(JSON.parse(receipt().ids_json), ["incomplete:text", "incomplete:image:3"]);
+    assert(receipt().retry_at > Date.now());
+    for (let i = 0; i < 3; i++) await sources.index(fileCtx, storage, scope);
+    assert.deepEqual(readCounts, [1, 1, 1, 1], "sweeps respect the retry time");
+    storage.db.prepare("UPDATE source_embedding_receipts SET retry_at=1 WHERE id='incomplete'").run();
+    recovered = true;
+    await sources.index(fileCtx, storage, scope);
+    assert.deepEqual(readCounts, [1, 1, 2, 2]);
+    assert.equal(receipt().retry_at, 0);
+    const organized = await require("../plugins/memory/unified-organizer.cjs").collect(fileCtx, scope, 0, undefined, storage);
+    const retained = organized.materials.find(row => row.id === "incomplete");
+    assert.equal(retained.content, "这条文字仍可索引");
+    const failures = require("../plugins/memory/image-indexing.cjs").imageFailureStore(storage, scope);
+    assert.equal(failures.known({ id: retained.id, version: retained.version, index: 0 }, "another-model"), "ATTACHMENT_FILE_MISSING");
+    assert(!retained.attachments.some(file => file.index === 0 && file.type === "image"));
+    assert(retained.attachments.some(file => file.index === 3 && file.type === "image"));
+    assert(organized.materials.some(row => row.id === "words"), "an unavailable photo does not cut off older text");
+    record("incomplete", "更新后的消息", attachments);
+    await sources.index(fileCtx, storage, scope);
+    assert.deepEqual(readCounts, [2, 2, 3, 3], "a new message version can restore all images");
     console.log("Recall boundary: focused automatic recall, explicit text/image history, oversized-image marks, failure isolation, retry and source revocation passed.");
   } finally { close(); repo?.close(); await vectors?.pause(); await models?.pause(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-source-recall-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

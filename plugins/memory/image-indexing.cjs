@@ -2,6 +2,14 @@
 
 const PIXEL_LIMIT = "EMBEDDING_IMAGE_PIXEL_LIMIT";
 const imageFailures = new Set([PIXEL_LIMIT, "EMBEDDING_IMAGE_DECODE"]);
+const attachmentFailures = new Set(["ATTACHMENT_FILE_MISSING", "ATTACHMENT_FILE_EMPTY", "ATTACHMENT_FILE_TOO_LARGE", "ATTACHMENT_FILE_SIZE", "ATTACHMENT_SOURCE_UNAVAILABLE", "ATTACHMENT_HTTP_TOO_LARGE"]);
+function attachmentFailureCode(error) {
+  if (attachmentFailures.has(error?.code)) return error.code;
+  // OpenBot 0.1.116 returns these local file results without a specific error code.
+  if (error?.message === "附件文件不可用") return "ATTACHMENT_FILE_MISSING";
+  if (error?.message === "附件超过读取大小限制或文件为空") return "ATTACHMENT_FILE_SIZE";
+  return "";
+}
 const searchText = value => String(value || "").normalize("NFKC").toLowerCase();
 
 function sourceImage(item, attachment) {
@@ -11,7 +19,7 @@ function sourceImage(item, attachment) {
 
 function imageFailureStore(storage, scope, markOversized) {
   const { db } = storage, { chatId } = scope;
-  const find = db.prepare("SELECT code FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=? AND source_version=? AND model_version=?");
+  const find = db.prepare("SELECT code FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=? AND source_version=? AND (model_version=? OR code='ATTACHMENT_FILE_MISSING')");
   const clear = db.prepare("DELETE FROM source_image_failures WHERE chat_id=? AND source_id=? AND image_index=?");
   const prune = db.prepare("DELETE FROM source_image_failures WHERE chat_id=? AND source_id=? AND source_version<>?");
   const save = db.prepare(`INSERT INTO source_image_failures
@@ -66,4 +74,4 @@ async function writeImageBatch(records, options) {
   return true;
 }
 
-module.exports = { sourceImage, imageFailureStore, findSkippedImages, writeImageBatch };
+module.exports = { attachmentFailureCode, attachmentFailures, sourceImage, imageFailureStore, findSkippedImages, writeImageBatch };

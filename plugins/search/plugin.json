@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "search",
-  "version": "0.2.0",
+  "version": "0.3.3",
   "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
   "extensions": {
     "com.openbot": {
@@ -10,6 +10,7 @@
       "icon": "search",
       "apiVersion": 1,
       "main": "index.js",
+      "execution": { "concurrency": "parallel" },
       "permissions": [
         "network",
         "secret",
@@ -49,7 +50,8 @@
                 "Brave Search",
                 "OpenAI 原生搜索"
               ]
-            }
+            },
+            "scope": "global"
           },
           "imageProvider": {
             "type": "string",
@@ -64,7 +66,20 @@
                 "未启用",
                 "Google Cloud Vision"
               ]
-            }
+            },
+            "scope": "global"
+          },
+          "customWeb": {
+            "type": "boolean",
+            "title": "网页搜索",
+            "scope": "instance",
+            "default": false
+          },
+          "customImage": {
+            "type": "boolean",
+            "title": "以图搜图",
+            "scope": "instance",
+            "default": false
           }
         },
         "required": [],
@@ -74,7 +89,7 @@
         {
           "name": "web_search",
           "export": "web_search",
-          "description": "搜索资料或参考图。找图时传 resultType=images；只有网页线索时继续打开来源页。",
+          "description": "搜索网页资料。completed 后读取 result：资料足够就用结论和来源答复，只有线索就用 read_webpage 核对原文。找图可传 resultType=images，要给对方看图时用 prepare_reference 取图。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -150,7 +165,7 @@
         {
           "name": "read_webpage",
           "export": "read_webpage",
-          "description": "读取已知网页或搜索结果，获取正文与来源。",
+          "description": "读取已知网址的正文。用读到的内容回答并附来源。需要截图时传 includeImages=true，从返回的候选图中选择 imageUrl 和 sourceUrl 交给 prepare_reference。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -185,7 +200,7 @@
         {
           "name": "prepare_reference",
           "export": "prepare_reference",
-          "description": "下载已从搜索结果或来源页取得的一张候选图，返回可查看的预览及当前聊天画图可用的参考图地址。",
+          "description": "下载候选图片供核对。查看预览后，要给对方看图，就把 result.reference.url 放进 qqReply 的 <image src=\"…\"/>。要用作画图参考，就把 result.reference 交给画图工具。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -211,7 +226,7 @@
         {
           "name": "search_by_image",
           "export": "search_by_image",
-          "description": "根据当前聊天的一张图片查找匹配图片、出现过它的网页及相关实体。用于图片出处、角色、作品或物品查询。messageId 来自消息或聊天记录；index 是该消息附件列表中从 0 开始的位置。",
+          "description": "用当前聊天的图片查出处、角色、作品或物品。messageId 取自真实消息，index 从 0 开始。根据完整匹配、相似图和来源页回答，仅有相似图时说明出处待确认。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -247,7 +262,7 @@
         {
           "name": "batch_search",
           "export": "batch_search",
-          "description": "同时查询 2–5 个独立问题；可使用先前查询到的 AnySearch 领域参数。",
+          "description": "批量查询 2–5 个独立问题，可使用已查明的 AnySearch 领域参数。完成后逐项看结果，用有依据的条目回答，只对仍缺资料的问题继续查。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -374,8 +389,17 @@
             "id": "settings",
             "title": "设置",
             "fields": [
-              "webProvider",
-              "imageProvider"
+              "customWeb",
+              "customImage"
+            ]
+          }
+        ],
+        "globalSections": [
+          {
+            "id": "web",
+            "title": "网页搜索",
+            "fields": [
+              "webProvider"
             ],
             "widgets": [
               {
@@ -413,7 +437,16 @@
                   "field": "webProvider",
                   "equals": "brave"
                 }
-              },
+              }
+            ]
+          },
+          {
+            "id": "image",
+            "title": "以图搜图",
+            "fields": [
+              "imageProvider"
+            ],
+            "widgets": [
               {
                 "type": "secret",
                 "key": "googleKey",
@@ -425,6 +458,28 @@
               }
             ]
           }
+        ],
+        "settingsGroups": [
+          {
+            "mode": "customWeb",
+            "sections": [
+              "web"
+            ],
+            "summary": "webProvider"
+          },
+          {
+            "mode": "customImage",
+            "sections": [
+              "image"
+            ],
+            "summary": "imageProvider"
+          }
+        ],
+        "chatAudiences": [
+          "group:member",
+          "group:owner",
+          "private:member",
+          "private:owner"
         ]
       },
       "metadata": {
@@ -433,12 +488,16 @@
           "qqbot"
         ],
         "requirements": [
-          "需要支持 readMessageAttachment 和 maxBodyBytes 的 OpenBot。",
+          "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
         "usage": "启用插件后直接提问，或发送、引用图片询问出处。",
-        "changelog": "0.2.0 新增 OpenAI 原生网页和图片搜索，支持从网页取得参考图并交给画图工具。"
-      }
+        "changelog": "以图搜图或读取参考图超过输入上限时返回明确的限制原因。"
+      },
+      "requiredFeatures": [
+        "pluginSettingsGroups",
+        "pluginSettingScopes"
+      ]
     }
   }
 }

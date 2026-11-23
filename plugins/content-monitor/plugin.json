@@ -1,15 +1,16 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.1.0",
+  "version": "1.1.3",
   "metadata": {
     "platforms": [
       "napcat",
-      "qqbot"
+      "qqbot",
+      "wechat"
     ],
-    "changelog": "订阅兴趣可选按含义匹配，复用共享检索；排除词和推送去重保持优先。"
+    "changelog": "订阅推送只在确认完整发送后计入成功。部分送达或缺少回执时可查看原因并核对。"
   },
-  "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定 QQ 会话",
+  "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
   "main": "index.js",
   "responseMode": "direct",
   "commandPrefixes": [
@@ -63,7 +64,7 @@
     "type": "object",
     "properties": {
       "pollIntervalSeconds": {
-        "scope": "instance",
+        "scope": "global",
         "type": "integer",
         "title": "轮询间隔（秒）",
         "minimum": 30,
@@ -71,7 +72,7 @@
         "default": 120
       },
       "requestIntervalMs": {
-        "scope": "instance",
+        "scope": "global",
         "type": "integer",
         "title": "来源请求间隔（毫秒）",
         "minimum": 0,
@@ -133,7 +134,7 @@
               "maxItems": 100,
               "items": {
                 "type": "string",
-                "pattern": "^onebot:(group|private):[A-Za-z0-9_-]+$",
+                "minLength": 1,
                 "maxLength": 256
               },
               "default": []
@@ -205,6 +206,12 @@
           "widget": "collection",
           "itemLabel": "name"
         }
+      },
+      "monitorTiming": {
+        "type": "boolean",
+        "title": "检查间隔",
+        "scope": "instance",
+        "default": false
       }
     }
   },
@@ -218,9 +225,8 @@
         "id": "settings",
         "title": "设置",
         "fields": [
-          "pollIntervalSeconds",
-          "requestIntervalMs",
-          "subscriptions"
+          "subscriptions",
+          "monitorTiming"
         ],
         "widgets": [
           {
@@ -233,6 +239,28 @@
             "action": "check"
           }
         ]
+      }
+    ],
+    "chatAudiences": [
+      "private:owner"
+    ],
+    "globalSections": [
+      {
+        "id": "monitorTimingDefaults",
+        "title": "检查间隔",
+        "fields": [
+          "pollIntervalSeconds",
+          "requestIntervalMs"
+        ]
+      }
+    ],
+    "settingsGroups": [
+      {
+        "mode": "monitorTiming",
+        "sections": [
+          "monitorTimingDefaults"
+        ],
+        "summary": "pollIntervalSeconds"
       }
     ]
   },
@@ -248,5 +276,8 @@
       }
     }
   ],
-  "category": "subscription"
+  "category": "subscription",
+  "requiredFeatures": [
+    "pluginSettingScopes"
+  ]
 }

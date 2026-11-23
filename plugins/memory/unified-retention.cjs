@@ -41,7 +41,8 @@ function admission(item, materials, scope, now = Date.now()) {
   // durable request or boundary. Ordinary supported facts can remain candidates.
   if (["explicit", "boundary"].includes(value.basis) && subjectId && !self) return null;
   if (value.basis === "boundary" && !self) return null;
-  const stableProfile = profile && (item.kind === "preference" || ["identity", "communication", "boundaries"].includes(item.profileSection));
+  const dietaryHabit = item.fact?.assertion === "self" && require("./lib/features/channels/channel-member-memory-statement.cjs").facetFor(item.fact, item.content) === "饮食习惯";
+  const stableProfile = profile && (item.kind === "preference" || dietaryHabit || ["identity", "communication", "boundaries"].includes(item.profileSection));
   const immediate = value.basis === "explicit" || value.basis === "boundary" || value.basis === "stable" && stableProfile;
   const observedAt = Math.max(...evidence.map(source => Number(source.createdAt) || 0));
   return { status: immediate ? "active" : "pending", tier: immediate ? "long_term" : "working",
@@ -95,9 +96,9 @@ async function workingBudget(ctx, scope, spaceId) {
   if (!spaceId && ctx.api.memorySpace) {
     const { spaces } = await ctx.api.memorySpace({ action: "list", chatId: scope.chatId });
     spaceId = spaces?.find(space => space.kind === "chat" && space.ownerId === scope.chatId)?.id;
-    if (!spaceId) return { count, characters, complete: true };
+    if (!spaceId) return { count, characters };
   }
-  for (let page = 0; page < 4; page++) {
+  for (;;) {
     ctx.signal.throwIfAborted();
     const result = await ctx.api.memory({ action: "search", chatId: scope.chatId, ...(spaceId ? { spaceId } : {}),
       mode: "history", status: "active", tier: "working", limit: 50, ...continuation });
@@ -106,16 +107,16 @@ async function workingBudget(ctx, scope, spaceId) {
       ctx.signal.throwIfAborted();
       if (!ownsWorkingRecord(ctx, record) || spaceId && record.spaceId !== spaceId) continue;
       count++; characters += record.contentLength ?? record.content?.length ?? 0;
-      if (count >= LIMITS.workingCount || characters >= LIMITS.workingCharacters) return { count, characters, complete: true };
+      if (count >= LIMITS.workingCount || characters >= LIMITS.workingCharacters) return { count, characters };
     }
-    if (result.nextOffset == null) return { count, characters, complete: true };
+    if (result.nextOffset == null) return { count, characters };
+    if (!Number.isSafeInteger(result.nextOffset) || result.nextOffset <= (continuation.offset || 0)) throw Error("工作记忆分页没有前进");
     continuation = { offset: result.nextOffset, snapshot: result.snapshot, at: result.at };
   }
-  return { count, characters, complete: false };
 }
 
 function fitsWorkingBudget(budget, length) {
-  return budget.complete && budget.count < LIMITS.workingCount && budget.characters + length <= LIMITS.workingCharacters;
+  return budget.count < LIMITS.workingCount && budget.characters + length <= LIMITS.workingCharacters;
 }
 
 module.exports = { VERSION, LIMITS, admission, usefulReason, protected: protectedRecord, candidateBudget, ownsWorkingRecord, workingBudget, fitsWorkingBudget };

@@ -137,6 +137,30 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
     assert.equal(job.status, "completed", job.error);
     assert.deepEqual(lastImages(), ["data:image/png;base64," + png.toString("base64"), "data:image/png;base64," + second.toString("base64"), backUrl, frontUrl]);
     assert.match(calls.at(-1).input[0].content[0].text, /图3和图4是这次自拍的角色形象参考/);
+    const gif = Buffer.from("R0lGODlhAgABAIEAAExpcQD/AP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAACAlQKACH5BAUPAAAALAAAAAACAAEAgUxpcf//AAAA/wAAAAICVAoAOw==", "base64");
+    fs.writeFileSync(sessionAssetWritePath({ path, root, sessionId: "session", kind: "images", fileName: "ref-0.png" }), gif);
+    job = await finish(await start(chatA, "animated-selfie-reference", mixed));
+    assert.equal(job.status, "completed", job.error);
+    assert.equal(lastImages().length, 5);
+    assert.deepEqual(lastImages().slice(-2), [backUrl, frontUrl]);
+    const motionPrompt = calls.at(-1).input[0].content[0].text;
+    assert.match(motionPrompt, /图3是图1的动作参考/);
+    assert.match(motionPrompt, /图4和图5是这次自拍的角色形象参考/);
+    const referenceOrder = ["role2", "frames1", "ref2", "role1"];
+    const defaultImages = lastImages();
+    job = await finish(await start(chatA, "ordered-selfie", { ...mixed, prompt: "使用图1的角色，参考图2动作和图3背景", referenceOrder }));
+    assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(lastImages(), [defaultImages[4], defaultImages[2], defaultImages[1], defaultImages[3], defaultImages[0]]);
+    const orderedPrompt = calls.at(-1).input[0].content[0].text;
+    assert.match(orderedPrompt, /图2是图5的动作参考/);
+    assert.match(orderedPrompt, /图1和图4是这次自拍的角色形象参考/);
+    const beforeBadOrder = calls.length;
+    for (const [key, order, expected] of [["duplicate", ["ref1", "ref1"], "参考图位置 ref1 重复"],
+      ["missing-sheet", ["frames2"], "本次没有参考图位置 frames2"]]) {
+      job = await finish(await start(chatA, key, { ...mixed, referenceOrder: order }));
+      assert.equal(job.status, "failed"); assert(job.error.includes(expected), job.error);
+    }
+    assert.equal(calls.length, beforeBadOrder);
     const beforeForeignChat = calls.length;
     job = await finish(await start(chatB, "foreign-selfie-references", mixed), chatB);
     assert.equal(job.status, "failed"); assert.equal(calls.length, beforeForeignChat);
@@ -171,7 +195,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 
     let running = await waitGate(chatA, "replace-running");
     await set(replacement.ref); running.pending.release.resolve(); gate = null;
-    job = await finish(running.job); assert.equal(job.status, "failed"); assert.match(job.error, /形象已更换或清除/); assert.equal(job.result, undefined);
+    job = await finish(running.job); assert.equal(job.status, "failed"); assert.match(job.error, /自拍形象与请求时不一致，本次结果未发送/); assert.equal(job.result, undefined);
     const oldInfo = await background.info(actor, first.ref, scope); assert.equal(oldInfo.ref, first.ref, "replacement retains previously referenced assets");
     const previous = await read(); await manage({ action: "clear", expectedRevision: previous.revision });
     assert.equal((await read()).assetRef, ""); assert.equal((await background.info(actor, replacement.ref, scope)).ref, replacement.ref);

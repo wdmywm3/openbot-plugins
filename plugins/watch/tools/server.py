@@ -90,8 +90,13 @@ def call(jobs, name, args):
         if not definition:
             raise WatchError("未知的 Watch 工具")
         shape = definition["inputSchema"]
-        if not isinstance(args, dict) or set(args) - set(shape["properties"]) or any(key not in args for key in shape["required"]):
-            raise WatchError("工具参数缺失或包含不支持的字段")
+        if not isinstance(args, dict):
+            raise WatchError("工具参数必须为对象")
+        if set(args) - set(shape["properties"]):
+            raise WatchError("工具参数包含不支持的字段")
+        for key in shape["required"]:
+            if key not in args:
+                raise WatchError(f"缺少必需参数 {key}")
         if name == "watch_info":
             return result(jobs.info())
         if name == "watch_preview":
