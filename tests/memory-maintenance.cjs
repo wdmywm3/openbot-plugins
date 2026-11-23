@@ -21,7 +21,7 @@ const ctx = { dataRoot: root, plugin: { id: "memory", namespace: "one" }, princi
 const scopeFor = suffix => ({ channelId: "one", chatId: `onebot:group:${suffix}` });
 function create(scope, content, fields = {}, who = actor(scope.chatId)) { return repo.memory(who, { action: "create", requestKey: `setup-${++request}`, record: { content, kind: "fact", status: "active", tier: "working", ...fields } }); }
 function read(scope, id) { return repo.memory(actor(scope.chatId), { action: "read", mode: "history", id }).item; }
-function enabled(scope) { save(storage, scope, { settingsOverride: { enabled: true }, paused: false, maintenanceFailures: 0, maintenanceRetryAt: 0 }); }
+function enabled(scope) { save(storage, scope, { settingsOverride: { enabled: true }, maintenanceFailures: 0, maintenanceRetryAt: 0 }); }
 const keep = record => ({ id: record.id, revision: record.revision, action: "keep", reason: "有明确的持续交流用途，现状仍然有效" });
 async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) { result = await maintenance.run(ctx, storage, scope, options); if (!result.pending) return result; } assert.fail("maintenance did not finish its bounded pages"); }
 (async () => {
@@ -48,6 +48,23 @@ async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) 
     const promoted = read(scope, stable.id); assert.equal(promoted.status, "active"); assert.equal(promoted.tier, "long_term"); assert.equal(promoted.expiresAt, null);
     for (const record of [boundary, longterm, matter, manual, manualEdit, imported, unfrequent]) assert.equal(read(scope, record.id).status, "active", "protected/manual/unfinished/low-frequency useful records remain");
     assert(!maintenance.pending(storage, scope));
+
+    const mislabeled = scopeFor("mislabeled"); enabled(mislabeled);
+    const pending = { status: "pending", expiresAt: Date.now() + 86400000 };
+    const allegedRequest = create(mislabeled, "整理模型误当作明确要求记住的普通候选", pending);
+    const allegedBoundary = create(mislabeled, "整理模型误当作本人边界的普通候选", pending);
+    const useful = create(mislabeled, "以后导出表格需要保留编号前导零", pending);
+    handler = async data => ({ decisions: data.records.map(record => ({ ...keep(record), action: "promote",
+      basis: record.id === allegedRequest.id ? "explicit" : record.id === allegedBoundary.id ? "boundary" : "stable" })) });
+    await drain(mislabeled);
+    for (const record of [allegedRequest, allegedBoundary]) {
+      const unchanged = read(mislabeled, record.id);
+      assert.equal(unchanged.status, "pending"); assert.equal(unchanged.revision, 1);
+      assert.equal(unchanged.attributes.retention, undefined);
+    }
+    assert.equal(read(mislabeled, useful.id).status, "active", "valid decisions on the same page still apply");
+    assert.equal(state(storage, mislabeled).maintenanceFailures, 0);
+    assert(!maintenance.pending(storage, mislabeled));
 
     const onlyExpired = scopeFor("only-expired"); enabled(onlyExpired); const oldCandidate = create(onlyExpired, "过期候选无需模型重判", { status: "pending", expiresAt: Date.now() - 1 });
     const beforeExpired = modelCalls; await drain(onlyExpired); assert.equal(modelCalls, beforeExpired); assert.equal(read(onlyExpired, oldCandidate.id).status, "archived");
@@ -96,8 +113,8 @@ async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) 
     const clock = scopeFor("clock"); enabled(clock); save(storage, clock, { nextRun: Date.now() + 100000, maintenanceNextRun: Date.now() - 1 });
     const noSources = { ...ctx, api: { ...ctx.api, sources: async () => ({ upper: 0, observedAt: 0 }) } };
     assert.equal(await scheduling.due(noSources, storage, clock), "scheduled", "idle's later nextRun cannot postpone the daily maintenance deadline");
-    save(storage, clock, { paused: true }); assert.equal(await scheduling.due(noSources, storage, clock), "");
-    save(storage, clock, { paused: false, settingsOverride: { enabled: false } }); assert.equal(await scheduling.due(noSources, storage, clock), "");
+    save(storage, clock, { paused: true }); assert.equal(await scheduling.due(noSources, storage, clock), "scheduled");
+    save(storage, clock, { settingsOverride: { enabled: false } }); assert.equal(await scheduling.due(noSources, storage, clock), "");
 
     const payloadScope = scopeFor("payload"); enabled(payloadScope);
     const quote = "来源原话".repeat(200);

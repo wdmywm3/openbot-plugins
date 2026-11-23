@@ -23,10 +23,34 @@ let step = "启动";
     await page.getByRole("button", { name: "查看 画图", exact: true }).click();
     await page.getByText("尚无实例，创建后可在这里开启插件。", { exact: true }).waitFor();
     await page.locator(".settings-page-actions").getByRole("button", { name: "设置", exact: true }).click();
+    step = "上传并替换生图 Skill";
+    const skillRow = page.locator(".plugin-setting-row").filter({ hasText: "生图 Skill" });
+    const uploadGuide = async (file, button) => {
+      await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, file);
+      await skillRow.getByText(button, { exact: true }).click();
+      await skillRow.getByText(path.basename(file), { exact: true }).waitFor();
+    };
+    const markdown = path.join(root, "构图.md");
+    fs.writeFileSync(markdown, "# 我的构图指南\n由焦点写到背景。");
+    await uploadGuide(markdown, "上传文件");
+    const JSZip = hostRequire("jszip");
+    const invalid = path.join(root, "缺少正文.zip");
+    fs.writeFileSync(invalid, await new JSZip().file("references/light.md", "参考文档").generateAsync({ type: "nodebuffer" }));
+    await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, invalid);
+    await skillRow.getByText("替换文件", { exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "ZIP 中缺少 SKILL.md" }).waitFor();
+    assert.equal((await invoke("managePluginSkill", { pluginId: installed.id, action: "status" })).fileName, "构图.md");
+    await skillRow.getByText("恢复默认", { exact: true }).click();
+    await skillRow.getByText("插件默认", { exact: true }).waitFor();
+    const bundle = new JSZip(), archive = path.join(root, "光影.zip");
+    bundle.file("guide/SKILL.md", "---\nname: custom\ndescription: 写作试用\n---\n先选主光方向，再读取 references/light.md。");
+    bundle.file("guide/references/light.md", "暖窗光照在杯沿上。");
+    fs.writeFileSync(archive, await bundle.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+    await uploadGuide(archive, "上传文件");
     await page.getByRole("tab", { name: "用量", exact: true }).click();
     await page.getByLabel("总并发数", { exact: true }).waitFor();
-    assert.equal(await page.getByLabel("总并发数", { exact: true }).inputValue(), "2");
-    assert.equal(await page.getByLabel("每个实例默认并发数", { exact: true }).inputValue(), "1");
+    assert.equal(await page.getByLabel("总并发数", { exact: true }).inputValue(), "4");
+    assert.equal(await page.getByLabel("每个实例默认并发数", { exact: true }).inputValue(), "2");
     step = "修改并保存限额";
     await page.getByLabel("总并发数", { exact: true }).fill("3");
     for (let i = 0; i < 100; i++) {
@@ -47,6 +71,11 @@ let step = "启动";
     const channel = await invoke("addChannel", { config: { name: "离线测试实例", platform: "qq", provider: "napcat-onebot", enabled: false,
       napcatMode: "external", onebotTransport: "forward-ws", wsUrl: "ws://127.0.0.1:1", token: "fixture", selfId: "10001" } });
     assert.equal(channel.enabled, false);
+    const skillScope = { channelId: channel.id, chatId: "onebot:group:123" };
+    await invoke("setChannelPluginEnabled", { channelId: channel.id, pluginId: installed.id, enabled: true });
+    const custom = (await invoke("listChannelPluginSkills", skillScope)).filter(skill => skill.name.startsWith("image-studio:"));
+    assert.deepEqual(custom.map(skill => [skill.name, skill.description, skill.files]), [["image-studio:imagegen", "写作试用", ["references/light.md"]]]);
+    assert.equal(custom[0].content, "先选主光方向，再读取 references/light.md。");
     step = "打开实例设置";
     await page.locator(".settings-page-back").click();
     await page.getByRole("button", { name: "离线测试实例", exact: true }).click();
@@ -77,9 +106,14 @@ let step = "启动";
       if (!running) await restarted.waitForTimeout(50);
     }
     assert.equal(running, true, "a configured service passes the startup check after restart");
+    assert.equal((await again("managePluginSkill", { pluginId: installed.id, action: "status" })).fileName, "光影.zip");
+    assert.equal((await again("listChannelPluginSkills", skillScope)).find(skill => skill.name === "image-studio:imagegen").content, custom[0].content);
+    await again("managePluginSkill", { pluginId: installed.id, action: "reset" });
+    const restored = (await again("listChannelPluginSkills", skillScope)).filter(skill => skill.name.startsWith("image-studio:"));
+    assert.deepEqual(restored.map(skill => skill.name).sort(), ["image-studio:gpt-image", "image-studio:imagegen"]);
     await again("setPluginGlobalSecret", { pluginId: "image-studio", key: "openaiKey", value: "" });
     assert.equal((await again("listInstalledPlugins", {})).find(plugin => plugin.id === "image-studio").enabled, false);
-    console.log("Image studio real UI: no-instance settings, encrypted key, startup gating, restart and per-instance overrides passed");
+    console.log("Image studio real UI: Markdown/ZIP upload, invalid replacement, skill catalog after restart and default restoration, settings and startup gating passed");
   } finally {
     if (app) {
       await app.evaluate(({ app }) => app.exit(0)).catch(() => {});

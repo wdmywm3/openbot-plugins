@@ -21,14 +21,14 @@ async function startNow(ctx, storage, scope, occupied = () => false) {
   // Scope discovery can yield while a duplicate request finishes.
   const completed = get(storage, receiptKey); if (completed) return completed;
   const scopes = chats.map(chatId => ({ ...scope, chatId }));
-  if (scopes.some(target => busy(storage, target) || occupied(target))) throw Error("当前仍在整理，请先暂停后再更新起点");
+  if (scopes.some(target => busy(storage, target) || occupied(target))) throw Error("当前仍在整理，请等任务结束后再更新起点");
   for (const target of scopes) resetting.add(key(storage, target));
   try {
     const starts = [];
     for (const target of scopes) {
       ctx.signal.throwIfAborted();
       const jobs = await ctx.api.jobs({ action: "list", chatId: target.chatId, statuses: ["queued", "running"] });
-      if (jobs.jobs?.some(job => ["process", "followup"].includes(job.action))) throw Error("当前还有整理或复查任务，请先暂停后再更新起点");
+      if (jobs.jobs?.some(job => ["process", "followup"].includes(job.action))) throw Error("当前还有整理或复查任务，请等任务结束后再更新起点");
       const head = await ctx.api.sources({ action: "head", chatId: target.chatId });
       if (!Number.isSafeInteger(head.upper) || head.upper < 0) throw Error("无法读取当前资料位置，整理起点未修改");
       starts.push({ chatId: target.chatId, cursor: head.upper, observedAt: head.observedAt || 0 });

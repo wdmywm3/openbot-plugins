@@ -291,18 +291,22 @@ async function main() {
     const original = await media.background.put(producerActor, gif, { mimeType: "image/gif", name: "自制动图" });
     const published = await media.background.call(producerActor, { action: "publish", ref: original.ref, shareable: true,
       metadata: { generated: true, purpose: "sticker", reusable: true } });
+    const recognizedBeforeCollection = generated;
     await runtime.notifyPluginHook(channel, context.channelPrincipal.chatId, "afterSend", { result: {
       status: "sent", sentSegments: [{ type: "image", data: { file: published.url } }],
     } }, context.channelPrincipal);
-    let collected;
-    for (let n = 0; n < 200; n++) {
+    let collectionJob;
+    for (let n = 0; n < 500; n++) {
       const generatedPage = await runtime.runPluginAction(channel, plugin, action("list"), { source: "generated" });
-      collected = generatedPage.items.find(item => item.id === original.sha256);
-      if (collected) break;
+      collectionJob = generatedPage.jobs.find(job => job.action === "collectPublished");
+      if (collectionJob && !["queued", "running"].includes(collectionJob.status)) break;
       await wait(20);
     }
-    assert(collected, "a successful send queues and completes collection through the real generic host API");
+    assert.equal(collectionJob?.status, "completed", JSON.stringify(collectionJob));
     const collectedRecord = await runtime.runPluginAction(channel, plugin, action("detail"), { id: original.sha256 });
+    assert.equal(collectedRecord.analysisStatus, "ready", "the automatic collection job recognizes the generated sticker");
+    assert.equal(collectedRecord.indexStatus, "ready", "the automatic collection job indexes the generated sticker");
+    assert.equal(generated, recognizedBeforeCollection + 1);
     assert.equal(collectedRecord.source.pluginId, producer.id);
     assert.deepEqual(collectedRecord.chatIds, [context.channelPrincipal.chatId]);
     const adoptedRef = collectedRecord.refs[0].ref;

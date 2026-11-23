@@ -15,7 +15,7 @@ const { pluginPackageHash } = fromHost("./electron/lib/plugins/plugin-authorizat
 const { createSharedModels } = fromHost("./electron/lib/features/retrieval/shared-models.cjs");
 const { createVectorCollections } = fromHost("./electron/lib/features/retrieval/vector-collections.cjs");
 const { createLocalEmbeddingIndex } = fromHost("./electron/lib/features/retrieval/local-embedding-index.cjs");
-const environment = fromHost("./electron/lib/plugins/plugin-environment.cjs"), originalLaunch = environment.resolveLaunch;
+const environment = fromHost("./electron/lib/plugins/plugin-environment.cjs");
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-lifecycle-")), dataRoot = path.join(root, "data"), legacyRoot = path.join(root, "legacy");
@@ -64,7 +64,19 @@ async function main() {
     const models = createSharedModels({ root: dataRoot, getDefault: () => "fixture", providers: { fixture: { name: "fixture", dimension: 768, version: "fixture-768", modalities: ["text"], ready: () => true,
       create: () => createLocalEmbeddingIndex(dataRoot, { embed: async () => Array.from({ length: 768 }, (_, i) => i === 0 ? 1 : 0) }) } } });
     retrieval = { models, vectors: createVectorCollections({ root: dataRoot, models }) };
-    environment.resolveLaunch = request => ({ command: process.execPath, args: request.args, runtimeEnv: {}, runtimePath: process.env.PATH });
+    // The process transport checks runtime readiness from its own worker.
+    const environmentKey = environment.environmentKey(plugin);
+    const environmentDir = path.join(dataRoot, "managed-runtime", "plugins", plugin.id, environmentKey);
+    fs.mkdirSync(environmentDir, { recursive: true });
+    fs.writeFileSync(path.join(environmentDir, "ready.json"), JSON.stringify({ key: environmentKey, path: [] }));
+    if (!environment.availableAsset(dataRoot, "node")) {
+      const assets = fromHost("./electron/lib/plugins/runtime-assets.cjs"), spec = assets.manifest.assets.node;
+      const assetDir = path.join(dataRoot, "managed-runtime", "components", "node", assets.assetRevision("node").slice(0, 16));
+      const executable = path.join(assetDir, spec.executable);
+      fs.mkdirSync(path.dirname(executable), { recursive: true });
+      fs.copyFileSync(process.execPath, executable); fs.chmodSync(executable, 0o755);
+      fs.writeFileSync(path.join(assetDir, "openbot-runtime.json"), JSON.stringify({ sha256: spec.sha256 }));
+    }
     let installed = false, idleGenerations = 0;
     const media = createPluginAssets({ root: dataRoot });
     dataStore = createPluginDataStore({ rootFor: () => path.join(dataRoot, "files"), ...(postgres ? { postgres: () => postgres.connection } : {}) });
@@ -91,6 +103,10 @@ async function main() {
       },
       generatePluginModel: async ({ request }) => {
         assert.equal(request.usageCategory, "memory", "organization is accounted as memory work");
+        if (request.systemPrompt.includes("极简记忆索引")) {
+          const ids = JSON.parse(request.prompt).slice(0, 6).map(item => item.id);
+          return { modelId: "fixture", text: JSON.stringify({ ids }) };
+        }
         idleGenerations++;
         return { modelId: "fixture", text: JSON.stringify({ facts: [], records: [], revisions: [], invalidations: [], outcomes: [], topics: [] }) };
       },
@@ -141,7 +157,7 @@ async function main() {
           && idlePage.jobs.every(job => !["running", "queued"].includes(job.status))) break;
         await wait(20);
       }
-      assert(idleGenerations > 0, "the actual host poll must reach organization's model call");
+      assert(idleGenerations > 0, "the actual host poll must reach organization's model call: " + JSON.stringify(idlePage.jobs));
       assert(idlePage.lastRun > 0, JSON.stringify(idlePage.jobs));
       assert(!idlePage.runs.items.some(run => run.trigger === "idle" && run.status === "completed"), "empty completed idle runs stay out of the user-facing list");
     } finally {
@@ -150,6 +166,54 @@ async function main() {
       clockDb.close();
     }
     await call("manage", { action: "settings", settings: { enabled: false } });
+    const startupSource = { ...source, id: "startup-preference", content: "请记住，以后给我按步骤列排查结果。" };
+    const addPreference = async (entry, content) => {
+      storage.appendEvent({ id: scope.channelId }, entry); await storage.flush();
+      const ref = storage.sourceRepository.get(scope, entry.id);
+      return storage.unifiedMemoryRepository.memory(nativeActor, { action: "create", requestKey: entry.id,
+        record: { content, kind: "preference", tier: "long_term", status: "active", subjectRefs: ["u"],
+          sources: [{ chatId: scope.chatId, id: ref.id, version: ref.version, quote: entry.content }] } });
+    };
+    const waitForJobs = async () => {
+      const list = async () => (await call("list", { chatId: scope.chatId })).jobs;
+      for (let i = 0; i < 300; i++) {
+        const jobs = await list();
+        if (jobs.every(item => !["queued", "running"].includes(item.status))) return jobs;
+        await wait(20);
+      }
+      assert.fail("memory jobs timed out: " + JSON.stringify(await list()));
+    };
+    const runDream = async () => {
+      const job = await call("manage", { chatId: scope.chatId, action: "run" });
+      const result = (await waitForJobs()).find(item => item.id === job.id);
+      assert.equal(result?.status, "completed", JSON.stringify(result));
+    };
+    const { createChannelUnifiedMemory } = fromHost("./electron/lib/features/channels/channel-unified-memory.cjs");
+    const contextMemory = createChannelUnifiedMemory({ getRepository: () => storage.unifiedMemoryRepository, resolveChannel: () => channel,
+      permitted: () => true, botPluginsFor: () => installed ? [plugin] : [] });
+    const turn = { purpose: "chat", channelPrincipal: principal }, automatic = () => contextMemory.automaticMemory(turn);
+    const note = await addPreference(startupSource, "给小林的排查结果按步骤列出。");
+    await runtime.runPluginPoll(channel, plugin); await waitForJobs();
+    assert.deepEqual(await automatic(), [], "a poll without Dream cannot create the startup index");
+    await runDream();
+    const published = await automatic();
+    assert(published.some(item => item.id === note.id && item.content.includes("按步骤")), "a completed Dream publishes a verified note without a manual pin");
+    const later = await addPreference({ ...startupSource, id: "later-preference", content: "请记住，表格里的日期用 ISO 格式。" }, "给小林的表格日期用 ISO 格式。");
+    await runtime.runPluginPoll(channel, plugin); await waitForJobs();
+    assert.deepEqual(await automatic(), published, "new notes leave the startup index stable between Dreams");
+    await runDream();
+    assert((await automatic()).some(item => item.id === later.id), "the next Dream can promote the new note");
+    installed = false;
+    assert.deepEqual(await automatic(), [], "deactivating the publisher drops its entire index");
+    installed = true;
+    const toggle = enabled => contextMemory.execute({ action: "setAutomaticMode", channelId: scope.channelId, chatId: scope.chatId, enabled }, {}, { desktop: true });
+    await toggle(false);
+    assert.deepEqual(await automatic(), []);
+    await toggle(true);
+    await storage.sourceRepository.recordAsync(scope, { ...startupSource, content: "这条偏好先取消。", deleted: true });
+    const revalidated = await automatic();
+    assert(!revalidated.some(item => item.id === note.id), "retracted source removes the note before a new Dream");
+    assert(revalidated.some(item => item.id === later.id), "unaffected startup memory remains in the index");
     const prompt = await runtime.runPluginModelHook(channel, scope.chatId, "beforeModel", payload, principal);
     const largeImage = { type: "image_url", image_url: { url: "data:image/png;base64," + "A".repeat(3 * 1024 * 1024) } };
     const imageTurn = { role: "user", content: [{ type: "text", text: "咖啡" }, ...Array(12).fill(largeImage)] };
@@ -171,7 +235,7 @@ async function main() {
     if (process.env.OPENBOT_TEST_MEMORY_UI === "1") await require("./memory-ui.cjs")({ fromHost, runtime, channel, plugin, action, scope, root, legacyRunId: runId });
     console.log("Memory lifecycle: real host SDK/actions/jobs, optional absence, enable/disable, scoped legacy export/import, notes/revisions/journals, repeated import, public prompt injection and restore pause passed");
   } finally {
-    await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers(); environment.resolveLaunch = originalLaunch;
+    await runtime?.pauseForDataSnapshot(); await shutdownPluginWorkers();
     await retrieval?.vectors.pause(); await retrieval?.models.pause(); await dataStore?.pauseBackground?.(); await storage?.pauseForDataSnapshot?.(); storage?.close(); old?.close(); await postgres?.close(); await databaseRuntime?.components.close();
     if (path.dirname(root) === os.tmpdir() && path.basename(root).startsWith("openbot-memory-lifecycle-")) fs.rmSync(root, { recursive: true, force: true });
   }

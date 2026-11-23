@@ -1,0 +1,87 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "computer-use",
+  "version": "0.1.0",
+  "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "电脑操作",
+      "category": "utility",
+      "apiVersion": 1,
+      "main": "index.js",
+      "permissions": ["mcp", "assets"],
+      "requiredFeatures": ["mediaHandoff"],
+      "dependencies": { "python": { "version": "3.12", "requirements": "requirements.lock" } },
+      "metadata": {
+        "usage": "在主人私聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
+        "requirements": ["Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。", "查看截图需要支持图片的模型。"],
+        "homepage": "https://github.com/wdmywm3/openbot-plugins"
+      },
+      "configSchema": {
+        "type": "object",
+        "properties": {
+          "allowForeground": {
+            "type": "boolean", "title": "允许打开应用或激活窗口", "default": false, "scope": "instance",
+            "description": "允许按主人的要求启动应用，或在后台输入不可用时将指定窗口短暂切到前台。"
+          }
+        }
+      },
+      "tools": [
+        {
+          "name": "windows", "export": "windows", "description": "按应用名、窗口标题或进程号查找本机已打开的窗口。",
+          "scope": "private", "permission": "owner", "mutating": false,
+          "inputSchema": { "type": "object", "additionalProperties": false, "properties": {
+            "query": { "type": "string", "maxLength": 160 }, "pid": { "type": "integer", "minimum": 1 }
+          } }
+        },
+        {
+          "name": "open_app", "export": "open_app", "description": "按应用显示名称打开用户指定的 Windows 应用。需要已允许打开应用或激活窗口。",
+          "scope": "private", "permission": "owner", "mutating": true,
+          "inputSchema": { "type": "object", "additionalProperties": false, "required": ["name"], "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 100 }
+          } }
+        },
+        {
+          "name": "view", "export": "view", "description": "读取选定窗口的控件、文字和快照编号。需要视觉定位时可附窗口图片。",
+          "scope": "private", "permission": "owner", "mutating": false,
+          "inputSchema": { "type": "object", "additionalProperties": false, "required": ["pid", "window_id"], "properties": {
+            "pid": { "type": "integer", "minimum": 1 }, "window_id": { "type": "integer", "minimum": 1 },
+            "query": { "type": "string", "maxLength": 200 }, "image": { "type": "boolean" }
+          } }
+        },
+        {
+          "name": "act", "export": "act", "description": "对最近一次观察的窗口执行一个动作。用控件 token 或当前图片的相对坐标定位，动作后重新观察。",
+          "scope": "private", "permission": "owner", "mutating": true,
+          "inputSchema": { "type": "object", "additionalProperties": false, "required": ["view", "action"], "properties": {
+            "view": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "action": { "type": "string", "enum": ["click", "type", "key", "scroll", "drag"] },
+            "element": { "type": "string", "description": "当前控件的完整 token，如 s00000001:3。", "maxLength": 64 },
+            "x": { "type": "number", "minimum": 0, "maximum": 1, "description": "窗口图中从左向右的位置比例。" },
+            "y": { "type": "number", "minimum": 0, "maximum": 1, "description": "窗口图中从上向下的位置比例。" },
+            "to_x": { "type": "number", "minimum": 0, "maximum": 1 }, "to_y": { "type": "number", "minimum": 0, "maximum": 1 },
+            "button": { "type": "string", "enum": ["left", "right", "middle"] },
+            "count": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+            "key": { "type": "string", "minLength": 1, "maxLength": 24 },
+            "modifiers": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "type": "string", "enum": ["ctrl", "shift", "alt"] } },
+            "direction": { "type": "string", "enum": ["up", "down", "left", "right"] },
+            "amount": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "foreground": { "type": "boolean", "description": "主人要求前台操作且实例已允许时设为 true。前台点击可用控件编号或当前窗口图的坐标。默认后台执行。" }
+          } }
+        },
+        {
+          "name": "screenshot", "export": "screenshot", "description": "按用户的明确要求取得指定窗口截图，生成可在当前主人私聊发送的图片地址。",
+          "scope": "private", "permission": "owner", "mutating": true,
+          "inputSchema": { "type": "object", "additionalProperties": false, "required": ["pid", "window_id"], "properties": {
+            "pid": { "type": "integer", "minimum": 1 }, "window_id": { "type": "integer", "minimum": 1 }
+          } }
+        },
+        {
+          "name": "finish", "export": "finish", "description": "结束本次桌面操作，释放当前任务占用的桌面。",
+          "scope": "private", "permission": "owner", "mutating": false,
+          "inputSchema": { "type": "object", "additionalProperties": false, "properties": {} }
+        }
+      ]
+    }
+  }
+}

@@ -12,7 +12,7 @@ function currentAttempt(storage, key, fingerprint, attempt, allowPaused = false)
 }
 function eligible(storage, scope, record) {
   const live = state(storage, scope);
-  return isPrivateDreamScope(scope) && live.settings.enabled && !live.paused && record?.kind === "matter"
+  return isPrivateDreamScope(scope) && live.settings.enabled && record?.kind === "matter"
     && record.subtype === "followup" && ["active", "waiting"].includes(record.progress)
     && Number(record.attributes?.nextReviewAt) > 0 && record.attributes.nextReviewAt <= Date.now()
     && !handedOff(record) && !transferLocks.has(scopeKey(storage, scope, record.id));
@@ -49,13 +49,6 @@ async function admit(ctx, storage, scope, record) {
   const latest = currentAttempt(storage, key, fingerprint, saved.attempt, true);
   if (latest) put(storage, key, { ...latest, jobId: job.id });
 }
-function pausePolicy(storage, scope, paused) {
-  for (const row of storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:followup:%'").all()) {
-    const saved = JSON.parse(row.value_json); if (saved.chatId !== scope.chatId || saved.completed) continue;
-    if (paused) put(storage, row.key, { ...saved, paused: true, pausedByPolicy: !saved.paused || !!saved.pausedByPolicy });
-    else if (saved.pausedByPolicy) put(storage, row.key, { ...saved, paused: false, pausedByPolicy: false, jobId: "", retryAt: 0, attempt: (saved.attempt || 0) + 1 });
-  }
-}
 async function sweep(ctx, storage, scope) {
   for (const row of storage.db.prepare("SELECT key,value_json FROM plugin_meta WHERE key LIKE 'plus:followup-link:%'").all()) {
     const link = JSON.parse(row.value_json); if (link.chatId !== scope.chatId || !link.activityId) continue;
@@ -71,7 +64,7 @@ async function execute(ctx, storage, scope) {
   const live = (allowPaused = false) => {
     const policy = state(storage, scope);
     if (transferLocks.has(scopeKey(storage, scope, id))) return null;
-    return allowPaused || policy.settings.enabled && !policy.paused ? currentAttempt(storage, key, fingerprint, attempt, allowPaused) : null;
+    return allowPaused || policy.settings.enabled ? currentAttempt(storage, key, fingerprint, attempt, allowPaused) : null;
   };
   const write = (patch, allowPaused = false) => { const latest = live(allowPaused); if (!latest) return false; saved = put(storage, key, { ...latest, ...patch }); return true; };
   let record = await readMemory(ctx, scope, id), saved = live();
@@ -164,4 +157,4 @@ async function handoff(ctx, storage, scope, { id, revision }) {
     return { id: receipt.id, revision: receipt.revision };
   } finally { transferLocks.delete(lock); }
 }
-module.exports = { admit, execute, eligible, pausePolicy, sweep, handoff };
+module.exports = { admit, execute, eligible, sweep, handoff };

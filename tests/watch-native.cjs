@@ -37,6 +37,12 @@ function fixture() {
   return { ctx, calls, chunks, bytes, entry };
 }
 (async () => {
+  {
+    const older = fixture();
+    let page = 0;
+    older.ctx.api.readHistory = async () => ++page === 22 ? { items: [older.entry] } : { items: [], nextCursor: String(page) };
+    assert.equal((await start(older.ctx)).job_id, "job"); assert.equal(page, 22);
+  }
   const f = fixture();
   assert.equal((await start(f.ctx)).job_id, "job");
   assert.deepEqual(Buffer.concat(f.chunks), f.bytes);

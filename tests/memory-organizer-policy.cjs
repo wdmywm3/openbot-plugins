@@ -5,7 +5,8 @@ const host = process.env.OPENBOT_HOST_ROOT || path.resolve(__dirname, "../../ope
 const { createUnifiedMemoryRepository } = require(path.join(host, "electron/lib/context/unified-memory-repository.cjs"));
 const organizer = require("../plugins/memory/unified-organizer.cjs"), dream = require("../plugins/memory/unified-dream.cjs");
 const prompts = require("../plugins/memory/unified-dream-prompts.cjs");
-const { open, close } = require("../plugins/memory/storage.cjs"), { get, state, save } = require("../plugins/memory/unified-state.cjs");
+const { open, close } = require("../plugins/memory/storage.cjs"), { get, put, state, save } = require("../plugins/memory/unified-state.cjs");
+const forkRetries = require("../plugins/memory/unified-fork-retries.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-organizer-policy-"));
 const db = new DatabaseSync(":memory:"), storage = open(root), scopes = new Map();
 const originalBuild = prompts.build;
@@ -195,23 +196,85 @@ const empty = () => ({ facts: [], topics: [] });
     }] }, [{ ...nickname, chatId: slang.scope.chatId }], [reviewed]);
     assert.equal(revision.operations.length, 0, "ordinary fact revisions cannot replace a public definition with a nickname");
 
+    const idleExperience = harness("idle-experience");
+    idleExperience.add("这次补发的是修正后的活动日程，下次按修正版核对。");
+    idleExperience.add("这是我补发的修正版活动日程。");
+    Object.assign(idleExperience.messages[1], { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
+    idleExperience.behavior = async (request, batch, commit) => {
+      const [heard, sent] = batch.messages;
+      assert.equal(heard.experienceEvidence, "heard"); assert.equal(sent.experienceEvidence, "sent");
+      assert.match(request.prompt, /从当前 Bot 自己的视角/);
+      await commit({ ...empty(), records: [{ kind: "experience", parts: [
+        { kind: "heard", text: "我听阿明说下次按修正版活动日程核对。", evidence: [{ id: heard.id, quote: heard.text }] },
+        { kind: "did", text: "我补发了修正版活动日程。", evidence: [{ id: sent.id, quote: sent.text }] },
+      ], retention: { basis: "observed", reason: "下次核对活动日程时使用本次补发的修正版。" } }] });
+      return complete(request);
+    };
+    await idleExperience.run();
+    const [idleRecord] = idleExperience.records({ kind: "experience" });
+    assert.equal(idleRecord.status, "active");
+    assert.deepEqual(idleExperience.read(idleRecord.id).sources.map(ref => ref.id), idleExperience.messages.map(row => row.id));
+
     const forked = harness("forked");
     forked.add("请记住，接龙截止在每周日晚上。");
     forked.add("有猫饼是有毛病的谐音，常用作玩笑式吐槽。");
-    forked.add("整理结果已经发给大家了。");
+    forked.add("我把报名清单发给大家了，共十二人。");
     forked.add("模型从来没有看到这句话。");
     const [fact, publicMeme, outbound, unseen] = forked.messages;
+    forked.add("下次安排座位要用到今天发的报名人数和名单。");
+    const purpose = forked.messages.at(-1);
+    forked.add("请以后在本群别回复阿甲。");
+    forked.add("请以后在本群别回复阿乙。");
+    const [unchecked, confirmed] = forked.messages.slice(-2);
     Object.assign(outbound, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
-    const visible = [fact, publicMeme, outbound], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    forked.add("改昵称的人被算了两次，报名名单请按 QQ 号去重。");
+    forked.add("我已按 QQ 号去重，下面是更正后的报名名单。");
+    forked.add("我没有发出那份报名名单。");
+    const [feedback, corrected, failed] = forked.messages.slice(-3);
+    Object.assign(corrected, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
+    Object.assign(failed, { direction: "out", source: "agent", networkStatus: "failed", sender: { id: "bot", isBot: true } });
+    const visible = [fact, publicMeme, outbound, purpose, unchecked, confirmed, feedback, corrected, failed];
+    const captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    const part = (kind, text, ...rows) => ({ kind, text, evidence: rows.map(row => ({ id: row.id, quote: row.content })) });
+    const experienceProposal = (...parts) => ({ kind: "experience", parts,
+      retention: { basis: "observed", reason: "以后整理报名名单时防止改昵称的人被连续算两次。" } });
     const branches = new Map([
       ["facts", { facts: [{ kind: "fact", subjectId: "alice", content: fact.content, evidence: [{ id: fact.id, quote: fact.content }],
         retention: { basis: "explicit", reason: "后续有人问何时结束接龙时使用这个约定。" } },
-      { kind: "fact", content: unseen.content, evidence: [{ id: unseen.id, quote: unseen.content }] }] }],
+      { kind: "fact", content: unseen.content, evidence: [{ id: unseen.id, quote: unseen.content }] }],
+      verificationRequests: [unchecked, confirmed, unseen, outbound].map(source => ({ evidence: [{ id: source.id, quote: source.content }] })) }],
       ["profiles", { facts: [] }],
       ["memes", { memes: [meme(publicMeme, "有猫饼", meaning)] }],
-      ["experience", { records: [{ kind: "experience", content: "我把整理结果发给了群里。", evidence: [{ id: outbound.id, quote: outbound.content }] }] }],
+      ["experience", { records: [
+        { kind: "experience", content: "我把十二人的报名清单发到了群里，供下次排座。", retention: { basis: "ongoing", reason: "下次排座需要核对已公布的报名人数。", sourceId: purpose.id },
+          evidence: [purpose, outbound].map(row => ({ id: row.id, quote: row.content })) },
+        { kind: "experience", content: "我发了一条群消息，已经送达。", evidence: [{ id: outbound.id, quote: outbound.content }] },
+        experienceProposal(
+          part("heard", "我听到阿明指出改昵称的人被重复统计。", feedback),
+          part("did", "我在群里发送了按 QQ 号去重的更正报名名单。", corrected),
+          part("learned", "我学到整理报名名单时先按 QQ 号去重。", feedback, corrected)),
+        experienceProposal(part("did", "我把只见于用户消息的动作当作已完成。", feedback)),
+        experienceProposal(part("did", "我已经发出那条发送失败的回复。", failed)),
+        experienceProposal(part("heard", "我从自己发送的回复中听到用户说法。", corrected)),
+        experienceProposal(part("learned", "我把自己的说法当成用户反馈。", corrected)),
+        experienceProposal(part("heard", "我听到了模型从未看到的话。", unseen)),
+      ] }],
     ]);
-    forked.ctx.api.sources = async () => assert.fail("fork extraction must not sweep the raw source feed");
+    const lookups = [], notices = [];
+    forked.ctx.api.getCapabilities = async () => ({ features: { operationReceipts: true } });
+    forked.ctx.api.sources = async input => {
+      assert.equal(input.action, "operationReceipts", "fork extraction must not sweep the raw source feed");
+      const source = [unchecked, confirmed].find(item => item.id === input.id);
+      assert(source, "only actual visible inbound user's evidence reaches the receipt lookup");
+      assert.equal(input.version, source.version);
+      assert.equal(input.chatId, forked.scope.chatId);
+      lookups.push(input.id);
+      return { available: true, receipts: source === confirmed ? [{ id: "existing", status: "completed" }] : [] };
+    };
+    forked.ctx.api.publishConversationEvent = async event => {
+      notices.push(event);
+      return { id: "confirmation-notice" };
+    };
     forked.ctx.api.conversationForks = async request => {
       if (request.action === "list") return { snapshots };
       if (request.action === "sources") return { items: visible, nextOffset: null };
@@ -224,6 +287,7 @@ const empty = () => ({ facts: [], topics: [] });
       if (input.action === "batch") {
         requestKeys.push(input.requestKey);
         if (requestKeys.length === 1) throw Error("write acknowledgement lost");
+        if (requestKeys.length === 2) return { ...result, items: result.items.slice(1) };
       }
       return result;
     };
@@ -235,11 +299,33 @@ const empty = () => ({ facts: [], topics: [] });
     await runtime.conversationBoundary(boundaryCtx);
     assert.deepEqual(queued.map(item => [item.actionId, item.chatId, item.input.mode]), [["process", forked.scope.chatId, "dream"]]);
     await assert.rejects(runtime.process(forkCtx), /acknowledgement lost/);
+    put(storage, forkRetries.key(forked.scope), get(storage, forkRetries.key(forked.scope), []).map(item => ({ ...item, retryAt: 0 })));
+    await assert.rejects(runtime.process(forkCtx), /回执不完整/);
+    put(storage, forkRetries.key(forked.scope), get(storage, forkRetries.key(forked.scope), []).map(item => ({ ...item, retryAt: 0 })));
     await runtime.process(forkCtx);
     assert.equal(captured.length, 1);
     assert.deepEqual(captured[0].branches.map(branch => branch.key), [...branches.keys()]);
-    assert.equal(requestKeys[0], requestKeys[1], "a lost receipt retries the same write without calling the model again");
-    assert.equal(forked.records({ mode: "history" }).length, 3, "valid fact, meme and delivered diary item share one write");
+    assert.deepEqual(requestKeys, Array(3).fill(requestKeys[0]), "lost or incomplete receipts retry the same write without calling the model again");
+    assert.deepEqual(lookups, [unchecked.id, confirmed.id], "replaying a memory commit does not recheck the same operations");
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0].chatId, forked.scope.chatId);
+    assert.equal(notices[0].delivery, "piggyback");
+    assert.equal(JSON.parse(notices[0].text).sourceMessageId, unchecked.id);
+    assert.equal(forked.records({ mode: "history" }).length, 4, "valid fact, meme and both supported experiences share one write");
+    assert.deepEqual(storage.dreamRepository.runs.list(forked.scope, { meaningfulOnly: true }).items[0].counts, { created: 4 });
+    const experience = forked.records({ mode: "history", kind: "experience" });
+    assert.equal(experience.length, 2);
+    assert.equal(experience.find(record => record.status === "pending").tier, "working", "existing ongoing experiences retain their review status");
+    const [recalledExperience] = forked.records({ kind: "experience" });
+    assert.equal(recalledExperience.status, "active"); assert.equal(recalledExperience.tier, "working");
+    const observed = forked.read(recalledExperience.id);
+    assert.equal(observed.content.split("\n").length, 3);
+    assert.match(observed.content, /我学到整理报名名单时先按 QQ 号去重/);
+    assert.deepEqual(observed.sources.map(ref => ref.id), [feedback.id, corrected.id]);
+    const recallMessage = { id: "experience-recall", chatId: forked.scope.chatId, content: "重复统计报名名单时怎么按 QQ 号去重？" };
+    const recallCtx = { ...forkCtx, config: {}, message: recallMessage, hook: { requestId: recallMessage.id, messages: [] } };
+    assert((await runtime.beforeModel(recallCtx)).contextItems.some(item => item.memory?.id === observed.id));
+    await runtime.afterModel(recallCtx);
     assert(!forked.records({ mode: "history" }).some(item => item.content === unseen.content));
     assert.equal(state(storage, forked.scope).cursor, 0, "the raw source cursor does not track model visibility");
 
@@ -256,7 +342,70 @@ const empty = () => ({ facts: [], topics: [] });
     assert(state(storage, forked.scope).nextRun > Date.now(), "extraction advances the daily schedule even during maintenance backoff");
     assert(!JSON.stringify(captured[1].branches).includes(publicMeme.id), "daily Dream only processes remaining visible sources");
     assert.equal(forked.records({ mode: "history", category: "meme" }).length, 2);
-    console.log("Memory organizer policy: fork boundaries and daily Dream, visible evidence, diary, public memes, deduplication, receipts and recall passed.");
+    const retrying = harness("wake-retries");
+    retrying.add("这轮只是随口聊天。");
+    let fail = true, busy = false, cancel;
+    const retrySnapshots = [{ id: "wake-failed", boundary: "wake", at: Date.now() }], attempts = [], retryJobs = [];
+    retrying.ctx.api.jobs = async request => { retryJobs.push(request); return { id: request.requestKey }; };
+    retrying.ctx.api.conversationForks = async request => {
+      if (request.action === "list") return { snapshots: retrySnapshots };
+      if (request.action === "sources") return { items: retrying.messages, nextOffset: null };
+      attempts.push(request.id);
+      if (busy) throw Object.assign(Error("foreground"), { code: "CONVERSATION_FORK_BUSY" });
+      if (cancel) { cancel.abort(); throw Error("canceled"); }
+      if (fail) throw Error("当前会话没有足够空间执行辅助请求");
+      return { results: request.branches.map(branch => ({ key: branch.key, output: "{}" })) };
+    };
+    save(storage, retrying.scope, { settingsOverride: { enabled: true }, nextRun: Date.now() + 86400000,
+      maintenanceNextRun: Date.now() + 86400000, failures: 5, retryAt: Date.now() + 86400000 });
+    const retryCtx = { ...retrying.ctx, dataRoot: root, message: { chatId: retrying.scope.chatId }, input: { mode: "dream", snapshotId: "wake-failed" } };
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    assert.equal(retryJobs.length, 1, "a new boundary recovers chats blocked by the old chat-wide failure count");
+    for (let index = 0; index < 3; index++) {
+      await assert.rejects(runtime.process(retryCtx), /没有足够空间/);
+      assert.equal(get(storage, forkRetries.key(retrying.scope))[0].failures, index + 1);
+      if (index < 2) {
+        await runtime.process(retryCtx);
+        assert.equal(attempts.length, index + 1, "the same round observes its retry delay");
+        put(storage, forkRetries.key(retrying.scope), get(storage, forkRetries.key(retrying.scope)).map(item => ({ ...item, retryAt: 0 })));
+      }
+    }
+    await runtime.process(retryCtx);
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    assert.equal(attempts.length, 3, "three failed attempts stop this round, even when the old boundary is delivered again");
+    assert.equal(retryJobs.length, 1);
+    fail = false;
+    retrySnapshots[0] = { ...retrySnapshots[0], boundary: "segment", boundaryId: "same-request-segment" };
+    await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot: retrySnapshots[0] } });
+    await runtime.process({ ...retryCtx, input: retryJobs.at(-1).input });
+    assert.equal(attempts.length, 4, "a new segment retries even when it refers to the same captured request as the failed wake");
+    assert.notEqual(retryJobs[0].requestKey, retryJobs[1].requestKey);
+    for (const boundary of ["wake", "segment", "compaction"]) {
+      retrying.add(`这是 ${boundary} 后的新一轮闲聊。`);
+      const snapshot = { id: `new-${boundary}`, boundary, at: Date.now() + retrySnapshots.length };
+      retrySnapshots.push(snapshot);
+      await runtime.conversationBoundary({ ...retryCtx, hook: { snapshot } });
+      await runtime.process({ ...retryCtx, input: retryJobs.at(-1).input });
+      assert.equal(attempts.at(-1), snapshot.id, `${boundary} processes fresh work instead of retrying the exhausted snapshot`);
+    }
+    const canceled = { id: "canceled-fork", boundary: "wake", at: Date.now() + 100 };
+    retrying.add("新一轮消息用于检查后台让路。");
+    retrySnapshots.push(canceled); busy = true;
+    const busyCtx = { ...retryCtx, input: { mode: "dream", snapshotId: canceled.id } };
+    assert.equal((await runtime.process(busyCtx)).busy, true);
+    assert(!get(storage, forkRetries.key(retrying.scope)).some(item => item.id === canceled.id), "busy is not a failed attempt");
+    busy = false; cancel = new AbortController();
+    await assert.rejects(runtime.process({ ...busyCtx, signal: cancel.signal }), /canceled/);
+    assert(!get(storage, forkRetries.key(retrying.scope)).some(item => item.id === canceled.id), "cancellation is not a failed attempt");
+    for (let index = 0; index < 3; index++) forkRetries.failed(storage, retrying.scope, "prepared-write", Error("receipt lost"));
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "prepared-write");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), false);
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "fresh-boundary");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), true, "a new boundary can resume an existing idempotent write");
+    forkRetries.failed(storage, retrying.scope, "prepared-write", Error("receipt still lost"));
+    forkRetries.reopenPrepared(storage, retrying.scope, "prepared-write", "fresh-boundary");
+    assert.equal(forkRetries.ready(storage, retrying.scope, "prepared-write"), false, "the same new boundary cannot reset its retry delay");
+    console.log("Memory organizer policy: wake/segment/compaction boundaries, three attempts per round, fresh-boundary recovery, cancellation, daily Dream, evidence and idempotent receipts passed.");
   } finally {
     prompts.build = originalBuild; close(); db.close();
     assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir())); assert(path.basename(root).startsWith("openbot-memory-organizer-policy-"));

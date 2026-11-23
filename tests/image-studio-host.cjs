@@ -12,6 +12,8 @@ const { sessionAssetWritePath, sessionAssetRef } = fromHost("context/session-ass
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-image-host-")); let runtime, pluginData;
+  const diagnostics = fromHost("app/runtime-diagnostics.cjs"), rows = [];
+  diagnostics.setRuntimeDiagnostics({ record(level, event, details) { rows.push({ level, event, code: details.code, message: details.message }); } });
   try {
     const channel = { id: "images", enabled: true, config: { ownerUsers: ["owner"], modelId: "signed-in" } };
     const store = { root, data: { channels: [channel], models: [{ id: "signed-in", name: "Logged-in model", provider: "codex", modelName: "gpt-6.1-terra", codexProfileId: "profile-fixture", enabled: true }],
@@ -85,9 +87,20 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const models = await runtime.runPluginAction(channel, plugin, catalogAction, { source: "openai", target: "image" });
     assert.deepEqual(models.models.map(item => item.id), ["gpt-image-2.6-flare"]);
     const context = { requestId: "draw", purpose: "chat", channelPrincipal: { source: "channel", channelId: channel.id, chatId: "chat", senderId: "member", messageType: "group" } };
+    const { effectiveSkills } = fromHost("plugins/plugin-skill-upload.cjs");
+    const builtin = plugin.skills;
+    plugin.skills = effectiveSkills(builtin, plugin.ui, null);
+    const primary = plugin.skills.find(skill => skill.name === "image-studio:imagegen");
+    assert((await runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context)).success);
+    plugin.skills = effectiveSkills(builtin, plugin.ui, { target: "imagegen", content: "自定义正文", revision: "fixture",
+      resources: { "references/light.md": "杯沿反射窗外的暖光。" } });
+    assert.match((await runtime.readPluginSkillForModel(primary.id, {}, context)).skillContext, /自定义正文/);
+    assert.match((await runtime.readPluginSkillForModel(primary.id, { resource: "references/light.md" }, context)).skillContext, /杯沿反射窗外的暖光/);
+    await assert.rejects(runtime.readPluginSkillForModel(primary.id, { resource: "references/prompting.md" }, context), /没有这个参考文件/);
+    plugin.skills = builtin;
     const tool = "plugin__image-studio__draw_image";
-    async function finish(input, requestKey, expectedStatus = "completed", actor = context) {
-      let job = await runtime.runNativePluginTool(tool, { action: "start", requestKey, input }, actor);
+    async function finish(input, requestKey, expectedStatus = "completed", actor = context, toolName = tool) {
+      let job = await runtime.runNativePluginTool(toolName, { action: "start", requestKey, input }, actor);
       for (let i = 0; job.status === "running" && i < 200; i++) { await delay(25); job = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: job.id }, actor); }
       assert.equal(job.status, expectedStatus, job.error); return job;
     }
@@ -107,6 +120,20 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       assert.equal(drawn.result.images[0].mimeType, "image/png"); assert(!JSON.stringify(drawn.result).includes(encoded));
       assert(drawn.result.images[0].url.startsWith("openbot-"), "host publishes its opaque media URL");
       const again = await finish({ prompt: "large" }, "single", "completed", owner); assert.equal(again.id, drawn.id); assert.equal(requests.length, 1, "same request key never resubmits chargeable API");
+      const previous = { channelId: channel.id, chatId: "chat", pluginId: plugin.id, authorization: "previous-grant" };
+      const mediaStore = fromHost("plugins/plugin-assets.cjs").createPluginAssets({ root });
+      const { url: originalUrl } = await mediaStore.call(previous, { action: "publish", ref: drawn.result.images[0].assetRef,
+        shareable: true, metadata: { generated: true, purpose: "image", reusable: false } });
+      const recover = "plugin__image-studio__recover_image";
+      const sendImage = url => runtime.resolvePluginMedia(channel, "chat", [{ type: "image", data: { file: url } }]);
+      await assert.rejects(sendImage(originalUrl), /授权已变更/);
+      const deniedRecovery = await finish({ url: originalUrl }, "recover-denied", "failed", context, recover);
+      assert.match(deniedRecovery.error, /只允许主人/);
+      const recovered = await finish({ url: originalUrl }, "recover", "completed", owner, recover);
+      assert.notEqual(recovered.result.images[0].url, originalUrl);
+      assert.equal((await sendImage(recovered.result.images[0].url))[0].data.file, "base64://" + encoded);
+      assert.equal(requests.length, 1, "recovering an existing drawing makes no new generation request");
+      assert.equal(nativeCalls.length, 0);
       plugin.config.allowNonOwnerDrawing = true;
       await finish({ prompt: "edit", references: [{ messageId: "reference" }] }, "edit");
       assert.equal(requests.at(-1).url, "https://api.openai.com/v1/images/edits");
@@ -121,7 +148,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     } finally { clearInterval(heartbeat); }
     const sent = [{ type: "image", data: { file: drawn.result.images[0].url } }];
     const resolved = await runtime.resolvePluginMedia(channel, "chat", sent); assert.equal(resolved[0].data.file, "base64://" + encoded);
-    await assert.rejects(runtime.resolvePluginMedia(channel, "other-chat", sent), /不可用/);
+    await assert.rejects(runtime.resolvePluginMedia(channel, "other-chat", sent), /不可用|当前范围没有可读取的这项媒体/);
     plugin.config.provider = "codex"; plugin.config.codexModelId = "signed-in";
     await finish({ prompt: "native", references: [{ messageId: "reference" }] }, "native");
     assert.equal(nativeCalls.length, 1); assert.equal(nativeCalls[0].modelId, "signed-in");
@@ -163,10 +190,17 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let denied = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "denied", input: { prompt: "denied" } }, context);
     for (let i = 0; denied.status === "running" && i < 500; i++) { await delay(20); denied = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: denied.id }, context); }
     assert.equal(denied.status, "failed"); assert(!JSON.stringify(denied).includes("fixture-key"));
+    assert(rows.some(row => row.level === "warn" && row.message === "上游服务限制了本次请求（HTTP 429）。"));
+    plugin.config.instanceHourly = 1;
+    const beforeQuota = requests.length;
+    const limited = await finish({ prompt: "quota" }, "over-quota", "failed", owner);
+    assert.equal(requests.length, beforeQuota);
+    assert(rows.some(row => row.level === "info" && row.code === "PLUGIN_PUBLIC_ERROR" && row.message === limited.error));
     plugin.enabled = false;
     await assert.rejects(Promise.resolve().then(() => runtime.runNativePluginTool(tool, { prompt: "revoked" }, context)), /不可用/);
     console.log(`Image studio host: installed/authorized; >1 MiB SSE; reference edit; Responses/native models; permission denial; dedup; scoped media; 429; cancellation; heartbeat ${maxGap} ms passed`);
   } finally {
+    diagnostics.setRuntimeDiagnostics(null);
     runtime?.clearChannelPluginPollTimers?.({ id: "images" }); await runtime?.pauseForDataSnapshot(); await pluginData?.pause(); shutdownPluginWorkers();
     const resolved = path.resolve(root); assert(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("openbot-image-host-"));
     fs.rmSync(resolved, { recursive: true, force: true });

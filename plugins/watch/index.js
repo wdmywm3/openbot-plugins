@@ -24,37 +24,56 @@ async function message(ctx, id) {
   if (matches(ctx.message)) return ctx.message;
   let cursor;
   const seen = new Set();
-  for (let page = 0; page < 20; page++) {
+  for (;;) {
     ctx.signal?.throwIfAborted();
     const history = await ctx.api.readHistory({ limit: 100, ...(cursor ? { cursor } : {}) });
     const found = (history.items || []).find(matches);
     if (found) return found;
     const next = history.nextCursor;
-    if (!next || seen.has(next)) break;
+    if (!next) break;
+    if (seen.has(next)) throw new Error("聊天记录分页没有前进");
     seen.add(next); cursor = next;
   }
   throw new Error("当前聊天中找不到指定的视频消息，请提供消息编号、视频链接或附件");
 }
 
-async function importAttachment(ctx, input, selected, index, namespace) {
-  const attachment = await ctx.api.readMessageAttachment({ messageId: selected.id, index, maxBytes: 6 * 1024 * 1024 });
+const LEGACY_INLINE_BYTES = 6 * 1024 * 1024;
+const LEGACY_APPEND_BYTES = 36000;
+
+async function importAttachment(ctx, input, selected, index, namespace, limits, paged) {
+  const read = options => ctx.api.readMessageAttachment({ messageId: selected.id, index, ...options });
+  const attachment = await read(paged ? { offset: 0, maxBytes: 1 } : { maxBytes: limits.attachmentInlineBytes || LEGACY_INLINE_BYTES });
   const original = selected.media.filter(m => ["image", "file", "audio", "video"].includes(m.type))[index];
-  if (!video(original) || !["file", "video", "audio"].includes(attachment.type) || !Number.isInteger(attachment.size) || attachment.size <= 0
-    || typeof attachment.data !== "string" || !attachment.data || attachment.data.length > 8 * 1024 * 1024)
+  if (!video(original) || !["file", "video", "audio"].includes(attachment.type) || !Number.isSafeInteger(attachment.size) || attachment.size <= 0
+    || typeof attachment.data !== "string" || (paged ? !attachment.revision : attachment.data.length !== 4 * Math.ceil(attachment.size / 3)))
     throw new Error("读取到的附件不是可用视频");
   let name = String(original.name || original.fileName || "video.mp4").split(/[\\/]/).at(-1);
   if (!MEDIA.test(name)) name = "video.mp4";
   const begin = await call(ctx, "watch_ingest", { action: "begin", namespace, name, size: attachment.size,
-    source_id: `${selected.id}:${index}`, ...(input.request_id ? { request_id: input.request_id } : {}) });
+    source_id: `${selected.id}:${index}${paged ? ":" + attachment.revision : ""}`, ...(input.request_id ? { request_id: input.request_id } : {}) });
   if (begin.result) return begin.result.source;
+  const advertised = begin.chunk_bytes ?? LEGACY_APPEND_BYTES;
+  if (!Number.isSafeInteger(advertised) || advertised < 3) throw new Error("视频导入分块大小无效");
+  const maximum = Math.min(advertised, limits.attachmentPageBytes || LEGACY_APPEND_BYTES,
+    limits.toolArgumentBytes ? Math.floor((limits.toolArgumentBytes - 1024) / 4) * 3 : LEGACY_APPEND_BYTES);
+  const chunk = Math.floor(maximum / 3) * 3;
   let offset = begin.offset;
-  if (!Number.isInteger(offset) || offset < 0 || offset > attachment.size || offset < attachment.size && offset % 3)
+  if (chunk < 3 || !Number.isSafeInteger(offset) || offset < 0 || offset > attachment.size || !paged && offset < attachment.size && offset % 3)
     throw new Error("附件导入进度无效");
   while (offset < attachment.size) {
-    const block = attachment.data.slice(offset / 3 * 4, offset / 3 * 4 + 48000);
+    ctx.signal?.throwIfAborted();
+    const end = Math.min(attachment.size, offset + chunk);
+    let block;
+    if (paged) {
+      const page = await read({ offset, maxBytes: end - offset, revision: attachment.revision });
+      if (page.revision !== attachment.revision || page.size !== attachment.size || page.offset !== offset || page.nextOffset !== (end < attachment.size ? end : null))
+        throw new Error("视频附件读取期间已变化");
+      block = page.data;
+    } else block = attachment.data.slice(offset / 3 * 4, Math.ceil(end / 3) * 4);
+    if (typeof block !== "string" || block.length !== 4 * Math.ceil((end - offset) / 3)) throw new Error("视频附件分块长度无效");
     const result = await call(ctx, "watch_ingest", { action: "append", namespace, upload_id: begin.upload_id, offset, base64: block });
-    if (!Number.isInteger(result.offset) || result.offset <= offset || result.offset > attachment.size) throw new Error("附件导入未前进");
-    offset = result.offset;
+    if (result.offset !== end) throw new Error("附件导入进度不一致");
+    offset = end;
   }
   return (await call(ctx, "watch_ingest", { action: "finish", namespace, upload_id: begin.upload_id })).source;
 }
@@ -189,8 +208,11 @@ module.exports.watch_start = async ctx => {
     if (!Number.isInteger(index) || index < 0 || index >= media.length || !video(media[index])) throw new Error("这条消息没有指定的视频附件");
     const item = media[index];
     const url = [item.url, item.originalUrl].find(remote);
-    if ((item.assetRef || !url) && (!item.size || item.size <= 6 * 1024 * 1024)) {
-      request.source = await importAttachment(ctx, input, selected, index, namespace);
+    const limits = (await ctx.api.getCapabilities?.())?.limits || {};
+    const local = String(item.assetRef || item.url || "").startsWith("openbot-asset://");
+    const paged = local && limits.attachmentPageBytes > 0 && (!item.size || item.size <= limits.attachmentFileBytes);
+    if (paged || (item.assetRef || !url) && (!item.size || item.size <= (limits.attachmentInlineBytes || LEGACY_INLINE_BYTES))) {
+      request.source = await importAttachment(ctx, input, selected, index, namespace, limits, paged);
     } else if (url) {
       request.source = url; request.source_type = "direct";
     } else {

@@ -1,106 +1,25 @@
-# Prompting best practices
+# 构图、表演与质感
 
-These prompting principles are adapted from the Codex imagegen Skill for OpenBot's `draw_image` tool. This file covers prompt structure, specificity, and iteration. Use `references/provider-controls.md` for the plugin's execution controls.
+**构图。** 先决定观众第一眼应该看到什么，再选距离。眼部特写能读出眼睑的变化；要讲两个人隔桌递东西，就退到能看见两只手、桌面和双方肩线的位置。前景可以遮住次要区域，把关键接触点留出来。场景图用前、中、远三个层次说明远近和通道；抽象图用形体大小、疏密、颜色交界和留白建立秩序。
 
-## Contents
-- [Structure](#structure)
-- [Specificity policy](#specificity-policy)
-- [Allowed and disallowed augmentation](#allowed-and-disallowed-augmentation)
-- [Composition and layout](#composition-and-layout)
-- [Constraints and invariants](#constraints-and-invariants)
-- [Text in images](#text-in-images)
-- [Input images and references](#input-images-and-references)
-- [Iterate deliberately](#iterate-deliberately)
-- [Transparent images](#transparent-images)
-- [Tool execution controls](#tool-execution-controls)
-- [Use-case tips](#use-case-tips)
-- [Where to find copy/paste recipes](#where-to-find-copypaste-recipes)
+**人物。** 有身份参考时沿用其脸型、年龄感和识别特征，只写本张新的状态。原创人物用少量能辨识的形状，例如窄肩、前倾的站姿、短而方的外套。多人同框时先拉开身形轮廓、站位、姿态和服装明暗。手的动作写明哪只手、持有什么、接触在哪里。避免每个人都用相同表情看镜头。
 
-## Structure
-- Use a consistent order: scene/backdrop -> subject -> key details -> constraints -> output intent.
-- Include intended use (ad, UI mock, infographic) to set the level of polish.
-- For complex requests, use short labeled lines instead of one long paragraph.
+**透视。** 用画里真实存在的东西交代纵深。站台边缘和顶灯一同收向远处的隧道口；贴地仰拍时，一只近处的靴尖可以占据下方三分之一。平视远拍则让楼群在人物身后一层层重叠。多图合成时检查新物件的椭圆口沿、底面、尺寸和前后遮挡能否和底图共用一个机位。
 
-## Specificity policy
-- If the user prompt is already specific and detailed, normalize it into a clean spec without adding creative requirements.
-- If the prompt is generic, you may add tasteful detail when it materially improves the output.
-- Treat examples in `sample-prompts.md` as fully-authored recipes, not as the default amount of augmentation to add to every request.
-- For photorealism, include `photorealistic` directly when that is the goal, plus concrete real-world texture such as pores, wrinkles, fabric wear, material grain, or imperfect everyday detail.
+**微表情。** 把感受转译为视线的对象、眉眼或嘴角的一个细小变化，并选择合适的观察距离。“听见门响但佯装镇定”可写“眼睛已经移向门口，头仍对着摊开的书，指尖压在半翻起的纸页上”。侧面镜头用看得见的一侧眉眼和唇线；背影靠肩膀、步幅或握紧的手表达。
 
-## Allowed and disallowed augmentation
+**光影与色彩。** 说明有来源的主光如何穿过空间，主体哪一面接光，投影落向哪里。阴天漫射把对比压低；窄窗斜光会在桌上留下较清晰的边缘。需要补色时指定它来自屏幕、墙面反光还是窗外天光，收住抢主体的高光。插画可把光影归纳成几块形状，水彩可让暗部边缘洇开，真实摄影则要对齐人物和环境的受光。
 
-Allowed augmentation for generic prompts:
-- composition and framing cues
-- intended-use or polish-level hints
-- practical layout guidance
-- reasonable scene concreteness that supports the request
+**材质与空间细节。** 先写轮廓、色块和承重结构，再落到一两处细节。拉丝金属的反光有方向，毛织物消散高光，透明器皿的边沿折射背景。前景的裂纹有宽窄，远处只留大片明暗。皮肤按人物年龄与现场选择一种主要状态；雨后可以只在鬓角和颧骨留水珠，脸颊仍保留自然过渡。压低重复纹理或过度锐化时，保留轮廓和接触边缘的清晰度。
 
-Do not add:
-- extra characters, props, or objects that are not implied
-- brand palettes, slogans, or story beats that are not implied
-- arbitrary side-specific placement unless the surrounding layout supports it
+**版面。** 用户要画字时，把字逐字引出，给出准确位置、对齐和主次。若文字由后期添加，只指定干净的排版区。头像要考虑圆形裁切与小尺寸辨识；产品图要看得到真实的支撑、接触阴影与比例。
 
-## Composition and layout
-- Specify framing and viewpoint (close-up, wide, top-down) and placement only when it materially helps.
-- Call out negative space if the asset clearly needs room for UI or copy.
-- Avoid making left/right layout decisions unless the user or surrounding layout supports them.
-- For people, describe body framing, scale, gaze, and object interactions when they matter (`full body visible`, `looking down at the book`, `hands naturally gripping the handlebars`).
+**媒介与连续性。** 一张图采用能共存的表现手法。赛璐璐可用清晰剪影、硬边投影与一处高饱和点色；木刻可用疏密不同的刻线。用户只要沿用参考的笔触时，点明保留的笔触和本张的新主体。多张同场景图分别提交时，重带必要参考，继承持物的手、人物相对位置、服装和已成立的光向。换机位后重新写看得见的关系。
 
-## Constraints and invariants
-- State what must not change (`keep background unchanged`).
-- For edits, say `change only X; keep Y unchanged` and repeat invariants on every iteration to reduce drift.
+**复核。** 在脑中把这张图缩小到它的实际用途：头像还能看清谁和什么表情？产品轮廓能和背景分开吗？海报能先读到标题吗？如果一段文字只能解释作者为什么想到这个画面，把它留在聊天里；如果它决定物件的位置或画面上的原字，保留它。
 
-## Text in images
-- Put literal text in quotes or ALL CAPS and specify typography (font style, size, color, placement).
-- Spell uncommon words letter-by-letter if accuracy matters.
-- For in-image copy, require verbatim rendering and no extra characters.
-- When the configured service supports it, use `medium` or `high` quality for small text, dense infographics, data-heavy slides, multi-font layouts, legends, axes, and footnotes.
+**自然语言模型。** 即梦／Seedream、GPT Image 和 Nano Banana 类模型都可以直接接收画面描述。关系复杂时分成两三句；改图把变化定位到实际附图。每张独立请求自带必要上下文，无须向模型讲聊天经过。画幅、质量和格式使用插件及当前服务提供的参数。
 
-## Input images and references
-- Do not assume that every provided image is an edit target.
-- Label each image by index and role (`Image 1: edit target`, `Image 2: style reference`).
-- If the user provides images for style, composition, or mood guidance and does not ask to modify them, treat the request as generation with references.
-- If the user asks to preserve an existing image while changing specific parts, treat the request as an edit.
-- For compositing, describe how the images interact (`place the subject from Image 2 into Image 1`).
-
-## Iterate deliberately
-- Start with a clean base prompt, then make small single-change edits.
-- Re-specify critical constraints when you iterate.
-- Prefer one targeted follow-up at a time over rewriting the whole prompt.
-
-## Transparent images
-- Request `background:"transparent"` only with a provider that supports real alpha output. Use PNG or WebP. GPT Image 2 transparency is a preview capability; report a provider rejection instead of silently returning an opaque image.
-
-## Tool execution controls
-- Pass only options declared by `draw_image`: `size`, `quality`, `format`, `background`, and actual `references` when needed.
-- The plugin currently supports auto, square, landscape, and portrait sizes listed in `references/provider-controls.md`.
-- The tool does not expose `input_fidelity`, masks, compression, arbitrary output paths, or batch count.
-- Use `quality:"low"` for drafts when appropriate; choose `medium` or `high` for final assets, dense text, diagrams, and identity-sensitive edits.
-- Do not switch provider or model silently when a selected service rejects an option.
-
-## Use-case tips
-Generate:
-- photorealistic-natural: Prompt as if a real photo is captured in the moment; use photography language (lens, lighting, framing); call for real texture; avoid over-stylized polish unless requested.
-- product-mockup: Describe the product/packaging and materials; ensure clean silhouette and label clarity; if in-image text is needed, require verbatim rendering and specify typography.
-- ui-mockup: Describe the target fidelity first (shippable mockup or low-fi wireframe), then focus on layout, hierarchy, and practical UI elements; avoid concept-art language.
-- infographic-diagram: Define the audience and layout flow; label parts explicitly; require verbatim text; prefer higher quality when the configured service supports it.
-- logo-brand: Keep it simple and scalable; ask for a strong silhouette and balanced negative space; avoid decorative flourishes unless requested.
-- ads-marketing: Write like a creative brief; include brand positioning, audience, desired vibe, scene, and exact tagline if text must appear.
-- productivity-visual: Name the exact artifact (slide, chart, workflow diagram), define the canvas and hierarchy, provide real labels/data, and ask for readable typography and polished spacing.
-- scientific-educational: Define audience, lesson objective, required labels, scientific constraints, arrows, and scan-friendly whitespace.
-- illustration-story: Define panels or scene beats; keep each action concrete.
-- stylized-concept: Specify style cues, material finish, and rendering approach (3D, painterly, clay) without inventing new story elements.
-- historical-scene: State the location/date and required period accuracy; constrain clothing, props, and environment to match the era.
-
-Edit:
-- text-localization: Change only the text; preserve layout, typography, spacing, and hierarchy; no extra words or reflow unless needed.
-- identity-preserve: Lock identity (face, body, pose, hair, expression); change only the specified elements; match lighting and shadows.
-- precise-object-edit: Specify exactly what to remove/replace; preserve surrounding texture and lighting; keep everything else unchanged.
-- lighting-weather: Change only environmental conditions (light, shadows, atmosphere, precipitation); keep geometry, framing, and subject identity.
-- background-extraction: Choose a provider that supports real transparency, request clean cutout edges, and preserve fine details and label text.
-- style-transfer: Specify style cues to preserve (palette, texture, brushwork) and what must change; add `no extra elements` to prevent drift.
-- compositing: Reference inputs by index; specify what moves where; match lighting, perspective, and scale; keep the base framing unchanged.
-- sketch-to-render: Preserve layout, proportions, and perspective; choose materials and lighting that support the supplied sketch without adding new elements.
-
-## Where to find copy/paste recipes
-For copy/paste prompt specs (examples only), see `references/sample-prompts.md`. This file focuses on principles, specificity, and iteration patterns.
+- 即梦／Seedream 可从“谁在什么地方、处于什么状态”写起，再加本张特别在意的光色与构图。例如先写雨棚下拢起湿发的人，再写一束来自便利店橱窗的侧光。
+- GPT Image 的多图编辑写明哪张是底图、借用哪一个物件以及二者如何接触。继续修图时只点出本轮要校正的地方。海报上的原字、位置与层次要写完整。
+- Nano Banana 类模型可把人物和物件的关系连成一个场景。已有底图的小改动可以很短，例如“让图1中左边那人把视线移向桌上的信，保留原有姿势与灯光”。独立提交这次修改时一并附上底图。

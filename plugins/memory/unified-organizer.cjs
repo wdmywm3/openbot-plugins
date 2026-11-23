@@ -8,22 +8,25 @@ const activeTools = new Set();
 const empty = () => ({ facts: [], memes: [], topics: [], records: [], updates: [], revisions: [], invalidations: [], style: null });
 const batchKey = scope => `plus:organizer-batch:${scope.chatId}`;
 const sessionKey = scope => `plus:organizer-session:${scope.chatId}`;
+const readableMaterial = item => materialPolicy.admit(item) || materialPolicy.delivered(item);
 function estimate(text) {
   const wide = (text.match(/[^\x00-\x7f]/g) || []).length;
   return Math.ceil(wide + (text.length - wide) / 3);
 }
 function project(item) {
+  const experienceEvidence = materialPolicy.human(item) ? "heard" : materialPolicy.delivered(item) ? "sent" : "";
   return { id: `s${item.seq}`, at: item.createdAt, sender: String(item.sender?.id || item.senderId || ""),
     role: item.direction === "out" || item.sender?.isBot ? "bot" : "user", text: item.content,
+    ...(experienceEvidence ? { experienceEvidence } : {}),
     ...(item.hasMore ? { hasMore: true, nextOffset: (item.offset || 0) + item.content.length } : {}),
     ...(item.attachments?.length ? { attachments: item.attachments.map(({ type, name, index }) => ({ type, name, index })) } : {}) };
 }
 function instructions(ctx, storage, scope) {
   const built = require("./unified-dream-prompts.cjs").build(ctx, storage, scope);
-  return `持续整理当前聊天的事实、偏好、事项和用户画像。每次追加是一批新的聊天资料；此前历史只作上下文，不重做已提交操作。\n${built.system}\n` +
+  return `持续整理当前聊天的事实、偏好、事项、用户画像和 Bot 经历。每次追加是一批新的聊天资料；此前历史只作上下文，不重做已提交操作。\n${built.system}\n` +
     `本任务使用 ${TOOL} 工具，action=start 时提供稳定 requestKey 和 input。input.ticket 取本次追加资料中的 ticket。\n` +
     `operation=search 按主题和成员查已存记忆；operation=read 按返回 id 读正文与版本；operation=material 按本批 s编号和 offset 补读原消息。不要为无价值闲聊发起检索。修订前逐条读取对应记录；提交时插件还会逐项核对当前聊天已有记录。\n` +
-    `用 operation=commit，result 包含 facts/memes/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。每条facts必须有retention:{basis,reason}，稳定画像还可含profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配用户原话。修订的 id/revision 必须来自本批 search/read。experience 不写入。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
+    `用 operation=commit，result 包含 facts/memes/topics/records/updates/revisions/invalidations/style 提交本批提案（无需先输出整段 JSON）。每条facts必须有retention:{basis,reason}，稳定画像还可含profileSection。所有 evidence.id 使用本批 s编号，quote 必须逐字匹配对应原文。修订的 id/revision 必须来自本批 search/read。没有值得记住的内容也要 commit 空数组以推进进度。\n` +
     `工具返回 running 时按 jobId 查询 status，收到 completed/result 才判断提交成功。只有 commit 回执确认后才调用 task_result，summary 简述本批结果；不要发聊天回复，不调用其他业务工具。读取下一批由插件追加，你只处理当前 ticket。`;
 }
 function session(ctx, storage, scope) {
@@ -54,7 +57,7 @@ async function collect(ctx, scope, after, upper) {
     if (!page.items.length) { cursor = bound; break; }
     for (const item of page.items) {
       if (!Number.isSafeInteger(item.seq) || item.seq <= cursor || item.seq > bound) throw Error("整理资料顺序无效");
-      if (materialPolicy.admit(item)) {
+      if (readableMaterial(item)) {
         const entry = project(item), person = entry.sender;
         const name = String(item.sender?.card || item.sender?.name || item.sender?.nickname || person);
         const cost = estimate(JSON.stringify(entry)) + (Object.hasOwn(people, person) ? 0 : estimate(name) + 12);
@@ -74,7 +77,7 @@ async function collect(ctx, scope, after, upper) {
 function live(ctx, storage, scope, batch) {
   ctx.signal.throwIfAborted();
   const policy = state(storage, scope);
-  if (policy.paused || batch.trigger !== "manual" && !policy.settings.enabled) throw Error("整理已暂停");
+  if (batch.trigger !== "manual" && !policy.settings.enabled) throw Error("自动整理已关闭，已保留进度");
   return policy;
 }
 function normalizeResult(value, batch) {
@@ -86,6 +89,8 @@ function normalizeResult(value, batch) {
     if (!Array.isArray(result[key]) || result[key].length > 64) throw Error("整理提案格式无效或条目过多");
     result[key] = result[key].map(item => ({ ...item,
       ...(item.evidence ? { evidence: evidence(item.evidence) } : {}),
+      ...(item.kind === "experience" && Array.isArray(item.parts) ? { parts: item.parts.map(part => ({ ...part, evidence: evidence(part?.evidence) })) } : {}),
+      ...(item.kind === "experience" && item.retention?.sourceId ? { retention: { ...item.retention, sourceId: map.get(item.retention.sourceId) || item.retention.sourceId } } : {}),
       ...(item.reviewEvidence ? { reviewEvidence: evidence(item.reviewEvidence) } : {}),
       ...(item.sourceIds ? { sourceIds: item.sourceIds.map(id => map.get(id) || id) } : {}) }));
   }
@@ -112,7 +117,7 @@ async function executeTool(ctx, storage, scope) {
     const dream = require("./unified-dream.cjs"), policy = live(ctx, storage, scope, batch);
     if (!policy.job || policy.job.runId !== batch.runId) throw Error("整理作业已变化");
     if (!policy.job.prepared) {
-      const prepared = await dream.plan(ctx, scope, parsed, batch.materials, batch.existing);
+      const prepared = await dream.plan(ctx, scope, parsed, batch.materials, batch.existing, { allowExperience: true });
       if (prepared.operations.length > 100) throw Error("本批最多提交 100 项变更，请合并同一事实或事项的提案");
       live(ctx, storage, scope, batch);
       put(storage, `plus:plan:${scope.chatId}`, { ...prepared, runId: batch.runId, after: batch.after });
@@ -131,9 +136,9 @@ async function executeTool(ctx, storage, scope) {
     if (!source || !Number.isSafeInteger(input.offset) || input.offset < 0) throw Error("补读编号不属于本批资料");
     const result = await ctx.api.sources({ action: "read", chatId: scope.chatId, id: source.id, version: source.version,
       upper: batch.upper, offset: input.offset, limit: 6000 });
-    if (!result.item || !materialPolicy.admit(result.item)) throw Error("原消息已变化或不可读取");
+    if (!result.item || !readableMaterial(result.item)) throw Error("原消息已变化或不可读取");
     live(ctx, storage, scope, batch);
-    if (batch.materials.length >= MAX_MESSAGES + 24) throw Error("本批补读次数已达上限");
+    if (batch.materials.length >= MAX_MESSAGES + 24) throw Object.assign(new Error(`本批材料已达到 ${MAX_MESSAGES + 24} 条上限。`), { code: "PLUGIN_INPUT_LIMIT" });
     batch.materials.push({ ...result.item, seq: source.seq, chatId: scope.chatId }); persist();
     return project({ ...result.item, seq: source.seq });
   }
@@ -142,7 +147,7 @@ async function executeTool(ctx, storage, scope) {
       const index = batch.existing.findIndex(old => old.id === item.id);
       if (index >= 0) batch.existing[index] = item;
       else if (batch.existing.length < 60) batch.existing.push(item);
-      else throw Error("本批已读取的记忆过多，请缩小查找范围");
+      else throw Object.assign(new Error("本批已读取的记忆达到 60 条上限。"), { code: "PLUGIN_INPUT_LIMIT" });
     }
     live(ctx, storage, scope, batch); persist();
   };
@@ -170,7 +175,6 @@ async function executeTool(ctx, storage, scope) {
 async function runBatch(ctx, storage, scope, trigger) {
   const dream = require("./unified-dream.cjs");
   let policy = state(storage, scope), batch = get(storage, batchKey(scope));
-  if (policy.paused) throw Error("整理已暂停");
   if (policy.job?.prepared && !batch) return dream.commit(ctx, storage, scope, policy.job);
   if (!batch || batch.after <= policy.cursor && !batch.receipt && policy.job?.runId !== batch.runId) {
     const collected = await collect(ctx, scope, policy.cursor || 0, policy.job?.upper);
@@ -244,7 +248,7 @@ async function run(ctx, storage, scope, trigger = "manual") {
     for (let index = 0; index < 4; index++) {
       ctx.signal.throwIfAborted();
       result = await runBatch(ctx, storage, scope, trigger); saved += result.saved || 0; skipped += result.skipped || 0;
-      if (!result.pending || state(storage, scope).paused) break;
+      if (!result.pending) break;
     }
     return { ...result, saved, skipped };
   })();
@@ -252,7 +256,7 @@ async function run(ctx, storage, scope, trigger = "manual") {
   try { return await task; }
   catch (error) {
     const policy = state(storage, scope);
-    if (ctx.signal.aborted || policy.paused) {
+    if (ctx.signal.aborted || trigger !== "manual" && !policy.settings.enabled) {
       save(storage, scope, { error: "", failures: 0, retryAt: 0 });
       if (policy.job?.runId) storage.dreamRepository.runs.finish(scope, policy.job.runId, "paused", "整理已停止，已保留进度");
       throw error;

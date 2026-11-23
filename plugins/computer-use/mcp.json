@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "desktop": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-I", "-B", "-u", "${PLUGIN_ROOT}/desktop_server.py"],
+      "env": { "OPENBOT_COMPUTER_CONFIG": "${PLUGIN_CONFIG}" },
+      "enabled_tools": [],
+      "native_tools": ["desktop_step"]
+    }
+  }
+}

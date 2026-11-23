@@ -7,7 +7,7 @@ import re
 import shutil
 import time
 import uuid
-from common import MAX_MEDIA, MAX_STORAGE, WatchError, contained, integer, read_json, token, tree_size, write_json
+from common import UPLOAD_BASE64_CHARS, UPLOAD_CHUNK_BYTES, MAX_MEDIA, MAX_STORAGE, WatchError, contained, integer, read_json, token, tree_size, write_json
 from sources import local_file
 
 
@@ -72,14 +72,14 @@ def ingest(jobs, args):
                 prior = read_json(contained(folder, "upload.json"))
                 if any(prior.get(k) != v for k, v in description.items()):
                     raise WatchError("同一请求的附件已变化，请使用新的 request_id")
-                return {"upload_id": identity, "offset": contained(folder, "media" + suffix).stat().st_size,
+                return {"upload_id": identity, "chunk_bytes": UPLOAD_CHUNK_BYTES, "offset": contained(folder, "media" + suffix).stat().st_size,
                         **({"result": prior["result"]} if prior.get("result") else {})}
             if tree_size(jobs.root) + size * 2 > MAX_STORAGE:
                 raise WatchError("视频缓存空间不足")
             folder.mkdir(parents=True)
             write_json(folder / "upload.json", description)
             contained(folder, "media" + suffix).touch(exist_ok=False)
-            return {"upload_id": identity, "offset": 0}
+            return {"upload_id": identity, "chunk_bytes": UPLOAD_CHUNK_BYTES, "offset": 0}
         identity = token(args.get("upload_id"))
         folder = contained(jobs.root, "uploads", identity)
         record = read_json(contained(folder, "upload.json"))
@@ -101,7 +101,7 @@ def ingest(jobs, args):
             raise WatchError("附件导入已经完成")
         offset = integer(args.get("offset"), "offset", 0, record["size"])
         data = args.get("base64")
-        if not isinstance(data, str) or not 0 < len(data) <= 48000:
+        if not isinstance(data, str) or not 0 < len(data) <= UPLOAD_BASE64_CHARS:
             raise WatchError("附件分块大小无效")
         try:
             chunk = base64.b64decode(data, validate=True)

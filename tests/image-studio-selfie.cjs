@@ -10,7 +10,6 @@ const PICTURES = {
 };
 const STATE_KEY = "selfie.reference.v1";
 const PROVIDERS = ["openai-images", "openai-responses", "compatible-images", "compatible-responses", "codex"];
-const IDENTITY = "请把固定形象参考图中的角色作为同一个主体";
 const plain = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 function load() { const sandbox = vm.createContext({ module: { exports: {} } }); vm.runInContext(fs.readFileSync(sourcePath, "utf8"), sandbox); return sandbox.module.exports; }
 
@@ -52,7 +51,7 @@ function fixture(pictures, config = {}) {
     getCapabilities: async () => ({ features: { nativeModelRequests: true, modelResponseSelection: true } }),
     openStream: async (url, options) => {
       fx.calls.push({ url, body: plain(options.body) }); await fx.onCharge?.();
-      const response = url.endsWith("/responses") ? { status: "completed", output: [{ type: "image_generation_call", status: "completed", result: pictures.png.toString("base64") }] }
+      const response = url.endsWith("/responses") ? { status: "completed", output: [{ type: "image_generation_call", status: "completed", result: (options.body.tools[0].output_format === "gif" ? pictures.gif : pictures.png).toString("base64") }] }
         : { data: [{ b64_json: (options.body.output_format === "gif" ? pictures.gif : pictures.png).toString("base64") }] };
       const id = "stream-" + ++serial; streams.set(id, JSON.stringify(response)); return { id, status: 200, headers: { "content-type": "application/json" } };
     },
@@ -63,7 +62,10 @@ function fixture(pictures, config = {}) {
       return { output: [{ type: "image_generation_call", status: "completed",
         result: (request.tools[0].output_format === "gif" ? pictures.gif : pictures.png).toString("base64") }] };
     },
-    readMessageAttachment: async () => { throw Error("selfies must not substitute a caller's chat attachment for fixed identity"); },
+    readMessageAttachment: async ({ messageId, index }) => {
+      assert.equal(messageId, "chat-pictures");
+      return index % 2 ? { mimeType: "image/png", data: pictures.png.toString("base64") } : { mimeType: "image/jpeg", data: pictures.b };
+    },
   };
   fx.ctx = { api, config: { ...defaults, provider: "openai-images", imageEnabled: true, selfieEnabled: false, allowNonOwnerDrawing: true,
     openaiImageModel: "gpt-image-2.6-sunburst", openaiTextModel: "fixture-chat", compatibleBaseUrl: "https://images.example/v1",
@@ -116,31 +118,31 @@ function fixture(pictures, config = {}) {
   fx = fixture(pictures, { imageEnabled: false, selfieEnabled: true }); await fx.set();
   await assert.rejects(fx.draw({ mode: undefined }), /关闭|未开启|未启用/, "omitting mode remains ordinary generation even when selfies are enabled");
   for (const mode of ["portrait", "SELFIE", true]) await assert.rejects(fx.draw({ mode }), /模式|方式|mode|无效/);
-  await assert.rejects(fx.draw({ mode: "selfie", references: [{ assetRef: "shape-b" }] }), /参考|形象/);
-  assert.equal(fx.calls.length, 0);
+  const references = Array.from({ length: 4 }, (_, index) => ({ messageId: "chat-pictures", index }));
+  for (const mode of ["image", "selfie"]) {
+    fx = fixture(pictures, { selfieEnabled: true }); await fx.set();
+    await assert.rejects(fx.draw({ mode, references: [...references, references[0]] }), /最多.*4/);
+    await assert.rejects(fx.draw({ mode, references: [{ assetRef: "inaccessible" }] }), /不可用/);
+    assert.equal(fx.calls.length, 0);
+  }
 
-  for (const provider of PROVIDERS) {
-    fx = fixture(pictures, { provider, imageEnabled: false, selfieEnabled: true }); await fx.set();
-    const result = await fx.draw(); assert.equal(result.mode, "selfie"); assert.equal(result.selfieReferenceRevision, 1);
+  const chatUrls = references.map(({ index }) => index % 2 ? "data:image/png;base64," + png.toString("base64") : "data:image/jpeg;base64," + b);
+  for (const provider of PROVIDERS) for (const mode of ["image", "selfie"]) for (const format of ["png", "gif"]) {
+    fx = fixture(pictures, { provider, imageEnabled: mode === "image", selfieEnabled: mode === "selfie" }); await fx.set();
+    const result = await fx.draw({ mode, format, references, prompt: "模仿图1的惊叫表情，使用图2的背景" });
+    assert.equal(result.mode, mode); assert.equal(result.images[0].mimeType, "image/" + format);
+    assert.equal(result.selfieReferenceRevision, mode === "selfie" ? 1 : undefined);
     const request = fx.calls[0].native || fx.calls[0].body;
+    const images = request.input ? request.input[0].content.filter(part => part.type === "input_image") : request.images;
+    assert.deepEqual(images.map(image => image.image_url), mode === "selfie" ? [...chatUrls, "data:image/jpeg;base64," + a] : chatUrls);
     const prompt = request.input ? request.input[0].content[0].text : request.prompt;
-    const first = request.input ? request.input[0].content.find(part => part.type === "input_image") : request.images[0];
-    assert.equal(first.image_url, "data:image/jpeg;base64," + a, provider + " must send the configured identity image");
-    assert.ok(prompt.includes(IDENTITY), provider + " must preserve the explicit identity constraint");
-    assert.ok(prompt.includes(fx.ctx.input.prompt));
+    assert(prompt.startsWith("模仿图1的惊叫表情"));
+    assert.equal(prompt.includes("图5是这次自拍的角色形象参考"), mode === "selfie");
+    assert.equal((request.tools?.[0] || request).output_format, format);
     if (request.tools) assert.equal(request.tools[0].action, "edit"); else assert.ok(fx.calls[0].url.endsWith("/images/edits"));
+    if (format === "gif" && !request.tools) assert(!("stream" in request));
     assert.equal(fx.puts.length, 1); assert.equal(fx.publications.length, 1);
     assert.ok(!JSON.stringify(result).includes(a));
-  }
-  for (const provider of ["openai-images", "codex"]) {
-    fx = fixture(pictures, { provider, imageEnabled: false, selfieEnabled: true }); await fx.set();
-    const animatedSelfie = await fx.draw({ format: "gif", frameCount: 2 });
-    assert.equal(animatedSelfie.images[0].mimeType, "image/gif");
-    const request = fx.calls[0].native || fx.calls[0].body;
-    const first = request.input ? request.input[0].content.find(part => part.type === "input_image") : request.images[0];
-    assert.equal(first.image_url, "data:image/jpeg;base64," + a);
-    assert.equal((request.tools?.[0] || request).output_format, "gif");
-    if (!request.tools) assert(!("stream" in request));
   }
   fx = fixture(pictures, { imageEnabled: true, selfieEnabled: false }); await fx.set();
   await fx.draw({ mode: "image" }); assert.equal(fx.calls[0].body.prompt, fx.ctx.input.prompt); assert.equal(fx.calls[0].body.images, undefined, "ordinary generation does not inherit the fixed selfie reference");
@@ -151,7 +153,7 @@ function fixture(pictures, config = {}) {
     if (problem === "deleted") fx.assets.delete("shape-a");
     if (problem === "private") fx.assets.get("shape-a").shared = false;
     if (problem === "preview-error") fx.ctx.api.assets = async () => { throw Error("reference inaccessible"); };
-    await assert.rejects(fx.draw()); assert.equal(fx.calls.length, 0, problem + " cannot consume provider quota"); assert.equal(fx.secretReads.length, 0);
+    await assert.rejects(fx.draw({ references })); assert.equal(fx.calls.length, 0, problem + " cannot consume provider quota"); assert.equal(fx.secretReads.length, 0);
     assert.equal(fx.puts.length, 0);
   }
   fx = fixture(pictures, { provider: "compatible-images", compatibleJsonEdits: false, selfieEnabled: true }); await fx.set();
@@ -168,5 +170,5 @@ function fixture(pictures, config = {}) {
     };
     await assert.rejects(fx.draw()); assert.equal(fx.publications.length, 0, change + " must prevent publication of a stale or unauthorized selfie");
   }
-  console.log("Image studio selfies: independent switches, five provider identity edits, persistent CAS reference, no caller substitution/no-quota failures, cancellation/revocation and stale-result isolation passed");
+  console.log("Image studio: ordered multi-reference images and GIFs on five adapters, fixed selfie identity, scoped sources, independent switches and revocation passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "google-workspace",
+  "version": "1.0.0",
+  "description": "连接 Google Workspace 的官方远程 MCP 服务。每个产品单独授权。",
+  "extensions": {
+    "com.openbot": {
+      "displayName": "Google Workspace",
+      "category": "integration",
+      "permissions": ["mcp"],
+      "metadata": {
+        "usage": "在插件详情中选择需要的服务，填写项目中为 AI Agent 登记的 OAuth 客户端。授权服务器使用 https://accounts.google.com。",
+        "requirements": ["Google Workspace Developer Preview 项目，所需产品 API 已启用。", "每项服务使用对应的 Google OAuth 权限范围。"],
+        "homepage": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+      },
+      "oauthMcpServers": ["Gmail", "Drive", "Docs", "Sheets", "Slides", "Calendar", "Chat", "People", "Classroom"]
+    }
+  }
+}

@@ -35,7 +35,8 @@ function state(storage, scope) {
     value = { cursor: 0, settingsOverride: old.settingsOverride || null, style: old.style || null, styleLocked: !!old.styleLocked,
       lastRun: old.lastRun || 0, nextRun: 0, job: null };
   }
-  return { ...value, settings: normalizeDreamSettings(value.settingsOverride || {}, defaults(storage, scope)) };
+  const { paused: _legacyPause, ...live } = value;
+  return { ...live, settings: normalizeDreamSettings(live.settingsOverride || {}, defaults(storage, scope)) };
 }
 function save(storage, scope, patch) {
   const { settings, ...value } = { ...state(storage, scope), ...patch };

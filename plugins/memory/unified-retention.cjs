@@ -7,6 +7,12 @@ const BASES = new Set(["explicit", "boundary", "stable", "ongoing", "ephemeral"]
 const PROFILE_SECTIONS = new Set(["identity", "habits", "interests", "communication", "boundaries", "self_description"]);
 const genericReasons = new Set(["有用", "以后有用", "以后可能有用", "便于以后回答", "供以后参考", "用户提到过", "有原话依据", "保存事实", "长期记忆", "useful", "for future reference"]);
 
+function usefulReason(value) {
+  const reason = typeof value === "string" ? value.trim() : "";
+  return reason.length >= 6 && reason.length <= 500
+    && !genericReasons.has(reason.normalize("NFKC").toLowerCase().replace(/[。.!！]+$/, "")) ? reason : "";
+}
+
 function protectedRecord(record) {
   const attributes = record?.attributes || {}, policy = attributes.retention;
   return record?.tier === "long_term" || !!attributes.legacy || !!attributes.import || !!attributes.imported
@@ -20,9 +26,8 @@ function protectedRecord(record) {
 function admission(item, materials, scope, now = Date.now()) {
   const value = item?.retention;
   if (!value || typeof value !== "object" || Array.isArray(value) || !BASES.has(value.basis) || value.basis === "ephemeral") return null;
-  if (typeof value.reason !== "string") return null;
-  const reason = value.reason.trim();
-  if (reason.length < 6 || reason.length > 500 || genericReasons.has(reason.normalize("NFKC").toLowerCase().replace(/[。.!！]+$/, ""))) return null;
+  const reason = usefulReason(value.reason);
+  if (!reason) return null;
   if (!Array.isArray(item.evidence) || !item.evidence.length) return null;
   const evidence = item.evidence.map(ref => materials.find(source => source.id === ref.id && typeof ref.quote === "string"
     && ref.quote.trim() && String(source.content || "").includes(ref.quote)));
@@ -80,4 +85,37 @@ async function candidateBudget(ctx, scope, operations, before) {
   return { operations: kept, before: versions, omitted };
 }
 
-module.exports = { VERSION, LIMITS, admission, protected: protectedRecord, candidateBudget };
+function ownsWorkingRecord(ctx, record) {
+  return record?.createdBy === `plugin:${ctx.plugin?.id || "memory"}` && ["pending", "active"].includes(record.status) && record.tier === "working"
+    && !record.attributes?.legacy && !record.attributes?.import && !record.attributes?.origin;
+}
+
+async function workingBudget(ctx, scope, spaceId) {
+  let count = 0, characters = 0, continuation = {};
+  if (!spaceId && ctx.api.memorySpace) {
+    const { spaces } = await ctx.api.memorySpace({ action: "list", chatId: scope.chatId });
+    spaceId = spaces?.find(space => space.kind === "chat" && space.ownerId === scope.chatId)?.id;
+    if (!spaceId) return { count, characters, complete: true };
+  }
+  for (let page = 0; page < 4; page++) {
+    ctx.signal.throwIfAborted();
+    const result = await ctx.api.memory({ action: "search", chatId: scope.chatId, ...(spaceId ? { spaceId } : {}),
+      mode: "history", status: "active", tier: "working", limit: 50, ...continuation });
+    for (const item of result.items || []) {
+      const record = (await ctx.api.memory({ action: "read", chatId: scope.chatId, id: item.id, mode: "history", limit: 1 })).item;
+      ctx.signal.throwIfAborted();
+      if (!ownsWorkingRecord(ctx, record) || spaceId && record.spaceId !== spaceId) continue;
+      count++; characters += record.contentLength ?? record.content?.length ?? 0;
+      if (count >= LIMITS.workingCount || characters >= LIMITS.workingCharacters) return { count, characters, complete: true };
+    }
+    if (result.nextOffset == null) return { count, characters, complete: true };
+    continuation = { offset: result.nextOffset, snapshot: result.snapshot, at: result.at };
+  }
+  return { count, characters, complete: false };
+}
+
+function fitsWorkingBudget(budget, length) {
+  return budget.complete && budget.count < LIMITS.workingCount && budget.characters + length <= LIMITS.workingCharacters;
+}
+
+module.exports = { VERSION, LIMITS, admission, usefulReason, protected: protectedRecord, candidateBudget, ownsWorkingRecord, workingBudget, fitsWorkingBudget };

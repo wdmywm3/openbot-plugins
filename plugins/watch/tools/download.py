@@ -63,7 +63,7 @@ def direct(url, output):
             validate_url(response.url)
             length = response.headers.get("Content-Length")
             if length and (not length.isdigit() or not 0 < int(length) <= MAX_MEDIA):
-                raise WatchError("视频为空或超过 256 MiB")
+                raise WatchError(f"视频为空或超过 {MAX_MEDIA // (1024 * 1024)} MiB")
             if response.headers.get_content_type() in {"text/html", "application/json"}:
                 raise WatchError("来源返回了网页或错误信息，请使用平台页面读取或更新附件地址")
             count = 0
@@ -72,7 +72,7 @@ def direct(url, output):
                 while chunk := response.read(256 * 1024):
                     count += len(chunk)
                     if count > MAX_MEDIA:
-                        raise WatchError("视频超过 256 MiB")
+                        raise WatchError(f"视频超过 {MAX_MEDIA // (1024 * 1024)} MiB")
                     stream.write(chunk)
             if not count:
                 raise WatchError("视频文件为空")

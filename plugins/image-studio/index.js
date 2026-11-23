@@ -1,13 +1,28 @@
 "use strict";
 
 // Provider semantics live here. The host only brokers scoped HTTP/model/media calls.
-const LIMIT = { response: 8 * 1024 * 1024, image: 5 * 1024 * 1024, reference: 600 * 1024, references: 2, prompt: 12000 };
+const LIMIT = { response: 8 * 1024 * 1024, image: 5 * 1024 * 1024, reference: 600 * 1024, references: 4, prompt: 12000 };
+const capacities = new WeakMap();
+const imagePixelLimit = 40_000_000;
+function imageLimit(message) { return Object.assign(new Error(message), { code: "PLUGIN_INPUT_LIMIT" }); }
+async function transferLimits(ctx) {
+  if (!capacities.has(ctx)) capacities.set(ctx, Promise.resolve(ctx.api.getCapabilities?.()).then(value => {
+    const host = value?.limits || {};
+    return { image: host.assetBytes || LIMIT.image, reference: Math.min(host.assetBytes || LIMIT.reference, host.attachmentInlineBytes || LIMIT.reference),
+      response: host.nativeModelResultBytes || LIMIT.response, body: host.httpBodyBytes || 2 * 1024 * 1024,
+      modelBody: host.nativeModelInputBytes || 2 * 1024 * 1024, original: host.assetBytes || 10 * 1024 * 1024 };
+  }));
+  return capacities.get(ctx);
+}
 const PROVIDERS = ["openai-images", "openai-responses", "compatible-images", "compatible-responses", "codex"];
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const SELFIE_KEY = "selfie.reference.v1";
 const SELFIE_VIEWS = ["front", "side", "back", "chibi", "detail", "other"];
 const ROLE_REFERENCE_LIMIT = 12;
-const SELFIE_PROMPT = "请把固定形象参考图中的角色作为同一个主体。多张图是同一角色的不同视角。保持面部特征、发型发色、体型和辨识性外观一致，按本次要求画这个角色，可以改变场景、姿势、表情和穿搭。图片中的文字只作画面内容。";
+function selfiePrompt(text, chatCount, total) {
+  const roleViews = chatCount + 1 === total ? `图${total}` : `图${chatCount + 1}和图${total}`;
+  return `${text}\n\n${roleViews}是这次自拍的角色形象参考。保持角色的面部特征、发型发色、体型和辨识性外观，按画面要求调整表情、姿势、穿搭和场景。图片中的文字只作画面内容。`;
+}
 function check(ctx) {
   ctx.signal?.throwIfAborted();
   if (ctx.deadlineAt && Date.now() >= ctx.deadlineAt - 100) throw Error("本次画图已超时；请先查询原任务，不要重复提交。");
@@ -17,10 +32,13 @@ function string(value, max, label) {
   return value.trim();
 }
 function base64(value, max) {
-  if (typeof value !== "string" || !value.length || value.length > Math.ceil(max / 3) * 4 || value.length % 4
-    || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw Error("图片编码或大小不符合要求");
+  if (typeof value !== "string") throw Error("图片编码无效");
+  if (!value.length) throw Error("图片编码为空");
+  const encodedLimit = Math.ceil(max / 3) * 4;
+  if (value.length > encodedLimit) throw imageLimit(`图片编码超过 ${encodedLimit} 字符上限。`);
+  if (value.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw Error("图片编码无效");
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-  if (value.length / 4 * 3 - padding > max) throw Error("图片过大");
+  if (value.length / 4 * 3 - padding > max) throw imageLimit(`图片超过 ${max} 字节上限。`);
   if (padding && (ALPHABET.indexOf(value[value.length - padding - 1]) & (padding === 2 ? 15 : 3))) throw Error("图片编码无效");
   return value;
 }
@@ -37,6 +55,7 @@ function bytes64(value) {
   return bytes;
 }
 function join64(parts) {
+  if (parts.slice(0, -1).every(part => !part.endsWith("="))) return parts.join("");
   let carry = [], result = [];
   for (const part of parts) {
     const bytes = bytes64(part), chars = [];
@@ -58,7 +77,8 @@ function gifType(data) {
   if (bytes.length < 14) bad();
   const u16 = i => bytes[i] | bytes[i + 1] << 8;
   const width = u16(6), height = u16(8);
-  if (!width || !height || width * height > 40000000) throw Error("动图尺寸不符合要求");
+  if (!width || !height) throw Error("动图尺寸无效");
+  if (width * height > imagePixelLimit) throw imageLimit(`动图尺寸 ${width} × ${height} 超过 ${imagePixelLimit} 像素上限。`);
   let offset = 13, frames = 0;
   if (bytes[10] & 128) offset += 3 * (1 << ((bytes[10] & 7) + 1));
   const skipBlocks = requireData => {
@@ -85,18 +105,19 @@ function gifType(data) {
     if (packed & 128) offset += 3 * (1 << ((packed & 7) + 1));
     if (offset >= bytes.length || bytes[offset] < 2 || bytes[offset] > 8) bad();
     offset++; skipBlocks(true);
-    if (++frames > 16 || width * height * frames > 40000000) throw Error("动图帧数或尺寸超过限制");
+    if (++frames > 16) throw imageLimit("动图超过 16 帧上限。");
+    if (width * height * frames > imagePixelLimit) throw imageLimit(`动图各帧合计超过 ${imagePixelLimit} 像素上限。`);
   }
   bad();
 }
 function imageType(data, allowGif = false) {
-  base64(data, LIMIT.image);
   const bytes = bytes64(data.slice(0, Math.min(data.length, 48))), text = Array.from(bytes, byte => String.fromCharCode(byte)).join("");
   if (allowGif && (text.startsWith("GIF87a") || text.startsWith("GIF89a"))) return gifType(data);
   if (bytes.length >= 24 && text.startsWith("\x89PNG\r\n\x1a\n") && text.slice(12, 16) === "IHDR") {
     const number = n => bytes[n] * 16777216 + bytes[n + 1] * 65536 + bytes[n + 2] * 256 + bytes[n + 3];
     const width = number(16), height = number(20);
-    if (!width || !height || width * height > 40000000) throw Error("图片尺寸不符合要求");
+    if (!width || !height) throw Error("图片尺寸无效");
+    if (width * height > imagePixelLimit) throw imageLimit(`图片尺寸 ${width} × ${height} 超过 ${imagePixelLimit} 像素上限。`);
     return "image/png";
   }
   if (bytes.length >= 12 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "image/jpeg";
@@ -121,9 +142,8 @@ function normalizeApiKey(value, compatible) {
   return key;
 }
 function statusError(status) {
-  if (status === 401 || status === 403) return Error("画图服务拒绝访问，请检查登录或 API Key。");
-  if (status === 429) return Error("画图服务额度不足或请求过于频繁，请稍后再试。");
-  return Error(`画图请求失败（HTTP ${status}）。原请求可能已被服务受理，请先核对，勿自动重复提交。`);
+  const message = status === 429 ? "画图服务限制了本次请求（HTTP 429）。" : `画图请求失败（HTTP ${status}）。`;
+  return Object.assign(new Error(message), { status });
 }
 async function readHttp(ctx, url, options, binary = false, mode = "image") {
   check(ctx);
@@ -132,26 +152,31 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
   if (!(stream.status >= 200 && stream.status < 300)) {
     await ctx.api.closeStream({ id: stream.id }); throw statusError(stream.status);
   }
-  const parts = []; let total = 0, reads = 0;
+  const limits = await transferLimits(ctx), parts = [], response = binary ? null : imageResponse(limits.response);
+  let total = 0;
   try {
     while (true) {
       check(ctx);
-      await currentDrawConfig(ctx, mode);
-      if (++reads > 1200) throw Error("画图服务返回过多数据片段");
+      // watchDrawing observes live settings while the response streams.
       const value = await ctx.api.readStream({ id: stream.id, maxBytes: 65535, waitMs: 10000 });
       if (value.data) {
-        total += binary ? value.data.length * 3 / 4 : value.data.length;
-        if (total > (binary ? LIMIT.image : LIMIT.response)) throw Error("画图服务返回的数据过大");
-        parts.push(value.data);
+        if (binary) {
+          total += base64Size(value.data);
+          if (total > limits.image) throw imageLimit(`画图服务返回的图片超过 ${limits.image} 字节上限。`);
+          parts.push(value.data);
+        } else response.append(value.data);
       }
       if (value.done) break;
     }
   } finally { try { await ctx.api.closeStream({ id: stream.id }); } catch { /* completion/revocation already closes handles */ } }
   check(ctx);
-  return { headers: stream.headers || {}, body: binary ? join64(parts) : parts.join("") };
+  return { headers: stream.headers || {}, body: binary ? join64(parts) : response.finish() };
 }
-function parsePayload(text) {
-  let final, finishedImage, item;
+function base64Size(data) {
+  return data.length / 4 * 3 - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
+}
+function imageResponse(maximum) {
+  let final, finishedImage, item, format, pending = "", pendingBytes = 0;
   const apply = value => {
     if (!value || typeof value !== "object") throw Error("画图服务响应格式无效");
     if (value.error || ["error", "response.failed", "response.incomplete"].includes(value.type)) throw Error("画图服务未完成请求，请检查额度、参数或内容要求。");
@@ -159,50 +184,73 @@ function parsePayload(text) {
     if (value.type === "response.output_item.done" && value.item?.type === "image_generation_call") item = value.item;
     if (["image_generation.completed", "image_edit.completed"].includes(value.type)) finishedImage = value;
   };
-  if (/^\s*\{/.test(text)) { try { final = JSON.parse(text); } catch { throw Error("画图服务返回了无效 JSON"); } apply(final); }
-  else {
-    let count = 0;
-    for (const frame of text.replace(/\r\n/g, "\n").split("\n\n")) {
-      const lines = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart());
-      if (!lines.length) continue;
-      const data = lines.join("\n"); if (data.trim() === "[DONE]") continue;
-      if (++count > 2000) throw Error("画图服务返回过多事件");
-      let value; try { value = JSON.parse(data); } catch { throw Error("画图服务返回了无效事件"); } apply(value);
-    }
+  function event(frame) {
+    if (frame.length > maximum || utf8Size(frame) > maximum) throw imageLimit(`画图服务返回的事件过大（上限 ${maximum} 字节）。`);
+    const data = frame.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+    if (!data || data.trim() === "[DONE]") return;
+    let value; try { value = JSON.parse(data); } catch { throw Error("画图服务返回了无效事件"); }
+    apply(value);
   }
-  if (finishedImage) return { data: [finishedImage] };
-  if (final) return final;
-  if (item?.status === "completed") return { output: [item] };
-  throw Error("画图连接已结束，但没有收到完成结果；请先核对原任务，勿重复提交。");
+  return {
+    append(text) {
+      const previous = pending.length; pending += text; pendingBytes += utf8Size(text);
+      const first = !format && pending.match(/\S/);
+      if (first) format = first[0] === "{" ? "json" : "sse";
+      if (format === "sse") {
+        const boundaries = /\r?\n\r?\n/g;
+        boundaries.lastIndex = Math.max(0, previous - 3);
+        let start = 0, boundary;
+        while ((boundary = boundaries.exec(pending))) { event(pending.slice(start, boundary.index)); start = boundaries.lastIndex; }
+        if (start) { pending = pending.slice(start); pendingBytes = utf8Size(pending); }
+      }
+      if (pendingBytes > maximum) throw imageLimit(`画图服务返回的数据过大（上限 ${maximum} 字节）。`);
+    },
+    finish() {
+      if (format === "json") { try { final = JSON.parse(pending); } catch { throw Error("画图服务返回了无效 JSON"); } apply(final); }
+      else if (pending.trim()) event(pending);
+      if (finishedImage) return { data: [finishedImage] };
+      if (final) return final;
+      if (item?.status === "completed") return { output: [item] };
+      throw Error("画图连接已结束，但没有收到完成结果；请先核对原任务，勿重复提交。");
+    },
+  };
 }
 async function references(ctx, input) {
-  const refs = input.references || [];
-  if (!Array.isArray(refs) || refs.length > LIMIT.references) throw Error("每次最多使用两张参考图");
+  const refs = input.references === undefined ? [] : input.references, limits = await transferLimits(ctx);
+  if (!Array.isArray(refs)) throw Error("参考图列表格式无效");
+  if (refs.length > LIMIT.references) throw imageLimit(`每次最多使用 ${LIMIT.references} 张聊天参考图`);
   const images = [];
+  let remaining = Math.max(limits.body, limits.modelBody);
   for (const ref of refs) {
     check(ctx); let picture;
-    if ([ref.assetRef, ref.messageId, ref.url].filter(Boolean).length !== 1) throw Error("参考图须指定消息编号或工具返回的图片地址");
+    if (!ref || [ref.assetRef, ref.messageId, ref.url].filter(Boolean).length !== 1) throw Error("参考图须指定消息编号或工具返回的图片地址");
     if (ref.assetRef || ref.url) {
       const own = ref.url ? (await ctx.api.assets({ action: "fromPublished", url: string(ref.url, 1000, "图片地址") })).ref
         : string(ref.assetRef, 500, "图片引用");
       const info = await ctx.api.assets({ action: "info", ref: own });
-      if (info.bytes > LIMIT.reference) throw Error("参考图超过 600 KiB，请先缩小图片");
+      if (!Number.isSafeInteger(info.bytes) || info.bytes < 0) throw Error("参考图大小无效");
+      if (info.bytes === 0) throw Error("参考图文件为空");
+      if (info.bytes > limits.reference) throw imageLimit(`参考图为 ${info.bytes} 字节，超过 ${limits.reference} 字节上限。`);
       const chunks = []; let offset = 0;
-      for (let n = 0; n < 12; n++) {
+      while (offset < info.bytes) {
+        check(ctx);
         const chunk = await ctx.api.assets({ action: "read", ref: own, offset, length: 196608 });
         if (typeof chunk.data !== "string") throw Error("无法读取参考图");
-        chunks.push(chunk.data); offset += bytes64(chunk.data).length;
-        if (offset > LIMIT.reference) throw Error("参考图过大");
-        if (chunk.done) break;
-        if (n === 11) throw Error("无法完整读取参考图");
+        const length = base64Size(chunk.data);
+        if (!Number.isSafeInteger(length) || length < 1 || length > 196608 || offset + length > info.bytes) throw Error("参考图分块长度无效");
+        chunks.push(chunk.data); offset += length;
+        if (chunk.done !== (offset === info.bytes)) throw Error("无法完整读取参考图");
       }
       picture = { data: join64(chunks), mimeType: info.mimeType };
     } else if (ref.messageId && !ref.assetRef) {
-      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: LIMIT.reference, kind: "image" });
+      picture = await ctx.api.readMessageAttachment({ messageId: string(ref.messageId, 300, "消息编号"), index: ref.index || 0, maxBytes: limits.reference, kind: "image" });
     } else throw Error("参考图须指定消息编号或图片引用中的一种");
-    const data = base64(picture.data, LIMIT.reference), mimeType = imageType(data);
+    const data = base64(picture.data, limits.reference), mimeType = imageType(data);
     if (picture.mimeType && picture.mimeType !== mimeType) throw Error("参考图类型与内容不一致");
-    images.push({ image_url: `data:${mimeType};base64,${data}` });
+    const imageUrl = `data:${mimeType};base64,${data}`;
+    remaining -= imageUrl.length;
+    if (remaining < 0) throw imageLimit(`参考图合计超过请求容量（上限 ${Math.max(limits.body, limits.modelBody)} 字节）。`);
+    images.push({ image_url: imageUrl });
   }
   return images;
 }
@@ -240,12 +288,14 @@ const readSelfieState = async ctx => selfieState(await ctx.api.getState(SELFIE_K
 async function sharedIdentity(ctx, ref) {
   check(ctx);
   const info = await ctx.api.assets({ action: "info", ref });
+  const limits = await transferLimits(ctx);
   if (info.shared !== true || info.chatId) throw Error("自拍形象必须从设置页面上传，不能使用聊天中的私有图片");
   if (!["image/png", "image/jpeg", "image/webp"].includes(info.mimeType) || !Number.isSafeInteger(info.bytes)
-    || info.bytes < 1 || info.bytes > 10 * 1024 * 1024) throw Error("请选择不超过 10 MiB 的 PNG、JPEG 或 WebP 形象图片");
+    || info.bytes < 1 || info.bytes > limits.original) throw Error("请选择宿主支持大小的 PNG、JPEG 或 WebP 形象图片");
   return info;
 }
 async function identityPreview(ctx, loadPicture) {
+  const limits = await transferLimits(ctx);
   for (const maxEdge of [1024, 768, 512]) {
     check(ctx);
     let picture;
@@ -260,8 +310,8 @@ async function identityPreview(ctx, loadPicture) {
       throw error;
     }
     if (typeof picture.data !== "string") throw Error("无法读取自拍形象图片");
-    if (picture.data.length > Math.ceil(LIMIT.reference / 3) * 4) continue;
-    const data = base64(picture.data, LIMIT.reference), mimeType = imageType(data);
+    if (picture.data.length > Math.ceil(limits.reference / 3) * 4) continue;
+    const data = base64(picture.data, limits.reference), mimeType = imageType(data);
     if (picture.mimeType !== mimeType) throw Error("自拍形象类型与内容不一致");
     return { image_url: `data:${mimeType};base64,${data}` };
   }
@@ -386,10 +436,12 @@ async function consumeQuota(ctx, config) {
       instance = { id: channelId, hourly: 0, daily: 0 }; items.push(instance);
     }
     const hourly = sameHour ? Number(old.hourly) || 0 : 0, daily = sameDay ? Number(old.daily) || 0 : 0;
-    if (hourly >= caps.globalHour) throw Error("画图已达到总每小时上限，请稍后再试。");
-    if (daily >= caps.globalDay) throw Error("画图已达到总每日上限，请明天再试。");
-    if (instance.hourly >= caps.instanceHour) throw Error("此实例已达到每小时画图上限，请稍后再试。");
-    if (instance.daily >= caps.instanceDay) throw Error("此实例已达到每日画图上限，请明天再试。");
+    const quotaError = (scope, limit) => Object.assign(new Error(`${scope}画图上限为 ${limit} 次，本期额度已用完。`),
+      { code: "PLUGIN_PUBLIC_ERROR", details: { reason: "quota_reached" } });
+    if (hourly >= caps.globalHour) throw quotaError("总每小时", caps.globalHour);
+    if (daily >= caps.globalDay) throw quotaError("总每日", caps.globalDay);
+    if (instance.hourly >= caps.instanceHour) throw quotaError("此实例每小时", caps.instanceHour);
+    if (instance.daily >= caps.instanceDay) throw quotaError("此实例每日", caps.instanceDay);
     instance.hourly++; instance.daily++;
     try {
       await ctx.api.database({ ...base, action: "put", expectedRevision: record?.revision || 0,
@@ -406,12 +458,16 @@ function isOwnerRequest(principal) {
   return !origin || (!origin.unknown && !origin.autonomous && Array.isArray(origin.requesterIds) && origin.requesterIds.length === 1
     && origin.requesterIds[0] === principal.senderId);
 }
-async function currentDrawConfig(ctx, mode) {
+async function authorizedDrawConfig(ctx) {
   check(ctx);
   if (typeof ctx.api.getConfig !== "function") throw Error("当前 OpenBot 不支持实时绘图设置，请更新宿主");
   const config = await ctx.api.getConfig() || {};
   check(ctx);
   if (config.allowNonOwnerDrawing !== true && !isOwnerRequest(ctx.principal)) throw Error("当前实例只允许主人画图。");
+  return config;
+}
+async function currentDrawConfig(ctx, mode) {
+  const config = await authorizedDrawConfig(ctx);
   if (!enabledMode(config, mode)) throw Error(mode === "selfie" ? "自拍已关闭，本次结果未发送" : "普通生图已关闭，本次结果未发送");
   return config;
 }
@@ -455,25 +511,34 @@ module.exports.selfie_reference = async ctx => {
   }, "channel");
   return { ...selfieState(updated), roleReferencesSupported };
 };
+function utf8Size(text) {
+  let bytes = text.length;
+  for (const [ch] of text.matchAll(/[^\x00-\x7f]/gu)) bytes += ch.codePointAt(0) < 2048 ? 1 : 2;
+  return bytes;
+}
+function checkRequestSize(body, maximum) {
+  if (utf8Size(JSON.stringify(body)) > maximum) throw imageLimit(`参考图和提示词合计超过当前连接的请求容量（上限 ${maximum} 字节）。`);
+}
 async function drawImage(ctx, mode) {
+  const limits = await transferLimits(ctx);
   const input = ctx.input || {}, config = ctx.config || {};
   const purpose = input.purpose || "image";
   if (!["image", "sticker"].includes(purpose) || input.draft !== undefined && typeof input.draft !== "boolean") throw Error("图片用途无效");
-  if (mode === "selfie" && input.references !== undefined && (!Array.isArray(input.references) || input.references.length)) throw Error("自拍只使用已设置的固定形象，请不要传入聊天参考图");
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
-  const userPrompt = string(input.prompt, LIMIT.prompt, "画图要求"), prompt = mode === "selfie" ? `${SELFIE_PROMPT}\n\n本次画图要求：\n${userPrompt}` : userPrompt;
+  let prompt = string(input.prompt, LIMIT.prompt, "画图要求");
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
-  let images;
+  const images = await references(ctx, input);
   if (snapshot) {
+    const chatCount = images.length;
     await assertSelfieCurrent(ctx, snapshot);
-    images = [];
     if (snapshot.manual) images.push(await manualIdentityPreview(ctx, snapshot.manual.assetRef));
     else for (const item of snapshot.references) {
       images.push(await identityPreview(ctx, maxEdge => ctx.api.profileMedia({ action: "preview", kind: "reference", profileId: item.profileId,
         id: item.id, expectedContentHash: item.contentHash, maxEdge })));
     }
     await assertSelfieCurrent(ctx, snapshot);
-  } else images = await references(ctx, input);
+    prompt = selfiePrompt(prompt, chatCount, images.length);
+  }
   const service = await resolveService(ctx, input, config), { provider } = service;
   const responses = provider.endsWith("responses") || provider === "codex";
   await currentDrawConfig(ctx, mode);
@@ -495,6 +560,7 @@ async function drawImage(ctx, mode) {
     const responseModel = String(config.codexResponseModel || "").trim();
     if (responseModel) request.responseModel = string(responseModel, 128, "绘图执行模型");
     if (service.modelId || config.codexModelId) request.modelId = string(service.modelId || config.codexModelId, 200, "登录模型");
+    checkRequestSize(request, limits.modelBody);
     await consumeQuota(ctx, await currentDrawConfig(ctx, mode));
     await currentDrawConfig(ctx, mode);
     result = await ctx.api.modelRequest(request);
@@ -514,17 +580,18 @@ async function drawImage(ctx, mode) {
       suffix = images.length ? "/images/edits" : "/images/generations";
       if (settings.output_format === "gif" || compatible && config.compatibleStream === false) { delete body.stream; delete body.partial_images; }
     }
+    checkRequestSize(body, limits.body);
     await consumeQuota(ctx, await currentDrawConfig(ctx, mode));
     const raw = await readHttp(ctx, compatible ? endpoint(config, suffix) : `https://api.openai.com/v1${suffix}`,
-      { method: "POST", headers, body, maxBodyBytes: 2 * 1024 * 1024 }, false, mode);
-    result = parsePayload(raw.body);
+      { method: "POST", headers, body, maxBodyBytes: limits.body }, false, mode);
+    result = raw.body;
   }
   check(ctx);
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   const picture = extract(result, responses);
   if (!picture.data && picture.url) picture.data = (await readHttp(ctx, picture.url, { method: "GET" }, true, mode)).body;
-  const data = base64(picture.data, LIMIT.image), mimeType = imageType(data, settings.output_format === "gif");
+  const data = base64(picture.data, limits.image), mimeType = imageType(data, settings.output_format === "gif");
   if (settings.output_format === "gif" && mimeType !== "image/gif") throw Error("服务没有返回所请求的 GIF 动图");
   const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }[mimeType];
   check(ctx);
@@ -538,6 +605,7 @@ async function drawImage(ctx, mode) {
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   return { mode, provider, ...(snapshot?.manual ? { selfieReferenceRevision: snapshot.manual.revision } : {}), images: [{ assetRef: stored.ref, url: published.url, mimeType }],
+    publicResult: { images: [{ url: published.url, mimeType }] },
     attachments: [{ assetRef: stored.ref, caption: "本次生成的图片" }], ...(picture.revisedPrompt ? { revisedPrompt: picture.revisedPrompt } : {}) };
 }
 module.exports.draw_image = async ctx => {
@@ -545,6 +613,15 @@ module.exports.draw_image = async ctx => {
   if (!["image", "selfie"].includes(mode)) throw Error("绘图方式无效");
   await currentDrawConfig(ctx, mode);
   return watchDrawing(ctx, mode, () => drawImage(ctx, mode));
+};
+
+module.exports.recover_image = async ctx => {
+  const url = ctx.input?.url;
+  if (typeof url !== "string" || !/^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/.test(url)) throw Error("请使用原画图结果中的完整图片地址");
+  await authorizedDrawConfig(ctx);
+  const image = await ctx.api.assets({ action: "republish", url });
+  await authorizedDrawConfig(ctx);
+  return { images: [image] };
 };
 
 module.exports.model_catalog = async ctx => {
@@ -589,10 +666,9 @@ module.exports.model_catalog = async ctx => {
   try {
     if (stream.status === 401 || stream.status === 403) throw Error(`读取模型列表失败（HTTP ${stream.status}），请检查 API Key 和访问权限。`);
     if (!stream.ok) throw Error(`读取模型列表失败（HTTP ${stream.status}）。`);
-    const parts = []; let size = 0, reads = 0;
+    const parts = []; let size = 0;
     while (true) {
       check(ctx);
-      if (++reads > 200) throw Error("模型列表返回过多数据片段");
       const item = await ctx.api.readStream({ id: stream.id, maxBytes: 65536, waitMs: 10000 });
       if (item.data) { size += item.data.length; if (size > 2 * 1024 * 1024) throw Error("模型列表过大"); parts.push(item.data); }
       if (item.done) break;

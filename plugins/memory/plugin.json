@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.2",
-  "description": "为统一记忆提供自动召回、人物画像、闲时整理和 Dream，并兼容已有复查。",
+  "version": "2.6.3",
+  "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
   "extensions": {
     "com.openbot": {
       "displayName": "记忆 Plus",
@@ -28,7 +28,8 @@
         "pluginProcessCancellation",
         "agentContinuations",
         "memoryCategories",
-        "conversationForks"
+        "conversationForks",
+        "automaticMemoryIndex"
       ],
       "permissions": [
         "process",
@@ -37,6 +38,7 @@
         "memory:read",
         "memory:write",
         "memory:manage",
+        "memory:automatic",
         "history",
         "retrieval",
         "model",
@@ -130,7 +132,7 @@
           "scope": "all",
           "permission": "member",
           "mutating": false,
-          "description": "默认按含义查找当前聊天的正式记忆，支持文字、图片和图文联合查询。查原始聊天使用 chat_history，查已跳过的超大图片使用 skipped_images。后者按消息文字、图片名称或消息编号查找，也可直接列出最近的标记。按编号读记忆全文、修改或遗忘使用宿主 memory。",
+          "description": "默认按含义查找当前聊天的正式记忆，支持文字、图片和图文联合查询。用 topics 打开跨会话主题并按引用阅读记忆和原文。查原始聊天使用 chat_history，查已跳过的超大图片使用 skipped_images。按编号读记忆全文、修改或遗忘使用宿主 memory。",
           "inputSchema": {
             "type": "object",
             "properties": {
@@ -138,10 +140,11 @@
                 "type": "string",
                 "enum": [
                   "memories",
+                  "topics",
                   "chat_history",
                   "skipped_images"
                 ],
-                "description": "memories 查正式记忆（默认），chat_history 查聊天记录，skipped_images 查超大图片的标记。"
+                "description": "memories 查正式记忆（默认），topics 查主题和引用，chat_history 查聊天记录，skipped_images 查超大图片的标记。"
               },
               "query": {
                 "type": "string",

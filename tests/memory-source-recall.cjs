@@ -95,6 +95,24 @@ const unified = require("../plugins/memory/unified-retrieval.cjs");
     assert(wire.indexOf("正式记录是二楼") > wire.indexOf('"id":"q2"'));
     assert(wire.indexOf("正式记录是二楼") < wire.indexOf('"id":"q3"'));
     assert(!wire.includes("会议地点在三楼"), "raw historical messages are never injected by automatic memory recall");
+
+    const mem = repo.unifiedMemoryRepository, other = { ...actor, chatId: "onebot:private:fixture" };
+    const shared = mem.memory(other, { action: "create", requestKey: "scan-history", record: {
+      content: "我学到扫描蓝色底片前先校准颜色。", kind: "experience", status: "active",
+    } });
+    await unified.index(ctx, storage, scope);
+    assert(!(await unified.search(ctx, storage, scope, "blue calibration")).records.some(item => item.id === shared.id));
+    const desktop = { ...actor, desktop: true, permissions: [...actor.permissions, "memory:share"] };
+    const grant = mem.memorySpace(desktop, { action: "grant", requestKey: "share-scan-history",
+      spaceId: shared.spaceId, targetSpaceId: saved.spaceId, recordIds: [shared.id], capabilities: ["read"] });
+    await unified.index(ctx, storage, scope);
+    const relatedExperience = await unified.search(ctx, storage, scope, "blue calibration");
+    assert.equal(relatedExperience.mode, "hybrid");
+    assert(relatedExperience.records.some(item => item.id === shared.id), "indexing covers newly granted records older than the destination's cursor");
+    mem.memorySpace(desktop, { action: "revoke", requestKey: "unshare-scan-history",
+      spaceId: shared.spaceId, id: grant.id, expectedRevision: grant.revision });
+    assert(!(await unified.search(ctx, storage, scope, "blue calibration")).records.some(item => item.id === shared.id), "a stale semantic index cannot reveal a revoked memory");
+
     const started = Date.now(); let timed = 0;
     await plus.beforeModel({ ...ctx, deadlineAt: started + 300, api: { ...ctx.api,
       vectorIndex: input => { timed++; assert(input.timeoutMs <= 200); return new Promise((_resolve, reject) => setTimeout(() => reject(Error("query timeout")), input.timeoutMs)); },

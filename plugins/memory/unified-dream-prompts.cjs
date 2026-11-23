@@ -1,5 +1,6 @@
 "use strict";
 const { DREAM_PROMPT, FACT_PROMPT, REVISION_PROMPT } = require("./lib/features/channels/channel-dream-analysis.cjs");
+const { PROMPT: EXPERIENCE } = require("./unified-experience.cjs");
 const GROUP = `这是群聊，按 senderId 区分每个发言人。昵称、群名片、称呼相似不代表同一人；“我”属于原发言人，“你/他”须有实际引用或明确指向。不能把 A 的话记到 B 身上，也不能把一个成员的意见记为全群共识。
 保留以后确有用途的群内约定、明确决定、重要共同经历及有适用时间的事实。普通插话、复读、表情、战绩、口嗨、暂时邀约无需逐条成文。不同成员交错讨论的事项按原消息分别索引；没有达成决定就保持话题 open。
 style 必须为 null，records 不包含 matter。facts 中的 preference 必须明确 subjectId 并有该成员本人的原话依据。群成员身份由已有身份资料辅助确认，整理不能自创身份或将传闻升级为身份结论。群内的公开决定不等于授权主动私聊或创建个人跟进。`;
@@ -9,7 +10,7 @@ const PRIVATE = `这是当前对话方与 bot 的私聊。所有偏好和事项�
 const OWNER = `宿主最近一次确认此私聊对话方为主人。将私聊视为连续讨论串，同时区分其中并行的事项：每件事保留目标、当前进度、条件、依赖、截止时间和明确的下一步，不把换话题后的消息自动并入上一件事。
 优先保留主人明确交办、正在推进、等待反馈或尚未解决的重要问题。闲谈愿望不自动变为承诺或待办；只有明确要求复查、持续关注或按变化继续检查时才设置复查策略。事项归属于提出它的对话方，不能用主人的称谓绕过宿主权限或将私聊内容共享到群聊。
 “已交给分身”“模型回答结束”“任务自述完成”仅说明相应阶段。完成须有明确的本人确认或可核查结果；结果不完整就保留 waiting 或原进度，并写清已知部分。取消后不擅自恢复，多个目标都可能对应“那个/继续/取消”时不替用户选一个。`;
-const MATTERS = `暂不保存 experience 或第一人称回忆；仅私聊可在 records 保存 matter，subtype 为 goal（明确目标）、question（未解决问题）或 followup（明确约定的只读复查）。bot 回复只作理解上下文，不能单独证明本人执行或事项完成。
+const MATTERS = `仅私聊可在 records 保存 matter，subtype 为 goal（明确目标）、question（未解决问题）或 followup（明确约定的只读复查）。bot 回复只作理解上下文，不能单独证明本人执行或事项完成。
 事项正文简明保留对象、目标、条件和已有进展。progress 只可为 active（尚在推进）、waiting（等待依赖或答复）、completed（已完成）、canceled（明确取消）、closed（已结束或不再跟进）。不要因为聊天结束、模型回合结束或没有新消息而宣布完成。
 已有事项有变化时使用 updates，id 和 revision 必须来自 existing，更新同一条记录，不再生成同一事项的新 records。保留未变化的条件、进度和设置；仅写本次有证据的变化。completed/canceled/closed 的事项只有本人明确重新开启时才附 reopen:true；否则保持终止状态。
 复查字段只用于 subtype=followup：nextReviewAt 为首次复查的毫秒时间；reviewIntervalMinutes 为明确要求的重复间隔（5–43200 分钟）；reviewOnChange:true 仅用于明确要求有新资料后再查；watchActivityId 仅能使用已提供且可读取的真实工作事项编号。默认只查一次，不因一个事项存在就安排重复检查。
@@ -22,7 +23,9 @@ updates:[{id:"existing 中编号",revision:1,content:"更新后的完整正文",
 function build(ctx, storage, scope) {
   const context = { ...require("./unified-peer.cjs").context(ctx, storage, scope), now: Date.now(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   return { context, system: [DREAM_PROMPT, FACT_PROMPT, REVISION_PROMPT, context.chatType === "group" ? GROUP : PRIVATE,
-    ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, require("./unified-memes.cjs").PROMPT,
+    ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, EXPERIENCE,
+    "整理经历时，真人发言标记 experienceEvidence=heard，Bot 已送达的回复标记 experienceEvidence=sent。",
+    require("./unified-memes.cjs").PROMPT,
     require("./unified-profile-policy.cjs").STANDARD].join("\n\n") };
 }
 module.exports = { build };

@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "image-studio",
-  "version": "0.4.0",
-  "description": "生成图片或动图、根据聊天参考图改图，或沿用固定角色形象自拍。",
+  "version": "0.5.2",
+  "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
   "extensions": {
     "com.openbot": {
       "displayName": "画图",
@@ -20,7 +20,9 @@
         "state",
         "state:global",
         "model:request",
-        "model:select"
+        "model:select",
+        "conversation",
+        "conversation:notify"
       ],
       "requiredFeatures": [
         "livePluginConfig",
@@ -31,7 +33,10 @@
         "globalPluginDatabase",
         "pluginAdmissionQueue",
         "conditionalGlobalSettings",
-        "mediaHandoff"
+        "mediaHandoff",
+        "mediaRepublication",
+          "toolCompletionEvents",
+          "pluginSkillUpload"
       ],
       "networkHosts": [
         "*"
@@ -53,17 +58,17 @@
         "codexResponseModel": "",
         "size": "1024x1024",
         "quality": "medium",
-        "globalConcurrency": 2,
-        "instanceConcurrencyDefault": 1,
+        "globalConcurrency": 4,
+        "instanceConcurrencyDefault": 2,
         "instanceConcurrency": 0,
-        "queueLimit": 20,
-        "queueTimeoutSeconds": 300,
-        "instanceHourlyDefault": 10,
-        "instanceDailyDefault": 50,
+        "queueLimit": 32,
+        "queueTimeoutSeconds": 420,
+        "instanceHourlyDefault": 20,
+        "instanceDailyDefault": 100,
         "instanceHourly": 0,
         "instanceDaily": 0,
-        "globalHourly": 20,
-        "globalDaily": 100
+        "globalHourly": 40,
+        "globalDaily": 200
       },
       "configSchema": {
         "type": "object",
@@ -223,7 +228,7 @@
           "globalConcurrency": {
             "type": "integer",
             "title": "总并发数",
-            "default": 2,
+            "default": 4,
             "minimum": 1,
             "maximum": 32,
             "scope": "global"
@@ -231,7 +236,7 @@
           "instanceConcurrencyDefault": {
             "type": "integer",
             "title": "每个实例默认并发数",
-            "default": 1,
+            "default": 2,
             "minimum": 1,
             "maximum": 32,
             "scope": "global"
@@ -248,7 +253,7 @@
           "queueLimit": {
             "type": "integer",
             "title": "最多排队任务",
-            "default": 20,
+            "default": 32,
             "minimum": 0,
             "maximum": 100,
             "scope": "global"
@@ -256,7 +261,7 @@
           "queueTimeoutSeconds": {
             "type": "integer",
             "title": "最长排队时间（秒）",
-            "default": 300,
+            "default": 420,
             "minimum": 1,
             "maximum": 3600,
             "scope": "global"
@@ -264,7 +269,7 @@
           "instanceHourlyDefault": {
             "type": "integer",
             "title": "每实例默认每小时上限",
-            "default": 10,
+            "default": 20,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -272,7 +277,7 @@
           "instanceDailyDefault": {
             "type": "integer",
             "title": "每实例默认每日上限",
-            "default": 50,
+            "default": 100,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -298,7 +303,7 @@
           "globalHourly": {
             "type": "integer",
             "title": "总每小时上限",
-            "default": 20,
+            "default": 40,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -306,7 +311,7 @@
           "globalDaily": {
             "type": "integer",
             "title": "总每日上限",
-            "default": 100,
+            "default": 200,
             "minimum": 1,
             "maximum": 100000,
             "scope": "global"
@@ -318,7 +323,10 @@
         {
           "name": "draw_image",
           "export": "draw_image",
-          "description": "生成一张图片或 GIF 动图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取当前角色的人设图，也可指定视角。两种方式分别启用。返回可发送的图片地址。",
+          "title": "画图",
+          "completion": "chat",
+          "successLabel": "生成成功",
+          "description": "生成一张图片或 GIF 动图。拟写提示词前按当前可用的 image-studio:imagegen 指南构图。普通生图和改图使用 mode=image。画自己的角色形象使用 mode=selfie，自动选取角色形象图，可另传聊天参考图或指定视角。两种方式分别启用。返回可发送的图片地址。",
           "scope": "all",
           "permission": "member",
           "cancellation": "cooperative",
@@ -354,6 +362,7 @@
               },
               "prompt": {
                 "type": "string",
+                "description": "直接送入图像 API 的自然语言正文。从画面或具体编辑指令起笔，写清可见主体、构图与必要细节。任务名放在外层 title，请求者和聊天经过留在会话中。画面需要印出的原文用引号标明。",
                 "minLength": 1,
                 "maxLength": 12000
               },
@@ -417,7 +426,8 @@
               },
               "references": {
                 "type": "array",
-                "maxItems": 2,
+                "maxItems": 4,
+                "description": "普通生图、改图和自拍均可传入最多四张图，静态和 GIF 均适用。按传入顺序在提示词里称图1、图2等，并写清各图用途。自拍的角色形象图由插件另外附上。",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -462,6 +472,22 @@
             "required": [
               "prompt"
             ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "recover_image",
+          "export": "recover_image",
+          "title": "取回已画的图片",
+          "description": "补发本聊天已生成的画图结果时，传入原任务或会话中记录的完整图片地址，取得当前可发送的地址。复用原图，不消耗生图额度。",
+          "scope": "all",
+          "permission": "member",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string", "minLength": 1, "maxLength": 128, "description": "原画图结果中的 images[].url。" }
+            },
+            "required": ["url"],
             "additionalProperties": false
           }
         }
@@ -577,6 +603,9 @@
               "provider",
               "size",
               "quality"
+            ],
+            "widgets": [
+              { "type": "skill-upload", "title": "生图 Skill", "skills": ["imagegen", "gpt-image"] }
             ]
           },
           {
@@ -757,10 +786,10 @@
         ],
         "usage": "描述想画的图片或提出改图要求。单独开启自拍后，会优先使用当前角色的人设图。",
         "requirements": [
-          "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
+          "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "生成图片可在当前聊天交给其他插件使用；区分表情成品和改稿，支持发送后的自动收藏。"
+        "changelog": "生图、改图和自拍都可使用最多四张聊天参考图，静态图和 GIF 均支持。自拍会另外附上角色形象图，可模仿参考图中的表情、动作或构图。"
       }
     }
   }

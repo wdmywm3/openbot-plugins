@@ -3,6 +3,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {memoryDatabase}=require('./helpers/memory-database.cjs');
 const sandbox={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../shared/activity-learning.js'),'utf8'),sandbox);
 (async()=>{
+ let pages=0;
+ const deep=sandbox.createActivityLearning(async () => {
+   const start=pages++*50;
+   return {records:Array.from({length:50},(_,i)=>({key:String(start+i),revision:1,value:{status:'active',topic:start+i===549?'遥远样本':'无关'}})),
+     nextCursor:pages<11?String(pages):null};
+ });
+ const distant=await deep.retrieve('遥远样本');
+ assert.equal(distant[0].id,'549');assert.equal(pages,11);
  const db=memoryDatabase(), learning=sandbox.createActivityLearning(input=>db({...input,scope:'channel'}));
  const source={id:'video:p:1',kind:'video-note',url:'https://example.com/video',text:'样本只有十人，结论不能推广到所有人。'};
  const input={topic:'样本数量',understanding:'小样本结论有局限',application:'评价实验结果时检查样本规模',uncertainty:'未核对原论文',evidence:[{sourceId:source.id,quote:'样本只有十人'}]};

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "Gmail": { "type": "http", "url": "https://gmailmcp.googleapis.com/mcp/v1" },
+    "Drive": { "type": "http", "url": "https://drivemcp.googleapis.com/mcp/v1" },
+    "Docs": { "type": "http", "url": "https://docsmcp.googleapis.com/mcp/v1" },
+    "Sheets": { "type": "http", "url": "https://sheetsmcp.googleapis.com/mcp/v1" },
+    "Slides": { "type": "http", "url": "https://slidesmcp.googleapis.com/mcp/v1" },
+    "Calendar": { "type": "http", "url": "https://calendarmcp.googleapis.com/mcp/v1" },
+    "Chat": { "type": "http", "url": "https://chatmcp.googleapis.com/mcp/v1" },
+    "People": { "type": "http", "url": "https://people.googleapis.com/mcp/v1" },
+    "Classroom": { "type": "http", "url": "https://classroommcp.googleapis.com/mcp/v1" }
+  }
+}

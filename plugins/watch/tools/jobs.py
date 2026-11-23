@@ -370,7 +370,7 @@ class Jobs:
 def import_video(root, file, subtitles=None):
     root, source = Path(root).resolve(), Path(file).resolve(strict=True)
     if source.suffix.lower() not in media.MEDIA_EXTENSIONS or not 0 < source.stat().st_size <= MAX_MEDIA:
-        raise WatchError("请导入不超过 256 MiB 的常见视频文件")
+        raise WatchError(f"请导入不超过 {MAX_MEDIA // (1024 * 1024)} MiB 的常见视频文件")
     if tree_size(root) + source.stat().st_size > MAX_STORAGE:
         raise WatchError("导入后缓存将超过 2 GiB")
     identity = uuid.uuid4().hex

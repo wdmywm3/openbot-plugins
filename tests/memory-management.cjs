@@ -3,17 +3,10 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), os = requ
 const runtime = require("../plugins/memory/unified-runtime.cjs"), { current, put, state, save } = require("../plugins/memory/unified-state.cjs");
 const { close } = require("../plugins/memory/storage.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-memory-management-"));
-const scope = { channelId: "bot", chatId: "onebot:group:team" }, canceled = [], jobs = [];
+const scope = { channelId: "bot", chatId: "onebot:group:team" }, jobs = [];
 const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: { chatId: scope.chatId }, signal: new AbortController().signal,
   api: { sources: async () => ({ scopes: [{ chatId: scope.chatId, name: "测试群", privatePayload: "x".repeat(100000) }] }),
-    jobs: async input => {
-      if (input.action === "cancel") { canceled.push(input.id); jobs.find(job => job.id === input.id).status = "canceled"; return {}; }
-      const visible = jobs.filter(job => !input.statuses || input.statuses.includes(job.status));
-      let offset = 0;
-      if (input.cursor) { offset = visible.findIndex(job => job.id === input.cursor) + 1; assert(offset > 0, "canceling a page must not invalidate the next page cursor"); }
-      const page = visible.slice(offset, offset + 50);
-      return { jobs: page, nextCursor: visible.length > offset + 50 ? page.at(-1).id : null };
-    } } };
+    jobs: async input => ({ jobs: jobs.filter(job => !input.statuses || input.statuses.includes(job.status)) }) } };
 (async () => {
   try {
     const { storage } = current(ctx), runs = storage.dreamRepository.runs;
@@ -41,6 +34,38 @@ const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: 
     }
     assert.equal(restored, body, "paged details preserve the whole original text");
     await assert.rejects(runtime.manage({ ...ctx, input: { ...ctx.input, action: "readRunEvent", runId: saved[1], eventSeq: event.seq } }), /不属于/);
+
+    const mixedScope = { ...scope, chatId: "onebot:group:mixed" }, categories = ["profile", "profile", "profile", ""];
+    const legacyRun = runs.start(mixedScope, { trigger: "boundary", cutoff: Date.now(), upper: 0 });
+    runs.change(mixedScope, legacyRun, { memories: 4 }); runs.finish(mixedScope, legacyRun, "completed");
+    put(storage, `plus:undo:${mixedScope.chatId}:${legacyRun}`, categories.map((_, i) => ({ id: `m${i}`, beforeRevision: null, afterRevision: 1 })));
+    let historicalReads = 0;
+    const mixedCtx = { ...ctx, input: { chatId: mixedScope.chatId, includeChats: false }, api: { ...ctx.api,
+      memory: async request => {
+        historicalReads++; assert.equal(request.chatId, mixedScope.chatId); assert.equal(request.revision, 1);
+        return { item: { id: request.id, revision: 1, category: categories[Number(request.id.slice(1))] } };
+      } } };
+    const split = "新增记忆 1；新增画像条目 3";
+    assert.equal((await runtime.list(mixedCtx)).runs.items[0].summary, split);
+    const past = await runtime.manage({ ...mixedCtx, input: { ...mixedCtx.input, action: "readRun", runId: legacyRun } });
+    const completion = past.events.find(row => row.kind === "completed");
+    assert.equal(completion.text, split);
+    const full = await runtime.manage({ ...mixedCtx, input: { ...mixedCtx.input, action: "readRunEvent", runId: legacyRun, eventSeq: completion.seq } });
+    assert.equal(full.text, split);
+    assert.equal(historicalReads, 4, "the list and details reuse the same historical counts");
+    const { countChanges } = require("../plugins/memory/unified-run-counts.cjs");
+    const operations = [...categories.map(category => ({ action: "create", record: { category } })), { action: "revise" },
+      { action: "transition", patch: { status: "invalidated" } }, { action: "transition", patch: { status: "archived" } }, { action: "create", record: {} }];
+    assert.deepEqual(countChanges(operations, [...operations.slice(0, -1).map(() => ({ ok: true })), { forgotten: true }]),
+      { created: 1, profiles: 3, updated: 1, invalidated: 1, removed: 1 });
+    for (const counts of [{ profiles: 1 }, { updated: 1 }]) {
+      const id = runs.start(mixedScope, { trigger: "scheduled", cutoff: Date.now(), upper: 0 });
+      runs.change(mixedScope, id, counts); runs.finish(mixedScope, id, "completed");
+      assert.equal(runs.list(mixedScope, { meaningfulOnly: true }).items[0].id, id);
+    }
+    const noAudit = runs.start(mixedScope, { trigger: "scheduled", cutoff: Date.now(), upper: 0 });
+    runs.change(mixedScope, noAudit, { memories: 1 }); runs.finish(mixedScope, noAudit, "completed");
+    assert.equal((await runtime.list(mixedCtx)).runs.items[0].summary, "记忆变更（含画像） 1", "old totals without receipts cannot be labeled as creations");
 
     for (let i = 0; i < 25; i++) {
       put(storage, `plus:followup:${i}`, { chatId: scope.chatId, memoryId: String(i), recordRevision: 1, paused: true, report: body });
@@ -112,15 +137,10 @@ const ctx = { dataRoot: root, principal: { channelId: scope.channelId }, input: 
       assert.deepEqual(errors, conflicts, "every conflict remains readable across bounded preview pages");
     } finally { legacy.convert = convert; }
 
-    jobs.length = 0;
-    jobs.push(...Array.from({ length: 65 }, (_, i) => ({ id: String(i), action: i % 2 ? "followup" : "process", status: "queued" })), { id: "other", action: "import", status: "queued" });
-    ctx.input = { chatId: scope.chatId, action: "stop" }; await runtime.manage(ctx);
-    assert.equal(new Set(canceled).size, 65); assert(!canceled.includes("other")); assert.equal(state(storage, scope).paused, true);
-
     const abort = new AbortController(), stoppedId = runs.start(scope, { trigger: "manual", cutoff: Date.now(), upper: 0 });
-    save(storage, scope, { paused: false, job: { runId: stoppedId, trigger: "manual" } }); abort.abort(Error("用户停止"));
-    await assert.rejects(require("../plugins/memory/unified-organizer.cjs").run({ ...ctx, signal: abort.signal }, storage, scope), /用户停止/);
+    save(storage, scope, { job: { runId: stoppedId, trigger: "manual" } }); abort.abort(Error("任务取消"));
+    await assert.rejects(require("../plugins/memory/unified-organizer.cjs").run({ ...ctx, signal: abort.signal }, storage, scope), /任务取消/);
     assert.equal(runs.get(scope, stoppedId).status, "paused"); assert.equal(state(storage, scope).error, ""); assert.equal(state(storage, scope).failures, 0);
-    console.log("Memory management: empty-run filtering, stable pagination, bounded detail/list payloads, lossless event paging, all queued cancellations, and stop without failure passed.");
+    console.log("Memory management: empty-run filtering, stable pagination, bounded detail/list payloads, lossless event paging and cancellation without failure passed.");
   } finally { close(); assert.equal(path.dirname(root), os.tmpdir()); assert(path.basename(root).startsWith("openbot-memory-management-")); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

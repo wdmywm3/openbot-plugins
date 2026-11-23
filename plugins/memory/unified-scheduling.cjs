@@ -1,6 +1,7 @@
 "use strict";
 const { state, save, get } = require("./unified-state.cjs");
 const { nextRun } = require("./lib/features/channels/channel-dream-analysis.cjs");
+const forkRetries = require("./unified-fork-retries.cjs");
 const foreground = new Map();
 const scopeKey = (storage, scope) => `${storage.root}:${scope.chatId}`;
 function activity(storage, scope, requestId, running) {
@@ -28,14 +29,18 @@ async function due(ctx, storage, scope, { forks = false } = {}) {
   const batch = !forks && get(storage, `plus:organizer-batch:${scope.chatId}`);
   const fork = forks && get(storage, `plus:fork-plan:${scope.chatId}`);
   const maintenance = get(storage, `plus:maintenance-cycle:${scope.chatId}`);
-  if (live.paused || active(storage, scope)) return "";
+  if (active(storage, scope)) return "";
   if (forks && live.forkManualRequested) return "manual";
   if (!live.settings.enabled && ((forks ? fork?.job.trigger : live.job?.trigger || batch?.trigger) !== "manual") && !maintenance?.manual && !live.maintenanceManual) return "";
   if (!forks && (live.job || batch)) return "continuation";
   const maintenanceReady = (live.maintenanceFailures || 0) < 5 && !(live.maintenanceRetryAt > Date.now());
   if (forks) {
+    if (fork && !forkRetries.ready(storage, scope, forkRetries.identity(fork.position))) {
+      return live.settings.enabled && (await require("./unified-fork-organizer.cjs").work(ctx, storage, scope)).length ? "boundary" : "";
+    }
     if (live.settings.enabled && live.nextRun <= Date.now()) return "scheduled";
-    if (fork || live.settings.enabled && (await require("./unified-fork-organizer.cjs").work(ctx, storage, scope)).length) return "boundary";
+    if (fork && forkRetries.ready(storage, scope, forkRetries.identity(fork.position))
+      || live.settings.enabled && (await require("./unified-fork-organizer.cjs").work(ctx, storage, scope)).length) return "boundary";
     if (maintenanceReady && (maintenance || live.maintenanceRequested || live.maintenanceNextRun <= Date.now())) return "maintenance";
     return "";
   }

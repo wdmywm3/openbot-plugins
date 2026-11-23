@@ -31,7 +31,10 @@ async function index(ctx, storage, scope) {
   }
   const old = get(storage, key, { after: 0 });
   const start = old.version === model.version ? old.after : 0;
-  const page = await ctx.api.memory({ action: "changes", chatId: scope.chatId, after: start, limit: 20 });
+  const changes = after => ctx.api.memory({ action: "changes", chatId: scope.chatId, after, limit: 20, includeAccessRevision: true });
+  let page = await changes(start);
+  if (start && (old.accessRevision || 0) !== (page.accessRevision || 0)) page = await changes(0);
+  const checkpoint = { version: model.version, accessRevision: page.accessRevision || 0 };
   for (const change of page.items) {
     let record;
     try { record = await readMemory(ctx, scope, change.id); }
@@ -40,9 +43,9 @@ async function index(ctx, storage, scope) {
       const result = await createRetrieval(ctx, storage, scope).index(COLLECTION, [record], { completeSet: false });
       if (result.pending || result.pendingModel) return { pending: true, version: model.version };
     } else await remove(ctx, storage, scope, change.id);
-    put(storage, key, { after: change.seq, version: model.version });
+    put(storage, key, { ...checkpoint, after: change.seq });
   }
-  if (page.nextCursor === null) put(storage, key, { after: page.upper, version: model.version });
+  if (page.nextCursor === null) put(storage, key, { ...checkpoint, after: page.upper });
   // Source revocation and expiry need not emit a memory edit. Sweep a bounded part of the derived index too.
   const cursorKey = `plus:sweep:${scope.chatId}`, afterId = get(storage, cursorKey, "");
   const stale = storage.db.prepare("SELECT id FROM embedding_receipts WHERE chat_id=? AND collection=? AND id>? ORDER BY id LIMIT 20").all(scope.chatId, COLLECTION, afterId);

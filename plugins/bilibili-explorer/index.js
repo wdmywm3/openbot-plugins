@@ -1,3 +1,6 @@
+function quotaReached(message) {
+  return Object.assign(new Error(message), { code: "PLUGIN_PUBLIC_ERROR", details: { reason: "quota_reached" } });
+}
 function number(value, fallback, min, max) {
   return Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Math.floor(Number(value)) : fallback));
 }
@@ -1552,7 +1555,8 @@ async function biliPostLocked(ctx, account, id) {
   const day = new Date().toISOString().slice(0, 10), quota = await biliLoad(ctx, account, `comments:${day}`) || { count: 0 };
   quota.actions ||= [];
   if (!quota.actions.includes(id)) {
-    if (quota.count >= number(ctx.config.dailyCommentLimit, 3, 0, 20)) throw new Error("今日评论额度已用完");
+    const limit = number(ctx.config.dailyCommentLimit, 3, 0, 20);
+    if (quota.count >= limit) throw quotaReached(`今日评论额度已用完（上限 ${limit} 条）。`);
     quota.count++; quota.actions.push(id);
     await biliSave(ctx, account, `comments:${day}`, quota);
   }
@@ -1560,7 +1564,8 @@ async function biliPostLocked(ctx, account, id) {
     const threadKey = `thread:${draft.oid}:${draft.root || "new"}`;
     const thread = await biliLoad(ctx, account, threadKey) || { actions: [] };
     if (!thread.actions.includes(id)) {
-      if (thread.actions.length >= number(ctx.config.threadReplyLimit, 3, 1, 10)) throw new Error("这个话题已达到回复上限");
+      const limit = number(ctx.config.threadReplyLimit, 3, 1, 10);
+      if (thread.actions.length >= limit) throw quotaReached(`这个话题已达到回复上限（${limit} 条）。`);
       thread.actions.push(id); await biliSave(ctx, account, threadKey, thread);
     }
   }
@@ -2032,7 +2037,7 @@ async function biliSocialWriteLocked(ctx, account, input, request) {
   if (!action && coin) {
     const current = await biliRequest(ctx, account, "/x/web-interface/archive/coins", { bvid: request.bvid });
     if (!Number.isInteger(current.multiply) || current.multiply < 0 || current.multiply > 2) throw new Error("无法核对视频已投硬币数");
-    if (current.multiply + request.coins > request.maxCoins) throw new Error(`这个视频已投${current.multiply}枚，不能再投${request.coins}枚`);
+    if (current.multiply + request.coins > request.maxCoins) throw quotaReached(`这个视频已投${current.multiply}枚，本次再投${request.coins}枚会超过 ${request.maxCoins} 枚上限。`);
   }
   const costs = triple ? { like: 1, coin: 2, favorite: 1 } : { [kind]: coin ? request.coins : 1 };
   const day = new Date().toISOString().slice(0, 10), reservations = [];
@@ -2041,9 +2046,11 @@ async function biliSocialWriteLocked(ctx, account, input, request) {
     const [field, fallback, maximum] = { message: ["dailyMessageLimit", 3, 20], favorite: ["dailyFavoriteLimit", 5, 100],
       like: ["dailyLikeLimit", 20, 100], coin: ["dailyCoinLimit", 5, 100] }[quotaKind];
     const used = quota.actions.reduce((sum, item) => sum + (quota.amounts?.[item] || 1), 0);
-    if (!quota.actions.includes(id) && used + amount > number(ctx.config[field], fallback, 0, maximum)) throw new Error(quotaKind === "coin" ? "今日投币额度不足" : "今日站内互动额度已用完");
+    const limit = number(ctx.config[field], fallback, 0, maximum);
+    if (!quota.actions.includes(id) && used + amount > limit) throw quotaReached(quotaKind === "coin"
+      ? `今日投币额度不足（已用 ${used} 枚，上限 ${limit} 枚）。` : `今日站内互动额度已用完（上限 ${limit} 次）。`);
     const clockKey = `social-clock:${quotaKind}`, clock = await biliLoad(ctx, account, clockKey);
-    if (!quota.actions.includes(id) && Date.now() < Number(clock?.nextAt || 0) && clock.operationId !== id) throw new Error("站内互动间隔尚未结束");
+    if (!quota.actions.includes(id) && Date.now() < Number(clock?.nextAt || 0) && clock.operationId !== id) throw quotaReached("站内互动间隔尚未结束");
     reservations.push({ quotaKey, quota, clockKey, amount });
   }
   action ||= { id, uid: account.uid, binding, title: String(title || "").slice(0, 200), target: request.target, status: "reserved", createdAt: Date.now() };
@@ -2726,8 +2733,9 @@ function createActivityLearning(database, vectorIndex) {
     return { saved, issues };
   }
   async function retrieve(query, sourceIds = [], limit = 6) {
-    const tokens = words(query), scored = []; let cursor;
-    for (let page = 0; page < 10; page++) {
+    const tokens = words(query), seen = new Set(), maximum = Math.min(10, limit);
+    let cursor, scored = [], multipleBatches = false;
+    for (;;) {
       const result = await database({ action: "query", collection: "lessons", limit: 50, ...(cursor ? { cursor } : {}) });
       for (const row of result.records) {
         if (row.value.status !== "active") continue;
@@ -2737,15 +2745,26 @@ function createActivityLearning(database, vectorIndex) {
           application: value.application, uncertainty: value.uncertainty, evidence: value.evidence, relevance, at: row.updatedAt || value.changedAt });
       }
       cursor = result.nextCursor; if (!cursor) break;
+      if (seen.has(cursor)) throw new Error("经验记录分页没有前进");
+      seen.add(cursor);
+      if (scored.length >= 500) {
+        multipleBatches = true;
+        // Carry the strongest candidates into the next ranking; never delete
+        // the rest of the collection while synchronizing a partial batch.
+        scored = await rank(scored, false, true);
+      }
     }
-    if (vectorIndex && String(query || "").trim() && scored.length) try {
-      const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
-      try { await vectorIndex({ action: "sync", records, complete: !cursor }); } catch { /* Read-only invocations can still search already indexed sources. */ }
-      const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: Math.min(10, limit), threshold: 0.7, timeoutMs: 15000 });
-      const byId = new Map(scored.map(row => [row.id, row]));
-      if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => ({ ...byId.get(hit.id), relevance: hit.score }));
-    } catch { /* Shared model unavailable: retain lexical matching. */ }
-    return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, Math.min(10, limit));
+    return rank(scored, !multipleBatches);
+    async function rank(scored, complete, carry = false) {
+      if (vectorIndex && String(query || "").trim() && scored.length) try {
+        const records = scored.map(row => ({ id: row.id, revision: row.revision, text: [row.topic, row.understanding, row.application, row.uncertainty].join("\n") }));
+        try { await vectorIndex({ action: "sync", records, complete }); } catch { /* Read-only invocations can still search already indexed sources. */ }
+        const ranked = await vectorIndex({ action: "rank", records, query: String(query).slice(0, 4000), limit: maximum, threshold: 0.7, timeoutMs: 15000 });
+        const byId = new Map(scored.map(row => [row.id, row]));
+        if (ranked?.matches) return ranked.matches.filter(hit => byId.get(hit.id)?.revision === hit.revision).map(hit => carry ? byId.get(hit.id) : { ...byId.get(hit.id), relevance: hit.score });
+      } catch { /* Shared model unavailable: retain lexical matching. */ }
+      return scored.filter(row => !tokens.size || row.relevance > 0).sort((a, b) => b.relevance - a.relevance || a.id.localeCompare(b.id)).slice(0, maximum);
+    }
   }
   async function retract(id, expectedRevision) {
     const row = await read(id);
