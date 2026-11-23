@@ -474,7 +474,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.4",
+      "version": "0.6.5",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -502,14 +502,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "画图达到本地配额时显示实际限额。图片像素、请求容量和上游 HTTP 状态分别记录，保留可公开的服务拒绝原因。",
+        "changelog": "用户只给主题或参考图时，Bot 会自行构思画面。参考图用于创作新图时，会设计明显不同的动作、视角或构图。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
+      "ref": "1377402b3aeea9b9cd427c71a07c4101610be63e",
       "files": [
         {
           "path": "README.md",
@@ -523,8 +523,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 27162,
-          "sha256": "c6470a5daf78f6143ea80352e5b58c5e67218b0127ccfb4364abba58d2a1b016"
+          "size": 27382,
+          "sha256": "ea4a7c0400d4fdbc704a1abcde50b728191ccc93c5de9854d20a942cdcf6aed2"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -553,8 +553,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 5910,
-          "sha256": "4275bf745036ba657c543a35cdebc384dd5fe9ed1593d12a11d58cc9bfc76299"
+          "size": 6907,
+          "sha256": "b773088c1280bcda795c6466bc5d9f6cb0ce5438399eb84a2a240b370d174f53"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
