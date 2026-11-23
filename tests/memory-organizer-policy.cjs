@@ -196,6 +196,25 @@ const empty = () => ({ facts: [], topics: [] });
     }] }, [{ ...nickname, chatId: slang.scope.chatId }], [reviewed]);
     assert.equal(revision.operations.length, 0, "ordinary fact revisions cannot replace a public definition with a nickname");
 
+    const idleExperience = harness("idle-experience");
+    idleExperience.add("这次补发的是修正后的活动日程，下次按修正版核对。");
+    idleExperience.add("这是我补发的修正版活动日程。");
+    Object.assign(idleExperience.messages[1], { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
+    idleExperience.behavior = async (request, batch, commit) => {
+      const [heard, sent] = batch.messages;
+      assert.equal(heard.experienceEvidence, "heard"); assert.equal(sent.experienceEvidence, "sent");
+      assert.match(request.prompt, /从当前 Bot 自己的视角/);
+      await commit({ ...empty(), records: [{ kind: "experience", parts: [
+        { kind: "heard", text: "我听阿明说下次按修正版活动日程核对。", evidence: [{ id: heard.id, quote: heard.text }] },
+        { kind: "did", text: "我补发了修正版活动日程。", evidence: [{ id: sent.id, quote: sent.text }] },
+      ], retention: { basis: "observed", reason: "下次核对活动日程时使用本次补发的修正版。" } }] });
+      return complete(request);
+    };
+    await idleExperience.run();
+    const [idleRecord] = idleExperience.records({ kind: "experience" });
+    assert.equal(idleRecord.status, "active");
+    assert.deepEqual(idleExperience.read(idleRecord.id).sources.map(ref => ref.id), idleExperience.messages.map(row => row.id));
+
     const forked = harness("forked");
     forked.add("请记住，接龙截止在每周日晚上。");
     forked.add("有猫饼是有毛病的谐音，常用作玩笑式吐槽。");
@@ -208,7 +227,17 @@ const empty = () => ({ facts: [], topics: [] });
     forked.add("请以后在本群别回复阿乙。");
     const [unchecked, confirmed] = forked.messages.slice(-2);
     Object.assign(outbound, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
-    const visible = [fact, publicMeme, outbound, purpose, unchecked, confirmed], captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    forked.add("改昵称的人被算了两次，报名名单请按 QQ 号去重。");
+    forked.add("我已按 QQ 号去重，下面是更正后的报名名单。");
+    forked.add("我没有发出那份报名名单。");
+    const [feedback, corrected, failed] = forked.messages.slice(-3);
+    Object.assign(corrected, { direction: "out", source: "agent", networkStatus: "sent", sender: { id: "bot", isBot: true } });
+    Object.assign(failed, { direction: "out", source: "agent", networkStatus: "failed", sender: { id: "bot", isBot: true } });
+    const visible = [fact, publicMeme, outbound, purpose, unchecked, confirmed, feedback, corrected, failed];
+    const captured = [], snapshots = [{ id: "segment", boundary: "segment", at: Date.now() }];
+    const part = (kind, text, ...rows) => ({ kind, text, evidence: rows.map(row => ({ id: row.id, quote: row.content })) });
+    const experienceProposal = (...parts) => ({ kind: "experience", parts,
+      retention: { basis: "observed", reason: "以后整理报名名单时防止改昵称的人被连续算两次。" } });
     const branches = new Map([
       ["facts", { facts: [{ kind: "fact", subjectId: "alice", content: fact.content, evidence: [{ id: fact.id, quote: fact.content }],
         retention: { basis: "explicit", reason: "后续有人问何时结束接龙时使用这个约定。" } },
@@ -220,6 +249,15 @@ const empty = () => ({ facts: [], topics: [] });
         { kind: "experience", content: "我把十二人的报名清单发到了群里，供下次排座。", retention: { basis: "ongoing", reason: "下次排座需要核对已公布的报名人数。", sourceId: purpose.id },
           evidence: [purpose, outbound].map(row => ({ id: row.id, quote: row.content })) },
         { kind: "experience", content: "我发了一条群消息，已经送达。", evidence: [{ id: outbound.id, quote: outbound.content }] },
+        experienceProposal(
+          part("heard", "我听到阿明指出改昵称的人被重复统计。", feedback),
+          part("did", "我在群里发送了按 QQ 号去重的更正报名名单。", corrected),
+          part("learned", "我学到整理报名名单时先按 QQ 号去重。", feedback, corrected)),
+        experienceProposal(part("did", "我把只见于用户消息的动作当作已完成。", feedback)),
+        experienceProposal(part("did", "我已经发出那条发送失败的回复。", failed)),
+        experienceProposal(part("heard", "我从自己发送的回复中听到用户说法。", corrected)),
+        experienceProposal(part("learned", "我把自己的说法当成用户反馈。", corrected)),
+        experienceProposal(part("heard", "我听到了模型从未看到的话。", unseen)),
       ] }],
     ]);
     const lookups = [], notices = [];
@@ -273,11 +311,21 @@ const empty = () => ({ facts: [], topics: [] });
     assert.equal(notices[0].chatId, forked.scope.chatId);
     assert.equal(notices[0].delivery, "piggyback");
     assert.equal(JSON.parse(notices[0].text).sourceMessageId, unchecked.id);
-    assert.equal(forked.records({ mode: "history" }).length, 3, "valid fact, meme and delivered diary item share one write");
-    assert.deepEqual(storage.dreamRepository.runs.list(forked.scope, { meaningfulOnly: true }).items[0].counts, { created: 3 });
+    assert.equal(forked.records({ mode: "history" }).length, 4, "valid fact, meme and both supported experiences share one write");
+    assert.deepEqual(storage.dreamRepository.runs.list(forked.scope, { meaningfulOnly: true }).items[0].counts, { created: 4 });
     const experience = forked.records({ mode: "history", kind: "experience" });
-    assert.equal(experience.length, 1); assert.equal(experience[0].status, "pending"); assert.equal(experience[0].tier, "working");
-    assert.equal(forked.records({ kind: "experience" }).length, 0, "a delivery alone is not a recallable experience");
+    assert.equal(experience.length, 2);
+    assert.equal(experience.find(record => record.status === "pending").tier, "working", "existing ongoing experiences retain their review status");
+    const [recalledExperience] = forked.records({ kind: "experience" });
+    assert.equal(recalledExperience.status, "active"); assert.equal(recalledExperience.tier, "working");
+    const observed = forked.read(recalledExperience.id);
+    assert.equal(observed.content.split("\n").length, 3);
+    assert.match(observed.content, /我学到整理报名名单时先按 QQ 号去重/);
+    assert.deepEqual(observed.sources.map(ref => ref.id), [feedback.id, corrected.id]);
+    const recallMessage = { id: "experience-recall", chatId: forked.scope.chatId, content: "重复统计报名名单时怎么按 QQ 号去重？" };
+    const recallCtx = { ...forkCtx, config: {}, message: recallMessage, hook: { requestId: recallMessage.id, messages: [] } };
+    assert((await runtime.beforeModel(recallCtx)).contextItems.some(item => item.memory?.id === observed.id));
+    await runtime.afterModel(recallCtx);
     assert(!forked.records({ mode: "history" }).some(item => item.content === unseen.content));
     assert.equal(state(storage, forked.scope).cursor, 0, "the raw source cursor does not track model visibility");
 

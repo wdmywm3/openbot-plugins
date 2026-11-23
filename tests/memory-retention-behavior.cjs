@@ -148,6 +148,18 @@ const current = (who = scope) => repo.memory(actor(who), { action: "search" }).i
     assert(repo.memory(actor(longCharacterScope), { action: "search", mode: "history", status: "pending" }).items.every(item => item.preview.length < 1000),
       "the long-record budget exercises truncated host previews rather than full candidate content");
 
+    const fullWorking = { ...scope, chatId: "onebot:group:experience-budget" };
+    repo.memory(actor(fullWorking), { action: "create", requestKey: "fill-working-text-budget", record: {
+      content: "已保存".repeat(Math.ceil(retention.LIMITS.workingCharacters / 3)), status: "active", tier: "working", kind: "experience",
+    } });
+    const learned = source("下次交付请先确认文件编号里的前导零还在。", fullWorking);
+    const listening = { kind: "experience", parts: [{ kind: "heard", text: "我听阿明说下次交付要检查文件编号的前导零。",
+      evidence: [{ id: learned.id, quote: learned.content }] }],
+    retention: { basis: "observed", reason: "下次交付前核对原文件编号的前导零。" } };
+    const fullPlan = await dream.plan(context(fullWorking), fullWorking, { facts: [], topics: [], records: [listening] }, [learned], [], { allowExperience: true });
+    assert.equal(fullPlan.operations.length, 0); assert.equal(fullPlan.omitted, 1);
+    assert.equal(current(fullWorking).length, 1, "automatic experiences respect the working-memory budget without replacing old records");
+
     const editedScope = { ...scope, chatId: "onebot:group:manually-edited" };
     const editedSource = source("我有一台临时测试设备，还没有完成部署。", editedScope);
     const editedFact = { subjectId: "alice", facet: "test_device", value: "deployment_incomplete", conditions: [], assertion: "self" };

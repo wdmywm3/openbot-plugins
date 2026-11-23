@@ -23,14 +23,15 @@ async function candidates(ctx, storage, scope) {
   // The host's change head is cheap compared with rebuilding and transferring
   // every catalog page. This is a candidate cache, never an access decision:
   // retrieval still re-reads each selected record from the host before use.
-  const head = await ctx.api.memory({ action: "changes", chatId: scope.chatId, after: cached?.upper || 0, limit: 1 });
+  const head = await ctx.api.memory({ action: "changes", chatId: scope.chatId, after: cached?.upper || 0, limit: 1, includeAccessRevision: true });
   ctx.signal.throwIfAborted();
-  if (cached && cached.until > Date.now() && Number.isSafeInteger(head.upper) && head.upper === cached.upper) {
+  const matches = entry => entry?.upper === head.upper && entry?.accessRevision === head.accessRevision;
+  if (cached && cached.until > Date.now() && Number.isSafeInteger(head.upper) && matches(cached)) {
     entries.delete(key); entries.set(key, cached); return cached.items;
   }
   remove(key);
   const active = pending.get(key);
-  if (active) {
+  if (active && matches(active)) {
     try { return await waitFor(active.promise, ctx.signal); }
     catch (error) {
       ctx.signal.throwIfAborted();
@@ -44,13 +45,13 @@ async function candidates(ctx, storage, scope) {
   const task = (async () => {
     const items = await catalog(ctx, scope); ctx.signal.throwIfAborted();
     const size = Buffer.byteLength(JSON.stringify(items));
-    if (size <= MAX_BYTES && Number.isSafeInteger(head.upper)) {
+    if (pending.get(key) === entry && size <= MAX_BYTES && Number.isSafeInteger(head.upper)) {
       while (entries.size >= MAX_SCOPES || bytes + size > MAX_BYTES) remove(entries.keys().next().value);
-      entries.set(key, { items, bytes: size, upper: head.upper, until: Date.now() + TTL }); bytes += size;
+      entries.set(key, { items, bytes: size, upper: head.upper, accessRevision: head.accessRevision, until: Date.now() + TTL }); bytes += size;
     }
     return items;
   })();
-  const entry = { promise: task, signal: ctx.signal };
+  const entry = { promise: task, signal: ctx.signal, upper: head.upper, accessRevision: head.accessRevision };
   pending.set(key, entry);
   try { return await task; } finally { if (pending.get(key) === entry) pending.delete(key); }
 }

@@ -49,6 +49,23 @@ async function drain(scope, options) { let result; for (let i = 0; i < 30; i++) 
     for (const record of [boundary, longterm, matter, manual, manualEdit, imported, unfrequent]) assert.equal(read(scope, record.id).status, "active", "protected/manual/unfinished/low-frequency useful records remain");
     assert(!maintenance.pending(storage, scope));
 
+    const mislabeled = scopeFor("mislabeled"); enabled(mislabeled);
+    const pending = { status: "pending", expiresAt: Date.now() + 86400000 };
+    const allegedRequest = create(mislabeled, "整理模型误当作明确要求记住的普通候选", pending);
+    const allegedBoundary = create(mislabeled, "整理模型误当作本人边界的普通候选", pending);
+    const useful = create(mislabeled, "以后导出表格需要保留编号前导零", pending);
+    handler = async data => ({ decisions: data.records.map(record => ({ ...keep(record), action: "promote",
+      basis: record.id === allegedRequest.id ? "explicit" : record.id === allegedBoundary.id ? "boundary" : "stable" })) });
+    await drain(mislabeled);
+    for (const record of [allegedRequest, allegedBoundary]) {
+      const unchanged = read(mislabeled, record.id);
+      assert.equal(unchanged.status, "pending"); assert.equal(unchanged.revision, 1);
+      assert.equal(unchanged.attributes.retention, undefined);
+    }
+    assert.equal(read(mislabeled, useful.id).status, "active", "valid decisions on the same page still apply");
+    assert.equal(state(storage, mislabeled).maintenanceFailures, 0);
+    assert(!maintenance.pending(storage, mislabeled));
+
     const mixed = scopeFor("working-budget-pages"); enabled(mixed);
     const later = create(mixed, "下周继续复查正在进行的项目", { status: "pending", expiresAt: Date.now() + 86400000 });
     for (let i = 0; i < 201; i++) create(mixed, "手工资料 " + i, {}, { ...actor(mixed.chatId), id: "desktop:owner" });

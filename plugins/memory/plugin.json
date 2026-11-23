@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "memory",
-  "version": "2.6.14",
+  "version": "2.6.15",
   "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
   "extensions": {
     "com.openbot": {
@@ -518,9 +518,10 @@
       },
       "metadata": {
         "requirements": [
-          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。"
+          "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。",
+          "跨聊天共享授权即时刷新需要 OpenBot 0.1.132 或更新版本。"
         ],
-        "changelog": "整理材料或读取记忆达到批次上限时，显示本次限额。"
+        "changelog": "Dream 整理 Bot 自己听到、做过和学到的经历，相关聊天可以召回。修复不合格的晋升建议中止整批维护的问题。跨聊天共享授权变更后刷新召回。"
       }
     }
   }

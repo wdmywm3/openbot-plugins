@@ -186,7 +186,9 @@ async function recover(ctx) {
     const forks = !!ctx.api.conversationForks;
     const due = await scheduling.due(ctx, storage, target, { forks });
     const changes = !forks && due ? await ctx.api.sources({ action: "changes", chatId, after: live.cursor || 0, limit: 1 }) : null;
-    const indexChanges = await ctx.api.memory({ action: "changes", chatId, after: get(storage, `plus:index:${chatId}`, { after: 0 }).after, limit: 1 });
+    const indexPosition = get(storage, `plus:index:${chatId}`, { after: 0 });
+    const indexChanges = await ctx.api.memory({ action: "changes", chatId, after: indexPosition.after, limit: 1, includeAccessRevision: true });
+    const indexAccessChanged = (indexChanges.accessRevision || 0) !== (indexPosition.accessRevision || 0);
     const sourceChanges = await ctx.api.sources({ action: "changes", chatId, after: get(storage, sourceRetrieval.cursorKey(target), { after: 0 }).after, limit: 1 });
     const sweepDue = Date.now() - get(storage, `plus:sweepAt:${chatId}`, 0) > 3600000
       && storage.db.prepare("SELECT 1 FROM embedding_receipts WHERE chat_id=? AND collection=? LIMIT 1").get(chatId, retrieval.COLLECTION);
@@ -197,7 +199,7 @@ async function recover(ctx) {
     const indexRetry = get(storage, `plus:indexRetry:${chatId}`, 0);
     const profileDue = require("./unified-profile-migration.cjs").pending(storage, target);
     if (profileDue) await queue("profiles");
-    if ((indexChanges.items.length || sourceChanges.items.length || sweepDue || indexRetry) && indexRetry <= Date.now()) await queue("index");
+    if ((indexChanges.items.length || indexAccessChanged || sourceChanges.items.length || sweepDue || indexRetry) && indexRetry <= Date.now()) await queue("index");
     await followups.sweep(ctx, storage, target);
     if (isPrivateDreamScope(target) && live.settings.enabled) for (const item of (await catalog(ctx, target)).filter(item => item.kind === "matter")) {
       const record = await readMemory(ctx, target, item.id); await followups.admit(ctx, storage, target, record);

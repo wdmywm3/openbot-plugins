@@ -5,6 +5,8 @@ const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-s
 const running = new Map();
 const materialPolicy = require("./unified-material-policy.cjs");
 const retention = require("./unified-retention.cjs");
+const experience = require("./unified-experience.cjs");
+const { candidates, identity } = require("./unified-candidates.cjs");
 const { countChanges } = require("./unified-run-counts.cjs");
 const memePolicy = require("./unified-memes.cjs");
 const impressionPolicy = require("./unified-profile-impressions.cjs");
@@ -44,15 +46,6 @@ function recordFields(item, materials, privateChat, { scope, previous } = {}) {
     progress: item.progress || "active", ...(scope?.chatId ? { subjectRefs: [scope.chatId.split(":private:")[1]] } : {}) } : {}),
     status: "active", tier: "working", sources, attributes };
 }
-function experienceRetention(item, materials, scope) {
-  const purpose = item.retention;
-  if (!/^我/u.test(item.content || "") || !["explicit", "ongoing"].includes(purpose?.basis)
-    || !purpose.sourceId || !Array.isArray(item.evidence)) return null;
-  const supported = retention.admission({ ...item, evidence: item.evidence.filter(ref => ref?.id === purpose.sourceId) }, materials, scope);
-  if (!supported || !item.evidence.some(ref => materials.some(source => source.id === ref?.id && materialPolicy.delivered(source)))) return null;
-  supported.attributes.retention.sourceId = purpose.sourceId;
-  return supported;
-}
 async function plan(ctx, scope, parsed, materials, existing, { allowExperience = false, observedProfiles = [], impressionProposals = [], impressionHistory = [] } = {}) {
   const result = validateExtraction(parsed, materials, containsSecret), privateChat = isPrivateDreamScope(scope);
   const memes = parsed.memes ?? [];
@@ -73,12 +66,20 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     item, admitted: retention.admission(item, materials, scope),
   })).filter(value => value.admitted);
   const records = [];
-  let omittedExperiences = 0;
+  let admittedExperiences = 0, omittedExperiences = 0;
   for (const item of parsed.records || []) {
     if (item?.kind === "experience") {
-      const policy = allowExperience && experienceRetention(item, materials, scope);
-      if (!policy) { omittedExperiences++; continue; }
-      records.push({ item, record: { ...recordFields(item, materials, privateChat, { scope }), ...policy } });
+      let record;
+      if (allowExperience && admittedExperiences < experience.MAX_RECORDS) {
+        if (item.parts !== undefined) record = experience.record(item, materials, scope, containsSecret);
+        else {
+          const policy = experience.requestedPolicy(item, materials, scope);
+          if (policy) record = { ...recordFields(item, materials, privateChat, { scope }), ...policy };
+        }
+      }
+      if (!record) { omittedExperiences++; continue; }
+      admittedExperiences++;
+      records.push({ item, record });
     } else if (privateChat) {
       records.push({ item, record: recordFields(item, materials, privateChat, { scope }) });
     }
@@ -125,7 +126,7 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
   const reserved = new Set([...result.revisions.map(item => item.supersedes.id), ...result.invalidations.map(item => item.id), ...(parsed.updates || []).map(item => item.id)]);
   for (const edit of result.revisions) if (["gender", "impression"].includes(known.get(edit.supersedes.id)?.attributes?.profile?.field)
     && !result.invalidations.some(row => row.id === edit.supersedes.id)) reserved.delete(edit.supersedes.id);
-  const add = require("./unified-candidates.cjs").candidates(full, operations, before, reserved);
+  const add = candidates(full, operations, before, reserved);
   const addField = record => impressionPolicy.addField(record, full, operations, before, reserved, `plugin:${ctx.plugin?.id || "memory"}`);
   for (const { record, gender } of factRecords) (gender ? addField : add)(record);
   if (observedProfiles.length || impressions.length) {
@@ -175,9 +176,20 @@ async function plan(ctx, scope, parsed, materials, existing, { allowExperience =
     if ((old.kind === "preference" || old.attributes?.profile) && !selfEvidence(sources, old.subjectRefs?.[0] || old.attributes?.fact?.subjectId)) continue;
     operations.push({ action: "transition", id: old.id, expectedRevision: old.revision, reason: "原始资料明确纠正", patch: { status: "invalidated" } }); before.push({ id: old.id, revision: old.revision });
   }
+  const activeExperiences = new Set(full.filter(record => record.kind === "experience" && record.status === "active").map(identity));
+  let working;
   for (const { item, record } of records) {
     if (item.relatedIds != null && (!Array.isArray(item.relatedIds) || item.relatedIds.length > 20 || item.relatedIds.some(id => typeof id !== "string" || !known.has(id)))) throw Error("关联记忆不在本次读取范围");
     await validateWatch(record);
+    if (record.kind === "experience" && record.attributes.retention?.basis === experience.BASIS) {
+      const key = identity(record);
+      if (!activeExperiences.has(key)) {
+        working ||= await retention.workingBudget(ctx, scope);
+        if (!retention.fitsWorkingBudget(working, record.content.length)) { omittedExperiences++; continue; }
+        working.count++; working.characters += record.content.length;
+        activeExperiences.add(key);
+      }
+    }
     add(record);
   }
   if (parsed.updates != null && (!Array.isArray(parsed.updates) || parsed.updates.length > 32)) throw Error("事项更新过多");
