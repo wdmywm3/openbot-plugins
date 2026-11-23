@@ -6,6 +6,7 @@
   "extensions": {
     "com.openbot": {
       "main": "index.js",
+      "execution": { "concurrency": "parallel" },
       "category": "ai",
       "permissions": [
         "agent",

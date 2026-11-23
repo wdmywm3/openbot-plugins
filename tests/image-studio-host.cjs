@@ -182,6 +182,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const slow = await runtime.runNativePluginTool(tool, { action: "start", requestKey: "slow", input: { prompt: "slow" } }, context);
     for (let i = 0; !slowStarted && i < 500; i++) await delay(10);
     assert(slowStarted, JSON.stringify(await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: slow.id }, context))); assert.equal(slow.status, "running");
+    const duringDraw = await finish({ url: drawn.result.images[0].url }, "recover-during-draw", "completed", owner,
+      "plugin__image-studio__recover_image");
+    assert.ok(duringDraw.result.images[0].url);
     await runtime.runPluginTool({ action: "cancel", pluginId: plugin.id, jobId: slow.id }, context);
     for (let i = 0; !slowCanceled && i < 100; i++) await delay(10);
     assert(slowCanceled, "cancel closes the underlying HTTP response"); assert.equal(requests.length, count + 1);

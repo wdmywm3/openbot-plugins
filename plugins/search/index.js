@@ -364,7 +364,7 @@ function normalizeWebContent({ rawText = "", contentType = "", url = "", maxChar
 // The plugin VM has no URL constructor. Resolve ordinary HTML references against
 // the final page address; the network API validates every destination on fetch.
 function pageReferences(html, pageUrl, includeImages) {
-  const pictures = new Map(), links = new Map();
+  const pictures = new Map(), screenshots = new Map(), links = new Map();
   function resolve(rawUrl, base) {
     const value = rawUrl?.trim();
     if (!value || value.length > 3000 || /[\s\\]/.test(value) || value.startsWith("#")) return "";
@@ -387,11 +387,26 @@ function pageReferences(html, pageUrl, includeImages) {
   const metadata = (html.match(/<(?:base|meta)\b[^>]*>/gi) || []).slice(0, 128).join("");
   const content = metadata + stripHtmlNoise(primaryHtml(html));
   let base = pageUrl;
-  for (const match of content.matchAll(/<(base|meta|img|a)\b((?:"[^"]*"|'[^']*'|[^<>"'])*)>/gi)) {
+  for (const match of content.matchAll(/<(base|meta|img|a|div|section)\b((?:"[^"]*"|'[^']*'|[^<>"'])*)>/gi)) {
     const tag = match[1].toLowerCase(), attrs = {};
+    const container = tag === "div" || tag === "section";
+    if (container && (!includeImages || screenshots.size >= 16 || match[2].length > 131072 || !/\bdata-props\s*=/i.test(match[2]))) continue;
     for (const a of match[2].matchAll(/([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))
       attrs[a[1].toLowerCase()] = decodeHtml(a[2] ?? a[3] ?? a[4]);
     if (tag === "base") { base = resolve(attrs.href, pageUrl) || base; continue; }
+    if (container) {
+      // Some galleries render their images client-side from JSON on the visible element.
+      let slides;
+      try { slides = JSON.parse(attrs["data-props"]).screenshots; } catch { continue; }
+      if (!Array.isArray(slides)) continue;
+      for (const slide of slides.slice(0, 16)) {
+        const imageUrl = [slide?.full, slide?.standard, slide?.thumbnail]
+          .map(value => typeof value === "string" ? resolve(value, base) : "").find(Boolean);
+        if (imageUrl && screenshots.size < 16) screenshots.set(imageUrl, { imageUrl, sourceUrl: pageUrl,
+          caption: typeof slide.altText === "string" ? clip(slide.altText, 300) : "" });
+      }
+      continue;
+    }
     const meta = tag === "meta" && /^(og:image(?::url|:secure_url)?|twitter:image(?::src)?)$/i.test(attrs.property || attrs.name || "");
     const address = resolve(tag === "a" ? attrs.href : meta ? attrs.content : tag === "img" ? attrs["data-src"] || attrs.src : "", base);
     if (!address) continue;
@@ -400,7 +415,8 @@ function pageReferences(html, pageUrl, includeImages) {
       if (links.size < 24) links.set(address, { url: address, title: clip(label, 160) });
     } else if (includeImages && pictures.size < 16) pictures.set(address, { imageUrl: address, sourceUrl: pageUrl, caption: clip(label || pictures.get(address)?.caption, 300) });
   }
-  return { ...(includeImages ? { images: [...pictures.values()] } : {}), links: [...links.values()] };
+  const images = [...screenshots.values(), ...[...pictures.values()].filter(item => !screenshots.has(item.imageUrl))].slice(0, 16);
+  return { ...(includeImages ? { images } : {}), links: [...links.values()] };
 }
 return { normalizeWebContent, mediaTypeOf };
 })();

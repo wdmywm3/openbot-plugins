@@ -123,6 +123,29 @@ if (require.main === module) (async () => {
     assert.ok(!JSON.stringify(devices).includes("base64"));
     assert.deepEqual((await plugin.agentTool({...f.ctx,tool:"status",input:{listDevices:true}})).devices.map(x=>x.deviceId),["first","second"]);
     const invoke = (tool, input, ctx = f.ctx) => plugin.agentTool({ ...ctx, tool, input:{ deviceId:"second", ...input } });
+    const acquired = Promise.withResolvers(), release = Promise.withResolvers(), waiting = Promise.withResolvers();
+    const withDriver = before => ({ ...f.ctx, api: { ...f.ctx.api, callTool: async request => {
+      await before(request.arguments.op);
+      return f.ctx.api.callTool(request);
+    } } });
+    const listApps = deviceId => ({ operation: "apps", deviceId });
+    const held = invoke("use", listApps("first"), withDriver(async op => {
+      if (op === "apps") { acquired.resolve(); await release.promise; }
+    }));
+    await acquired.promise;
+    let usedSameDevice = false;
+    const same = invoke("use", listApps("first"), withDriver(op => {
+      if (op === "begin") waiting.resolve();
+      if (op === "apps") usedSameDevice = true;
+    }));
+    try {
+      await waiting.promise;
+      assert.equal((await invoke("use", listApps("second"))).deviceId, "second");
+      assert.equal(usedSameDevice, false);
+    } finally { release.resolve(); await Promise.all([held, same]); }
+    assert.equal(usedSameDevice, true);
+    assert.deepEqual(new Set(f.ops.map(args => args[1])), new Set(["127.0.0.1:5557", "127.0.0.1:16384"]));
+    const singleDeviceStart = f.ops.length;
     const observe = () => invoke("use", {goal:"读屏后滑动一次"});
     const swipe = { action:"swipe", x:1, y:2, toX:1, toY:6 };
     const firstView = await observe();
@@ -150,7 +173,7 @@ if (require.main === module) (async () => {
     assert.deepEqual((await invoke("use",{operation:"apps"})).apps,[["Fixture","fixture.app"]]);
     assert.equal((await invoke("resume",{})).elements[0].text,"Changed");
     assert.equal(f.ops.filter(args=>args.includes("io")).length,1);
-    assert.ok(f.ops.every(args=>args[0]==="--device" && args[1]==="127.0.0.1:16384"));
+    assert.ok(f.ops.slice(singleDeviceStart).every(args=>args[0]==="--device" && args[1]==="127.0.0.1:16384"));
     for (const [reply, message] of [[" ", "没有返回内容"], ["sensitive-content", "返回的内容不是有效 JSON"], ["{}", "未返回状态"],
       ['{"status":"ok","data":{}}'.padEnd(55) + "trailing", "返回的 JSON 后还有内容（第 1 行第 56 列）"]]) {
       f.foregroundReplies.push(reply);

@@ -99,7 +99,7 @@
               "query": {
                 "type": "string",
                 "maxLength": 1000,
-                "description": "这次想表达的意思或要找的图片原话。"
+                "description": "日常配图用简短的心情或反应，如「好奇」「小得意」。用户点名某个表情或图中文字时，按指定特征或原话查找。"
               },
               "mode": {
                 "type": "string",

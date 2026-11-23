@@ -154,6 +154,8 @@ async function main() {
   probability.ctx.api.database = originalDb; probability.ctx.api.assets = originalAssets;
   const prompt = await plugin.beforeModel(probability.ctx);
   assert.match(prompt.systemPromptAppend, /每条独立回复.*必须先/);
+  assert.match(prompt.systemPromptAppend, /query 用一个简短的心情或反应/);
+  assert.match(prompt.systemPromptAppend, /找图上的原话用 mode=text/);
   assert.match(prompt.contextItems[0].content, /0%/);
   assert.doesNotMatch(prompt.systemPromptAppend, /needs_review|preparationId/);
   probability.records.get("settings:default").value.cooldownSeconds = 3600;
@@ -460,7 +462,7 @@ async function main() {
   assert.equal(preferred.candidates[0].roleSticker, true);
   assert.equal(preferred.candidates.find(item => item.id === genericKey).roleSticker, false, "role scope alone does not identify the character");
   assert.match(preferred.attachments[0].caption, /专属角色表情/);
-  assert.match(preferred.instruction, /符合当前语境的专属角色表情时优先/);
+  assert.match(preferred.instruction, /心情和语气.*专属角色表情.*同样贴切时优先/);
   assert.match((await plugin.beforeModel(preference.ctx)).systemPromptAppend, /专属角色表情.*贴合语境时优先/);
   ownScore = 0.1;
   const unrelated = await plugin.stickers({ ...preference.ctx, input: { action: "search", query: "求抱抱", limit: 4 } });
