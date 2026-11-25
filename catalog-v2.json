@@ -702,7 +702,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.6",
+      "version": "2.6.7",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -738,7 +738,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "实例主人可以在聊天里删除指定的已收藏表情，包括刚画好后自动收藏的成品。",
+        "changelog": "精简表情包插件注入的系统提示词与上下文可用性提示。",
         "components": [
           "commands",
           "hooks",
@@ -749,7 +749,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "80529408db40c26ebbbe1715f22ade3bf235fbdb",
+      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
       "files": [
         {
           "path": "README.md",
@@ -773,8 +773,8 @@
         },
         {
           "path": "index.js",
-          "size": 80746,
-          "sha256": "124183c2210ec73f406a4116fab03b1f1199da224e574948e0cd822e8be64702"
+          "size": 79605,
+          "sha256": "b5f83afe9e26a2076064c6746fcc9d7a4a62a9f0060da5ee6ba9268003612ce3"
         },
         {
           "path": "mcp.json",
@@ -793,8 +793,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 24172,
-          "sha256": "885b6522ec89ef6c4dff6d997e70c3927bc005e03d9640484dbc582c07f24e1e"
+          "size": 24142,
+          "sha256": "ac7f7cfb86989411d895d6b891e95757ae8fb8d229f829893c20aeead3875f74"
         },
         {
           "path": "skills/stickers/SKILL.md",
@@ -831,7 +831,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.4",
+      "version": "0.3.5",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -854,7 +854,7 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "changelog": "按实际失败原因显示提示。修复词库后台更新时，新消息偶尔无法回复的问题。",
+        "changelog": "移除梗百科预查事件内重复的外层包裹标签，由宿主统一封装。",
         "components": [
           "commands",
           "hooks",
@@ -864,7 +864,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
       "files": [
         {
           "path": "LICENSE",
@@ -888,8 +888,8 @@
         },
         {
           "path": "index.js",
-          "size": 12424,
-          "sha256": "f543a6387da34b6418f0d49f4c2f90f9951d751eabfe68ec2e336e77194ef188"
+          "size": 12308,
+          "sha256": "0cd2344f02b97e51293da8e43504f4d7f4a4106f4f4cd044ce043121fcfda5d0"
         },
         {
           "path": "mcp.json",
@@ -898,8 +898,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 9876,
-          "sha256": "ea4776cf4d249c83a7afbd7cf53506910da9a842c2f35b6d8e94cf7fca400c2c"
+          "size": 9855,
+          "sha256": "e0d29d3f6a0816d2ae8d21ab26988eca97b2c28096469c8ab52685611559b1ea"
         },
         {
           "path": "requirements.lock",
@@ -921,7 +921,7 @@
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.15",
+      "version": "2.6.16",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -957,7 +957,7 @@
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。",
           "跨聊天共享授权即时刷新需要 OpenBot 0.1.132 或更新版本。"
         ],
-        "changelog": "Dream 整理 Bot 自己听到、做过和学到的经历，相关聊天可以召回。修复不合格的晋升建议中止整批维护的问题。跨聊天共享授权变更后刷新召回。",
+        "changelog": "精简每轮记忆提示与 Dream/画像整理提示词，去除过期或矛盾说明。",
         "components": [
           "hooks",
           "tools",
@@ -966,7 +966,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "fb93b9ecb3f2100f93253166265b0fb1efbe0481",
+      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
       "files": [
         {
           "path": "README.md",
@@ -1035,8 +1035,8 @@
         },
         {
           "path": "lib/features/channels/channel-dream-analysis.cjs",
-          "size": 15004,
-          "sha256": "cda6b7b5cc02afb0aebc78244bee8301602355ad1856604f88ae8eae8b72e0a7"
+          "size": 14029,
+          "sha256": "94a1f9605eca42554b89c9ec6d337d8dbeafb4b84102bdf96ab0a4e98f864db8"
         },
         {
           "path": "lib/features/channels/channel-dream-coordinator.cjs",
@@ -1140,8 +1140,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 15961,
-          "sha256": "f6161e4a5b2e04252741ccc54d5337dcfa2b390cdc4090651b85bb99e2aab656"
+          "size": 15858,
+          "sha256": "dbc788b08d2f745f3e4e0be79b0d4da3a5abc1a0140afd62b80e3d7bb005863b"
         },
         {
           "path": "process.cjs",
@@ -1230,8 +1230,8 @@
         },
         {
           "path": "unified-dream-prompts.cjs",
-          "size": 6780,
-          "sha256": "e9be18bc85849c0592e26bd693a86d412ea22b856df363f47cb63d30dc91da5a"
+          "size": 6653,
+          "sha256": "ea70b524533010eb76b87e27548cfa35593475171282806c216656a66396efef"
         },
         {
           "path": "unified-dream.cjs",
@@ -1260,8 +1260,8 @@
         },
         {
           "path": "unified-fork-organizer.cjs",
-          "size": 16839,
-          "sha256": "8eed145f9454455cac9b4673dc03a1568e9e6294256cbb1ebfdfafe1ba22323f"
+          "size": 16855,
+          "sha256": "e883ef51155b109fb526eb6cd586b024046f5686091652c40736da40d1303ea2"
         },
         {
           "path": "unified-fork-retries.cjs",
@@ -1325,8 +1325,8 @@
         },
         {
           "path": "unified-profile-policy.cjs",
-          "size": 6185,
-          "sha256": "4f5a0b4ea134a80ac5b97569013c882a52a2211a84a50b8677883a8edcefe101"
+          "size": 4388,
+          "sha256": "d3ebd1e8d7ff9c2808786017c53ce11d010a7d3701b6c4f4fb6fd617a78554e7"
         },
         {
           "path": "unified-profile-review.cjs",
@@ -1360,8 +1360,8 @@
         },
         {
           "path": "unified-runtime.cjs",
-          "size": 43821,
-          "sha256": "850bb5da77c157aea18c06655f57b972ce20215e73241c7fdefa7199e003d2b9"
+          "size": 42992,
+          "sha256": "3882d1a2857485b4366794c71f0dc5e8e2818da4e9c64296a149874c0de2ff7d"
         },
         {
           "path": "unified-scheduling.cjs",
