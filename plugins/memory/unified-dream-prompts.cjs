@@ -24,7 +24,6 @@ function build(ctx, storage, scope) {
   const context = { ...require("./unified-peer.cjs").context(ctx, storage, scope), now: Date.now(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   return { context, system: [DREAM_PROMPT, FACT_PROMPT, REVISION_PROMPT, context.chatType === "group" ? GROUP : PRIVATE,
     ...(context.relationship === "owner" ? [OWNER] : []), MATTERS, EXPERIENCE,
-    "整理经历时，真人发言标记 experienceEvidence=heard，Bot 已送达的回复标记 experienceEvidence=sent。",
     require("./unified-memes.cjs").PROMPT,
     require("./unified-profile-policy.cjs").STANDARD, require("./unified-profile-policy.cjs").USAGE_PROMPT,
     require("./unified-profile-impressions.cjs").GENDER_PROMPT].join("\n\n") };

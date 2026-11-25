@@ -3,7 +3,7 @@
 const { get, put, state, save, hash, readMemory } = require("./unified-state.cjs");
 const { FACT_PROMPT, REVISION_PROMPT, parseResult, validateStyle } = require("./lib/features/channels/channel-dream-analysis.cjs");
 const { isPrivateDreamScope } = require("./lib/features/channels/channel-dream-settings.cjs");
-const { STANDARD, USAGE_PROMPT } = require("./unified-profile-policy.cjs");
+const { PROFILE_STANDARD, USAGE_PROMPT } = require("./unified-profile-policy.cjs");
 const { EXTRACTION: MEMES } = require("./unified-memes.cjs");
 const { human, delivered } = require("./unified-material-policy.cjs");
 const { PROMPT: EXPERIENCE, MAX_RECORDS } = require("./unified-experience.cjs");
@@ -48,7 +48,7 @@ facts 提取本人明确自述的个人事实、稳定偏好、称呼或交流�
 ${USAGE_PROMPT}
 ${impressions.GENDER_PROMPT}
 ${privateChat ? '对话方明确希望长期调整和我的交流方式时，可加 style:{values:{tone:"calm|warm|lively",length:"brief|balanced|detailed",formality:"casual|neutral|formal",humor:"little|moderate"},evidence}，只填有原话依据的字段。' : ""}
-${STANDARD}
+${PROFILE_STANDARD}
 ${FACT_PROMPT}
 ${edit}`],
     ["memes", `${humanSources}

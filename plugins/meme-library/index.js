@@ -994,24 +994,21 @@ module.exports.beforeModel = async ctx => {
   if (!ctx.api.getCapabilities || !(await ctx.api.getCapabilities()).features?.persistentContextItems) throw Error("表情插件需要支持持久资料的新版本 OpenBot");
   const cfg = await settings(ctx), last = await ctx.api.getState("lastSent", "chat") || 0;
   const systemPromptAppend = [
-    '表情可用时，每条独立回复在提交 qqReply 前必须先调用 plugin__meme-library__stickers 搜索一次并查看候选。外层传 action=start 和稳定的 requestKey，input 传 action=search 和 query。只有任务仍在 running 时才按 jobId 查状态。',
-    '日常配图的 query 用一个简短的心情或反应：想看看可以搜「好奇」，有了发现可以搜「小得意」，等对方确认可以搜「期待」。省去话题名称、办事经过和整句回复。用户点名角色、动作或特定表情时保留指定特征；找图上的原话用 mode=text，填字用 kind=template。',
-    '结合候选原图、含义和 avoidContexts 判断这张图的语气是否合适；图中可以是另一件事。专属角色表情画的是你自己，贴合语境时优先选择。没有贴切候选或检索失败时正常用文字，同一次回复复用搜索结果。',
-    '选中可填字表情后用同一工具启动 input.action=render，传 searchId、id 和公开短句 text，思考框尽量在 20 字以内。短句可以表达想法、玩梗或对熟人轻轻吐槽。',
-    '搜索时用 usage=required 表示用户明确要表情、斗图或删掉图片就不能完成这条回复；这种表情不受随手配图的频率和间隔限制。普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。用途只对本次回复有效，每条独立回复使用本次搜索结果。',
-    '将返回的完整 url 用 <image src="..."/> 放入 qqReply。纯表情可直接表达完整意思。插件关闭或没有合适素材时按实际情况回复。',
-    '用户要求收藏、出现图库缺少且以后能复用的表情、或形成当前聊天的常用梗时，主动用 action=collect 收藏：聊天图片传 messageId 和 imageIndex，工具产物传完整 url。不要收藏普通照片、私人截图、改稿中间版或重复图片。自制表情成品发送后可自动收藏，不必再调用一次。',
-    '实例主人明确要求删掉已收藏的某张表情时，用 action=remove，从本次实例的表情库删除该图。优先用对应绘图成品的完整 url，也可以用当前聊天中那条图片消息的 messageId 和 imageIndex。只说画得不好时不删除；指向不清时请对方引用原图，不用相似搜索结果代替。',
+    '表情可用时，每条独立回复在提交 qqReply 前必须先调用 plugin__meme-library__stickers 搜索一次并查看候选（仅 running 时按 jobId 查状态，同一次回复复用结果）。',
+    '日常配图的 query 用一个简短的心情或反应（如「好奇」「小得意」「期待」），省去话题名和整句回复；点名角色或动作时保留特征；找图上的原话用 mode=text，填字用 kind=template（填字短句尽量在 20 字以内）。',
+    '结合原图、含义与 avoidContexts 判断语气；专属角色表情画的是你自己，贴合语境时优先选择；没有贴切候选或检索失败时正常用文字。',
+    '用户明确要表情、斗图或删掉图片就不完整时用 usage=required（不受频率和冷却限制）；普通文字顺便配图用 usage=optional，文字须能独立表达完整意思。返回的完整 url 用 <image src="..."/> 放入 qqReply。',
+    '用户要求收藏、出现图库缺少且以后能复用的常用梗时用 action=collect 收藏（不收普通照片、私人截图、改稿中间版或重复图；自制成品已自动收藏则不重复调用）。仅实例主人明确要求删掉某张已收藏表情时用 action=remove，指向不清时请对方引用原图，不用相似搜索结果代替。',
   ].join("\n");
   let status;
   const cooldownUntil = last + cfg.cooldownSeconds * 1000;
   if (!await hasVisible(ctx)) status = "当前角色和聊天没有可用表情。";
   else {
-    status = `当前可使用表情。每条独立回复须先搜索并查看候选；随手配图按 ${cfg.frequency}% 的概率保留，必要表情和纯表情回复直接发送。没有合适候选可只发文字。`;
-    if (Date.now() < cooldownUntil) status += ` 随手配图冷却至 ${new Date(cooldownUntil).toISOString()}，仍可检索并发送必要表情。`;
+    status = `当前可使用表情：随手配图按 ${cfg.frequency}% 概率保留，必要表情和纯表情直接发送。`;
+    if (Date.now() < cooldownUntil) status += ` 随手配图冷却至 ${new Date(cooldownUntil).toISOString()}，必要表情仍可检索发送。`;
   }
-  status += cfg.collectGenerated ? " 自制表情成品发出后自动收藏。" : " 自制表情自动收藏已关闭，需要时可明确调用收藏工具。";
-  return { systemPromptAppend, contextItems: [{ key: "availability", content: status + " 新状态替代本插件先前状态；历史状态不授予发送权限。" }] };
+  status += cfg.collectGenerated ? " 自制表情成品发出后自动收藏。" : " 自制表情自动收藏已关闭，需要时可调用收藏工具。";
+  return { systemPromptAppend, contextItems: [{ key: "availability", content: status + " 新状态替代先前状态，历史状态不授予发送权限。" }] };
 };
 async function hasVisible(ctx) {
   let cursor;

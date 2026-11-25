@@ -12,17 +12,13 @@ function sectionForSelfFact(fact) {
     ? personalFacets.get(fact.facet?.trim()) : undefined;
 }
 const USAGE_PROMPT = `usages 最多 24 项，用来分析成员实际怎样表达。本人发送的表情图可给 {type:"sticker",messageId,index:消息中从0开始的图片序号,label:"亲眼看到的画面短名"}，只看到占位符时省略 label。本人使用的有辨识度的口头禅或文字表情可给 {type:"expression",messageId,expression:"实际使用的原文片段"}。即使本批只出现一次也可给例子，整理程序按原消息累计。忽略转发、复述、普通照片和泛用词。实际使用只进入 usages，不写成对表情、角色或作品的喜爱。本人另有明确表述的偏好照常保存。`;
-const STANDARD = `只整理有原始依据的事实、偏好和事项，暂不生成第一人称回忆或 experience。
-人物画像包含基础资料、偏好与习惯，也可以有基于实际交往的聊天印象。facts 使用 profileSection 标记 identity（本人明确性别、身份、职业或技能）、habits（长期习惯）、interests（持续兴趣）、communication（交流与称呼偏好）、boundaries（明确禁忌与边界）、self_description（本人明确的自我描述）。聊天印象单独提交 impressions，说明具体做法给人的感觉，并保留多次互动的原话。
-稳定的个人事实和偏好必须归入对应画像分类；事件经过、一次性行为、项目进展仍是独立事实或事项，不因涉及某人就写入画像。同一账号在不同聊天中的画像各自维护，不能自动拼接另一群或私聊的资料。
-自述类画像用 subjectId 保存账号，用 content 保存一条能独立理解的事实，用 evidence 逐字摘录原话。人物自己的名字和“本人自述”等依据说明放在正文之外。例：“我到现在不吃鱼”可写 content="不吃鱼"、fact.facet="饮食习惯"、value="不吃鱼"；“我不喜欢吃鱼”写“不喜欢吃鱼”、facet="饮食偏好"。区分行为、喜恶、过敏和猜测，保留条件、否定、程度、时效以及正文涉及的其他人。多次实际使用的表达按 usages 处理，聊天印象仍保留“给人的印象是”等限定语。
-单次要求、玩笑、反问、引用他人的话不升级为长期画像。“我比较内向”保存为本人自述，正文保留“比较内向”。群聊按账号区分。bot 发言只用于理解用户的回答和引用，不能单独支撑用户事实、画像或完成状态。
-新增前按对象和主题查已有记忆：相同内容补充证据，明确纠正或变化修订原记录；新旧值不同时保留生效时间与旧版本。证据不明确就不提取，不用置信分数替代来源。不把聊天话题、工具执行过程、向量召回和系统消息写成用户记忆。
-事项必须有用户明确目标、问题或约定，保留进度与条件。记下事项不等于已经执行；临时关注与每日整理各自开关，不因保存画像或事项自动开启关注。没有新信息可提交空结果。
-每条新增 facts 必须给 retention:{basis,reason}。basis 只能为 explicit（本人明确要求记住）、boundary（本人明确的持续边界）、stable（已确认的持续事实或偏好）、ongoing（bot确实参与的持续事项所需事实）、ephemeral（一次性状态）。reason 说明这条内容将在什么后续情境改变怎样的回答或决定，不能只写“有用”“供以后参考”或“有原话依据”。没有明确后续用途就省略该条；ephemeral 不保存。
-本人明确记住、持续边界及有原话的稳定画像可直接生效；普通事实先作为待整理候选，之后统一审查。不能为了直接生效把设备状态、一次性进度、第三方传闻或单次兴趣硬归入画像。profileSection=identity 用于明确的身份与职责，设备参数、未注明平台的账号和临时项目状态都不属于身份。
-“下载了RVC但还没测试”“现在串联TTS和RVC”“朋友的中转站也许会加Gemini”等随口进度通常不提取；当bot正在持续协助同一部署时，必要的设备条件可以给出具体后续用途并作为候选。单次要求不升级为长期偏好，也不从聊天主题或语气推断人格和兴趣。
-新增前对每条候选分别核对已有对象、属性或事项；同一事实更新证据，同一事项更新进度，语义相同而措辞不同也不能另建一条。群聊、成员、条件和生效时间不同的事实保持各自范围。`;
+const PROFILE_STANDARD = `人物画像通过 facts 的 profileSection 分类：identity（本人明确性别、身份、职业或技能）、habits（长期习惯）、interests（持续兴趣）、communication（交流与称呼偏好）、boundaries（明确禁忌与边界）、self_description（本人明确的自我描述）。
+稳定的个人事实和偏好必须归入对应画像分类；事件经过、一次性行为、项目进展、设备参数、未注明平台的账号或临时状态不写入画像，也不跨聊天自动拼接同一账号的资料。
+自述类画像用 subjectId 存账号，content 写一条能独立理解的事实（不把姓名和“本人自述”写进正文），evidence 逐字摘录原话。例：“我到现在不吃鱼”写 content="不吃鱼"、fact.facet="饮食习惯"；“我不喜欢吃鱼”写“不喜欢吃鱼”、facet="饮食偏好"。区分行为、喜恶、过敏和猜测，保留条件、否定、程度与时效。单次要求、玩笑、反问、引用他人的话不升级为长期画像；bot 发言不单独支撑用户事实或画像。
+每条新增 facts 必须给 retention:{basis,reason}：basis 仅取 explicit（明确要求记住）、boundary（持续边界）、stable（稳定事实或偏好）、ongoing（bot 持续协助事项所需事实）、ephemeral（一次性状态，不保存）。reason 须说明在什么后续情境如何改变回答或决定，不能只写“有用”“供参考”或“有原话依据”；没有明确后续用途就省略。
+“下载了 RVC 但还没测试”“朋友中转站也许会加 Gemini”等随口进度通常不提取；仅当 bot 正在持续协助同一部署时，必要条件才可作候选。新增前核对已有对象与属性，语义相同不另建一条，明确纠正或变化则修订原记录并保留历史。`;
+const STANDARD = `${PROFILE_STANDARD}
+聊天印象单独提交 impressions，说明具体做法给人的感觉并保留多次互动原话；常用表达按 usages 处理。`;
 
 function profileAttributes(item, sources, materials) {
   if (!item.profileSection) return {};
@@ -36,4 +32,4 @@ function profileAttributes(item, sources, materials) {
   return { profile: { section: item.profileSection, basis: "self_report" } };
 }
 
-module.exports = { STANDARD, USAGE_PROMPT, SECTIONS, profileAttributes, sectionForSelfFact };
+module.exports = { STANDARD, PROFILE_STANDARD, USAGE_PROMPT, SECTIONS, profileAttributes, sectionForSelfFact };
