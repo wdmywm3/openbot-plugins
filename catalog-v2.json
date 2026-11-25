@@ -1642,7 +1642,7 @@
     {
       "id": "watch",
       "name": "Watch 视频阅读",
-      "version": "0.11.4",
+      "version": "0.12.0",
       "description": "在线读取视频或音频，字幕优先，无字幕时本地转写；支持聊天附件、直链、本地媒体和按时间补看。",
       "category": "utility",
       "main": "index.js",
@@ -1659,11 +1659,11 @@
         "usage": "提供视频页面即可优先在线读取；聊天附件、直链和本地视频共用一个入口，支持分镜、字幕和按时间补看。",
         "platforms": [],
         "requirements": [
-          "需要 OpenBot 0.1.78 或更新版本；自动准备 Python、FFmpeg、视频下载及本地语音转写依赖",
+          "需要支持插件模型依赖的 OpenBot；安装时准备 Python、FFmpeg、视频下载及本地转写环境",
           "角色启用 Skill 和插件的 MCP 工具；理解画面需要支持图片的模型",
-          "默认启用本地转写；无字幕时首次准备约486 MB模型，也可在配置中选择仅使用字幕"
+          "安装时下载约 486 MB 的语音模型；本地转写可在设置中关闭"
         ],
-        "changelog": "导入时遇到已缺失的历史视频，结束该次读取。",
+        "changelog": "安装时准备本地语音模型，连续转写复用同一模型进程。",
         "components": [
           "tools",
           "skills",
@@ -1671,27 +1671,22 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "6cbc67503a429029712915ac14a03ed042f0bd32",
       "files": [
         {
           "path": "README.md",
-          "size": 22124,
-          "sha256": "be91a6d3b4d0a253e67a37124fe4e63a6ebd74a7ab0ac248ffb3c41f300fb07c"
+          "size": 22266,
+          "sha256": "a671803c76ee5c4d3d7bc48a1b874cc073a46cfdfab19515ffc601845ed3fc98"
         },
         {
           "path": "THIRD_PARTY_NOTICES.md",
-          "size": 6465,
-          "sha256": "fd481a0cd53baf9c6c51fa66ac17fcce06476b0a1b2108ac0d44a8027e318975"
-        },
-        {
-          "path": "asr-model.json",
-          "size": 765,
-          "sha256": "2c923c10b147d93d9879f103998166120e234327f98f50d076ed1a72b4dab413"
+          "size": 6488,
+          "sha256": "25e9ad6458072c4c0ab65a5606ea96c80fcefa11dd8f5a0993f7bf334a125f14"
         },
         {
           "path": "index.js",
-          "size": 22300,
-          "sha256": "9d097268fb741ff217bb0b7d89011e364f30fbf6d1c0661eea68b08a8189da45"
+          "size": 22245,
+          "sha256": "1034b06fd08922ee30b3e65fe880f484b847fc21d8057fdbd499ff21d7bb8e5e"
         },
         {
           "path": "mcp.json",
@@ -1700,8 +1695,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 14112,
-          "sha256": "0f01231126e9617323d6a8036847ada91b0e48a7712414a4c0b424f92d7fdecd"
+          "size": 15023,
+          "sha256": "26a84948cd2f2bf1747fe704005d8e193e04850b06bdcf25d605928f2e21293c"
         },
         {
           "path": "requirements-asr.txt",
@@ -1720,23 +1715,28 @@
         },
         {
           "path": "skills/watch/SKILL.md",
-          "size": 17263,
-          "sha256": "77dc9ea0e1c925aea0fa43821e9882174b2d73cb789468977e39fbf202f6b7be"
+          "size": 17660,
+          "sha256": "40ad934c97759471adc5d540f9ca37d2a32eb7a70567085c181bd250b38f4f94"
         },
         {
           "path": "tools/asr.py",
-          "size": 5676,
-          "sha256": "6adcd388f4b25e60bd70a37c91bb7f00c60580360ece40094829979ecba6eed2"
+          "size": 6640,
+          "sha256": "6d3df007af4f9479d21d7b8222594737e47a87185fdf8a04ddfc8ee35fd6f82c"
+        },
+        {
+          "path": "tools/asr_worker.py",
+          "size": 2969,
+          "sha256": "6fa2caf14383799ca88d4d7c62da6f69711b1ea412884a457f4fba2fc6e5247d"
         },
         {
           "path": "tools/browser_media.py",
-          "size": 15163,
-          "sha256": "d47410ab84399ac640e90c95d19f54540849a529f54f496e82b3231f1c8ec6f4"
+          "size": 15744,
+          "sha256": "a670879597f58c450ccf8c5eeb2514cc704cc5deeb0d988346e9541e23fdc170"
         },
         {
           "path": "tools/common.py",
           "size": 7870,
-          "sha256": "74791f2ec0b243ded4c7ad6714112be63d89e0f08f452c720d2ea8b0d0cd186e"
+          "sha256": "5050bbe5fded7a1bc8958995dbf5c93a02f12a02aad996a217571de9e0489233"
         },
         {
           "path": "tools/download.py",
@@ -1755,13 +1755,13 @@
         },
         {
           "path": "tools/jobs.py",
-          "size": 21461,
-          "sha256": "c839cd8a101cfe7bf55d197b3477bad38dd009018ba751f7f8fb3e41acd413a9"
+          "size": 22683,
+          "sha256": "0c6f65916207aac607557ac5624b972e36e78b79fcf94cbf89d81774e9723e5e"
         },
         {
           "path": "tools/media.py",
-          "size": 33980,
-          "sha256": "c42914b0a930eb563e3470a7397e806273b3b65cb4963fdeff682e4572fc6491"
+          "size": 35899,
+          "sha256": "b225ad9b7062b30edaf6432eb341dacbda5fea681695ad6929874f52744e0d2c"
         },
         {
           "path": "tools/media_bridge.py",
@@ -1775,13 +1775,13 @@
         },
         {
           "path": "tools/server.py",
-          "size": 16514,
-          "sha256": "186a10b99623fa3f816a203e1aab5e4dbee69c4f3e3c908e8431916dc5b02aff"
+          "size": 16594,
+          "sha256": "fc4d9a78c3e451d8cf4b936b976b180974129d3ecb38979c2c158109bc857b3e"
         },
         {
           "path": "tools/setup_asr.py",
-          "size": 4237,
-          "sha256": "20ebfaa74e3efa97045103c1881ad449abed0f922d72118b7ba0094683f3addd"
+          "size": 4223,
+          "sha256": "1d614acd5db8b528ac1a9a439509adf284e0cae3ca6382771e315de92276ecea"
         },
         {
           "path": "tools/sources.py",
@@ -1795,8 +1795,8 @@
         },
         {
           "path": "tools/transcribe.py",
-          "size": 3080,
-          "sha256": "15832e6fc849c167027e4e97a2dc656b885e2253d09b0af7e09f8b6d0f5e2941"
+          "size": 3236,
+          "sha256": "d3ebebc241f452ba4393f04e7cfbabe5fb84eb5ee0b88701af3fc6434c336550"
         }
       ]
     }
