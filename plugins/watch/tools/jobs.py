@@ -18,6 +18,7 @@ from common import (Cancelled, MAX_FRAME_EDGE, MAX_MEDIA, MAX_STORAGE, MAX_WINDO
                     read_json, token, tree_size, write_json)
 import media
 import asr
+from asr_worker import TranscriptionWorker
 
 TTL = 24 * 60 * 60
 TERMINAL = {"ready", "failed", "cancelled", "interrupted"}
@@ -96,6 +97,7 @@ class Jobs:
         contained(self.root, "imports").mkdir(exist_ok=True)
         self.lock = threading.RLock()
         self.events, self.records, self.closed = {}, {}, False
+        self.asr_worker = TranscriptionWorker()
         self.processor = processor
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="watch")
         self.settings = {}
@@ -188,6 +190,9 @@ class Jobs:
                 public["reuse_source"] = "watch:" + job_id
             elif record["status"] not in TERMINAL:
                 public["retry_after_seconds"] = 5
+                if record["status"] == "running" and (self.directory(job_id) / "visual.json").is_file():
+                    preview = read_json(self.directory(job_id) / "visual.json")
+                    public.update(frames_ready=True, storyboard_ready=preview["storyboard"]["available"], transcript_state="pending")
             return public
 
     def start(self, args):
@@ -237,6 +242,7 @@ class Jobs:
             record.update(status="running", stage="开始读取")
             self._save(record)
         runner = Runner(self.directory(job_id), self.root, self.events[job_id])
+        runner.asr_worker = self.asr_worker
         def stage(value):
             runner.check()
             with self.lock:
@@ -277,12 +283,18 @@ class Jobs:
             raise WatchError("任务尚未就绪；先查询 watch_status")
         return self.directory(job_id)
 
+    def _visual_result(self, job_id):
+        folder = self.directory(token(job_id))
+        state = self._record(job_id)["status"]
+        if state == "running" and (folder / "visual.json").is_file():
+            return folder, read_json(folder / "visual.json")
+        return folder, read_json(self.ready(job_id) / "result.json")
+
     def frames(self, job_id, offset=0, limit=4):
         integer(offset, "offset", 0, 1000)
         integer(limit, "limit", 1, 4)
         with self.lock:
-            folder = self.ready(job_id)
-            result = read_json(folder / "result.json")
+            folder, result = self._visual_result(job_id)
             frames = result["frames"][offset:offset + limit]
             content = []
             for frame in frames:
@@ -299,37 +311,41 @@ class Jobs:
                     "next_offset": next_offset if next_offset < len(result["frames"]) else None}, content
 
     def _storyboard(self, job_id):
-        folder = self.ready(job_id)
+        folder, result = self._visual_result(job_id)
         path = contained(folder, "storyboard.json")
         if not path.is_file():
             raise WatchError("本任务没有分镜；可读取 watch_frames，或复用 watch:<job_id> 开始新的读取")
-        return folder, read_json(path)
+        return folder, read_json(path), result
 
     def storyboard(self, job_id, page=0):
         integer(page, "page", 0, 1)
         with self.lock:
-            folder, board = self._storyboard(job_id)
+            folder, board, result = self._storyboard(job_id)
             if page >= len(board["sheets"]):
                 raise WatchError("分镜页码不存在")
             sheet = board["sheets"][page]
             path = contained(folder, sheet["file"])
             if path.stat().st_size > 1_500_000:
                 raise WatchError("分镜图片过大")
-            result = read_json(folder / "result.json")
+            if result["transcript"]["source"] in {"local_asr", "browser_audio_asr"}:
+                segments = read_json(folder / "transcript.json")["segments"]
+                for cell in sheet["cells"]:
+                    cell["transcript"] = media.storyboard.align_transcript(cell["range"], segments)
             value = {"job_id": job_id, "page": page, "total_pages": len(board["sheets"]),
                      "next_page": page + 1 if page + 1 < len(board["sheets"]) else None,
                      "width": sheet["width"], "height": sheet["height"], "cells": sheet["cells"],
                      "source_view": board["source_view"], "range": result["range"],
                      "coverage": result["coverage"], "transcript_source": result["transcript"]["source"],
+                     "transcript_state": result["transcript"].get("state"),
                      "missing_cells": result.get("storyboard", {}).get("missing_cells", []),
                      "warnings": result["warnings"],
-                     "note": "每格是区间中的一个采样瞬间；区间字幕不等于画面发生时刻。小字或动作细节用 watch_zoom 补看；字幕截断时用 watch_transcript。"}
+                     "note": "每格是区间中的一个采样瞬间。查看某一格的原图用 watch_frames，offset 取该格的 frame_index，limit 取 1。补看前后动作用 watch_zoom。区间字幕可能出现在截图前后，完整内容用 watch_transcript。"}
             return value, [{"type": "image", "mimeType": "image/jpeg", "data": base64.b64encode(path.read_bytes()).decode("ascii")}]
 
     def zoom(self, job_id, cell_id, frame_count=6, crop=None, request_id=None):
         integer(cell_id, "cell_id", 1, 24)
         with self.lock:
-            _, board = self._storyboard(job_id)
+            _, board, _ = self._storyboard(job_id)
             cell = next((cell for sheet in board["sheets"] for cell in sheet["cells"] if cell["cell_id"] == cell_id), None)
             if cell is None:
                 raise WatchError("该任务中不存在这个分镜编号")
@@ -365,6 +381,7 @@ class Jobs:
             for event in self.events.values():
                 event.set()
         self.executor.shutdown(wait=True, cancel_futures=False)
+        self.asr_worker.close()
 
 
 def import_video(root, file, subtitles=None):

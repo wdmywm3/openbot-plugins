@@ -459,6 +459,35 @@ def extract_frames(video, points, end, directory, runner, crop=None):
     return frames
 
 
+def process_tracks(directory, runner, read_visual, read_audio, *, parallel, audio_ranges=None):
+    if parallel:
+        # One active job and one transcription lane per service. Both lanes observe the same cancellation.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="watch-audio") as executor:
+            audio = executor.submit(read_audio)
+            try:
+                result = read_visual()
+                runner.check()
+                if result["frames"] and not audio.done():
+                    write_json(directory / "visual.json", {**result, "transcript": {"state": "pending", "source": "pending"}})
+                transcript, warnings = audio.result()
+            except BaseException:
+                runner.cancelled.set()
+                raise
+    else:
+        result = read_visual()
+        transcript, warnings = read_audio()
+    runner.check()
+    if audio_ranges is not None:
+        result["coverage"]["audio_ranges"] = audio_ranges
+    result["warnings"].extend(warnings)
+    result["transcript"] = {key: transcript[key] for key in ("source", "state", "language")}
+    result["transcript"]["segment_count"] = len(transcript["segments"])
+    write_json(directory / "transcript.json", transcript)
+    write_json(directory / "result.json", result)
+    return result
+
+
 def process(request, directory, root, runner, stage, settings):
     if request["source"].startswith(("import:", "watch:")):
         kind, identity = request["source"].split(":")
@@ -504,92 +533,103 @@ def process(request, directory, root, runner, stage, settings):
         warnings.append("请求终点超过实际文件长度，已按可读取范围截断")
     # The cross-plugin transcribe contract explicitly requests speech evidence.
     track_available = bool(captions["segments"]) and request.get("media_kind") != "transcribe"
-    segments = [s for s in captions["segments"] if s["end"] > start and s["start"] < end] if track_available else []
-    transcript_source = captions["source"] if track_available else "unavailable"
-    transcript_state = "available" if segments else "no_speech" if track_available else "unavailable"
-    language = captions.get("language")
-    if request.get("media_kind") != "frames" and not track_available and meta["has_audio"] and request.get("audio") != "off" and asr.configured(settings):
-        try:
-            model = asr.prepare(root, settings, runner, stage)
-            stage("转写音频")
-            audio = directory / "audio.wav"
-            runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", str(start), "-t", str(end - start),
-                        *LOCAL_INPUT, "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", str(audio)], 60)
-            data = asr.transcribe(audio, directory / "asr.json", model, settings, runner)
-            segments = [{"start": round(start + s["start"], 6), "end": round(min(end, start + s["end"]), 6), "text": s["text"]}
-                        for s in data["segments"] if s["start"] < end - start]
-            transcript_source, language = "local_asr", data.get("language")
-            transcript_state = "available" if segments else "no_speech"
-        except Cancelled:
-            raise
-        except (WatchError, ValueError, KeyError, TypeError, OSError):
-            transcript_state = "failed"
-            warnings.append("本地转写准备或识别失败，可重试；已取得的其他资料仍可读取")
-        finally:
-            (directory / "audio.wav").unlink(missing_ok=True)
-    elif not track_available:
-        transcript_state = "disabled" if request.get("audio") == "off" or not asr.configured(settings) else "no_audio" if not meta["has_audio"] else "unavailable"
-    if not segments and transcript_state != "no_speech":
-        warnings.append("没有取得可用字幕或语音转写，不可根据画面推断具体口述内容")
-    if request.get("audio") == "required" and transcript_state not in {"available", "no_speech"}:
-        warnings.append("未满足本次要求的语音读取，请明确说明该部分不可用")
-    frames, ranges, points = [], [], []
-    selection = "explicit" if request.get("timestamps") else request["sampling"]
-    if meta["has_video"] and not text_only:
-        stage("提取画面")
-        points = request.get("timestamps")
-        if points is not None:
-            if any(not start <= p < end for p in points):
-                raise WatchError("补看时间戳必须位于实际读取区间内")
-            ranges = storyboard.point_ranges(start, end, points)
-        elif request["sampling"] == "balanced":
+    caption_segments = [s for s in captions["segments"] if s["end"] > start and s["start"] < end] if track_available else []
+    needs_asr = request.get("media_kind") != "frames" and not track_available and meta["has_audio"] and request.get("audio") != "off" and asr.configured(settings)
+
+    def read_audio():
+        segments = caption_segments
+        warnings = []
+        transcript_source = captions["source"] if track_available else "unavailable"
+        transcript_state = "available" if segments else "no_speech" if track_available else "unavailable"
+        language = captions.get("language")
+        if needs_asr:
             try:
-                scenes = scene_times(video, start, end, runner)
-                ranges = storyboard.plan_ranges(start, end, request["frame_count"], scenes, segments)
-                points = select_clear_points(video, ranges, directory, runner)
-                selection = "adaptive_clear"
+                model = asr.prepare(root, settings, runner, stage)
+                stage("转写音频")
+                audio = directory / "audio.wav"
+                runner.run(["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", str(start), "-t", str(end - start),
+                            *LOCAL_INPUT, "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", str(audio)], 60)
+                data = asr.transcribe(audio, directory / "asr.json", model, settings, runner)
+                segments = [{"start": round(start + s["start"], 6), "end": round(min(end, start + s["end"]), 6), "text": s["text"]}
+                            for s in data["segments"] if s["start"] < end - start]
+                transcript_source, language = "local_asr", data.get("language")
+                transcript_state = "available" if segments else "no_speech"
             except Cancelled:
                 raise
-            except (WatchError, ImportError, OSError, ValueError):
-                warnings.append("自动选帧不可用，已改用覆盖整个区间的定时采样")
-                selection = "uniform_fallback"
-        if points is None:
-            points = frame_points(start, end, request["frame_count"], [])
-            ranges = storyboard.point_ranges(start, end, points)
-        try:
-            frames = extract_frames(video, points, end, directory, runner, crop)
-        except Cancelled:
-            raise
-        except WatchError:
-            warnings.append("画面提取失败，已保留取得的字幕或转写")
-    board = {"available": False, "reason": "仅读取文字" if text_only else "来源没有视频画面" if not meta["has_video"] else "没有取得分镜画面"}
-    if frames and not request.get("media_kind"):
-        stage("整理分镜")
-        try:
-            board = storyboard.render(directory, ranges, points, frames, segments, meta, crop, runner)
-            if board.get("missing_cells"):
-                warnings.append("部分分镜区间没有取得画面，缺口记录在 storyboard.missing_cells；可按时间缩小范围补看")
-        except Cancelled:
-            raise
-        except (ImportError, OSError, ValueError):
-            board = {"available": False, "reason": "分镜拼图不可用，可继续使用 watch_frames 和 watch_transcript"}
-            warnings.append(board["reason"])
-    observations = sorted({o["timestamp_seconds"] for frame in frames for o in frame["observations"]})
-    bounds = [start, *observations, end]
-    write_json(directory / "transcript.json", {"source": transcript_source, "state": transcript_state, "language": language, "segments": segments})
-    result = {"title": manifest["title"], "source": manifest.get("url", request["source"]),
-              "media": meta, "reported_duration_seconds": reported,
-              "range": {"start_seconds": start, "end_seconds": end},
-              "coverage": {"mode": "sampled_frames", "observed_timestamps": observations,
-                           "max_gap_seconds": round(max(b - a for a, b in zip(bounds, bounds[1:])), 3),
-                           "more_video_after_range": end + 0.1 < duration,
-                           "source_incomplete": incomplete},
-              "frames": frames, "frame_count": len(frames),
-              "sampling": selection, "storyboard": board,
-              "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"]} if frames else None,
-              "transcript": {"source": transcript_source, "state": transcript_state, "language": language, "segment_count": len(segments)},
-              "warnings": warnings}
-    if request.get("focus_cell"):
-        result["focus_cell"] = request["focus_cell"]
-    write_json(directory / "result.json", result)
-    return result
+            except WatchError as error:
+                transcript_state = "failed"
+                warnings.append(str(error))
+            except (ValueError, KeyError, TypeError, OSError):
+                transcript_state = "failed"
+                warnings.append("本地转写准备或识别失败，可重试；已取得的其他资料仍可读取")
+            finally:
+                (directory / "audio.wav").unlink(missing_ok=True)
+        elif not track_available:
+            transcript_state = "disabled" if request.get("audio") == "off" or not asr.configured(settings) else "no_audio" if not meta["has_audio"] else "unavailable"
+        if not segments and transcript_state != "no_speech":
+            warnings.append("没有取得可用字幕或语音转写，不可根据画面推断具体口述内容")
+        if request.get("audio") == "required" and transcript_state not in {"available", "no_speech"}:
+            warnings.append("未满足本次要求的语音读取，请明确说明该部分不可用")
+        return {"source": transcript_source, "state": transcript_state, "language": language, "segments": segments}, warnings
+
+    def read_visual():
+        segments = caption_segments
+        frames, ranges, points = [], [], []
+        selection = "explicit" if request.get("timestamps") else request["sampling"]
+        if meta["has_video"] and not text_only:
+            stage("提取画面")
+            points = request.get("timestamps")
+            if points is not None:
+                if any(not start <= p < end for p in points):
+                    raise WatchError("补看时间戳必须位于实际读取区间内")
+                ranges = storyboard.point_ranges(start, end, points)
+            elif request["sampling"] == "balanced":
+                try:
+                    scenes = scene_times(video, start, end, runner)
+                    ranges = storyboard.plan_ranges(start, end, request["frame_count"], scenes, segments)
+                    points = select_clear_points(video, ranges, directory, runner)
+                    selection = "adaptive_clear"
+                except Cancelled:
+                    raise
+                except (WatchError, ImportError, OSError, ValueError):
+                    warnings.append("自动选帧不可用，已改用覆盖整个区间的定时采样")
+                    selection = "uniform_fallback"
+            if points is None:
+                points = frame_points(start, end, request["frame_count"], [])
+                ranges = storyboard.point_ranges(start, end, points)
+            try:
+                frames = extract_frames(video, points, end, directory, runner, crop)
+            except Cancelled:
+                raise
+            except WatchError:
+                warnings.append("画面提取失败，已保留取得的字幕或转写")
+        board = {"available": False, "reason": "仅读取文字" if text_only else "来源没有视频画面" if not meta["has_video"] else "没有取得分镜画面"}
+        if frames and not request.get("media_kind"):
+            stage("整理分镜")
+            try:
+                board = storyboard.render(directory, ranges, points, frames, segments, meta, crop, runner)
+                if board.get("missing_cells"):
+                    warnings.append("部分分镜区间没有取得画面，缺口记录在 storyboard.missing_cells；可按时间缩小范围补看")
+            except Cancelled:
+                raise
+            except (ImportError, OSError, ValueError):
+                board = {"available": False, "reason": "分镜拼图不可用，可继续使用 watch_frames 和 watch_transcript"}
+                warnings.append(board["reason"])
+        observations = sorted({o["timestamp_seconds"] for frame in frames for o in frame["observations"]})
+        bounds = [start, *observations, end]
+        result = {"title": manifest["title"], "source": manifest.get("url", request["source"]),
+                  "media": meta, "reported_duration_seconds": reported,
+                  "range": {"start_seconds": start, "end_seconds": end},
+                  "coverage": {"mode": "sampled_frames", "observed_timestamps": observations,
+                               "max_gap_seconds": round(max(b - a for a, b in zip(bounds, bounds[1:])), 3),
+                               "more_video_after_range": end + 0.1 < duration,
+                               "source_incomplete": incomplete},
+                  "frames": frames, "frame_count": len(frames),
+                  "sampling": selection, "storyboard": board,
+                  "frame_view": {"crop": crop, "width": frames[0]["width"], "height": frames[0]["height"]} if frames else None,
+                  "warnings": warnings}
+        if request.get("focus_cell"):
+            result["focus_cell"] = request["focus_cell"]
+        return result
+
+    return process_tracks(directory, runner, read_visual, read_audio, parallel=needs_asr and meta["has_video"] and not text_only)

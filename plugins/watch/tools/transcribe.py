@@ -34,7 +34,7 @@ def load_pcm_audio(path):
     return np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
 
 
-def run(model_path, audio_path, output, language=None):
+def load_model(model_path):
     if not all((Path(model_path) / name).is_file() for name in ("model.bin", "config.json", "tokenizer.json")):
         raise ValueError("Local ASR model requires model.bin, config.json and tokenizer.json")
     # Tokenizers can otherwise download their own fallback even when the model
@@ -43,7 +43,14 @@ def run(model_path, audio_path, output, language=None):
     os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
     native_libraries()
     from faster_whisper import WhisperModel
-    model = WhisperModel(str(model_path), device="cpu", compute_type="int8", local_files_only=True, cpu_threads=4)
+    return WhisperModel(str(model_path), device="cpu", compute_type="int8", local_files_only=True, cpu_threads=4)
+
+
+def run(model_path, audio_path, output, language=None):
+    recognize(load_model(model_path), audio_path, output, language)
+
+
+def recognize(model, audio_path, output, language=None):
     segments, info = model.transcribe(load_pcm_audio(audio_path), language=language, beam_size=3, vad_filter=True, condition_on_previous_text=False)
     result = []
     for segment in segments:

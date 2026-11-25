@@ -171,7 +171,7 @@ async function browserStart(ctx, request, options, namespace) {
   if (visual && !frames.length) warnings.push("播放器未返回所选区间内的画面");
   if (!trackAvailable && options.audio !== "off") {
     const info = await call(ctx, "watch_info", {});
-    const available = info.asr?.can_prepare || info.asr?.model_available && info.asr?.runtime_available && info.asr?.backend !== "none";
+    const available = info.asr?.ready === true || info.asr?.can_prepare === true;
     if (!available && options.audio === "required") warnings.push("本地转写尚未启用或依赖不完整，无法满足所请求的语音读取");
     if (available) {
       for (let start = planned.start; start < planned.end - 0.2;) {

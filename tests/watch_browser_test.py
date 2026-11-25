@@ -115,16 +115,12 @@ class BrowserEvidence(unittest.TestCase):
         asset = ingest(self.jobs, {**fields, "action": "finish"})["asset_id"]
         args["info"]["audio"] = [{"asset_id": asset, "start": 10.2, "end": 12.2, "leadSeconds": 0.1}]
         self.jobs.settings["asr_model_path"] = "fixture-model"
-        original = Runner.run
-        def run(runner, command, timeout=120):
-            if any(str(a).endswith("transcribe.py") for a in command):
-                with wave.open(command[command.index("--audio")+1], "rb") as audio:
-                    self.assertEqual(audio.getframerate(), 16000)
-                    self.assertAlmostEqual(audio.getnframes()/16000, 2, delta=0.02)
-                Path(command[command.index("--output")+1]).write_text(json.dumps({"segments": [{"start": 0.25, "end": 0.75, "text": "Audio evidence"}], "language": "en"}))
-                return "", ""
-            return original(runner, command, timeout)
-        with patch.object(Runner, "run", run), patch("asr.prepare", return_value="fixture-model"):
+        def recognize(_model, wav, output, _language, _runner):
+            with wave.open(str(wav), "rb") as audio:
+                self.assertEqual(audio.getframerate(), 16000)
+                self.assertAlmostEqual(audio.getnframes()/16000, 2, delta=0.02)
+            output.write_text(json.dumps({"segments": [{"start": 0.25, "end": 0.75, "text": "Audio evidence"}], "language": "en"}))
+        with patch.object(self.jobs.asr_worker, "transcribe", recognize), patch("asr.prepare", return_value="fixture-model"):
             state = self.wait(browser_media.dispatch(self.jobs, args)["job_id"])
         self.assertEqual(state["status"], "ready", state)
         transcript = self.jobs.transcript(state["job_id"])

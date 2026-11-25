@@ -32,7 +32,7 @@ TOOLS = [
                             "request_id": {"type": "string", "maxLength": 160}, "job_id": JOB},
                            ["kind", "url", "start", "end", "namespace", "request_id"])},
     {"name": "watch_info", "description": "检查 Watch 视频读取依赖、可用来源与限制。不会列出本地文件或其他读取任务。", "inputSchema": schema()},
-    {"name": "watch_start", "description": "开始读取视频画面和字幕，返回 job_id。每段最多 600 秒；完成后先用 watch_storyboard 查看分镜概览。复用 watch:<job_id> 可从已下载文件继续补看。",
+    {"name": "watch_start", "description": "开始读取视频画面和字幕，返回 job_id。每段最多 600 秒；分镜可读时先用 watch_storyboard 查看概览。复用 watch:<job_id> 可从已下载文件继续补看。",
      "inputSchema": schema({
          "source": {"type": "string", "maxLength": 8192, "description": "HTTP/HTTPS 视频直链、yt-dlp 支持的平台页面、配置目录内的本地视频路径、import:<token> 或 watch:<job_id>"},
          "source_type": {"type": "string", "enum": ["auto", "direct", "page"], "description": "默认自动判断；无扩展名的视频附件直链使用 direct"},
@@ -47,7 +47,7 @@ TOOLS = [
                   "description": "可选。仅在整帧细节看不清时使用；x/y/width/height 按 watch_status 的原视频 media.width/height 像素计算，不能直接使用缩小后图片的坐标。不填返回完整画面。"},
          "request_id": {"type": "string", "description": "可选的新 UUID；仅在重试相同请求时复用，防止重复下载"}
      }, ["source"])},
-    {"name": "watch_status", "description": "查询视频读取状态、实际处理区间、画面覆盖和字幕来源。ready 只表示资料已准备，模型仍需读取画面和字幕。", "inputSchema": schema({"job_id": JOB}, ["job_id"])},
+    {"name": "watch_status", "description": "查询视频读取状态、实际处理区间、画面覆盖和字幕来源。运行中若 storyboard_ready 或 frames_ready 为真，可先读相应画面。ready 只表示资料已准备，模型仍需读取画面和字幕。", "inputSchema": schema({"job_id": JOB}, ["job_id"])},
     {"name": "watch_storyboard", "description": "查看编号分镜图及各格对应的原视频时间、字幕节选。每页最多12格；next_page非空时还有下一页。细节用watch_zoom，完整字幕用watch_transcript。",
      "inputSchema": schema({"job_id": JOB, "page": {"type": "integer", "minimum": 0, "maximum": 1, "default": 0}}, ["job_id"])},
     {"name": "watch_zoom", "description": "按指定任务的分镜编号，从缓存原视频加密补看该区间，返回新的job_id。可选crop使用原视频像素；不填则返回整帧。完成后用watch_frames读取高清画面。",

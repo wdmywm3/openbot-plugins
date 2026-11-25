@@ -13,7 +13,7 @@ reference setup.py and watch.py at the same commit. Watch implements its own
 pinned model download, warm-up receipt and faster-whisper adapter.
 
 The optional managed model is Systran/faster-whisper-small (MIT), pinned in
-asr-model.json. Weights are downloaded separately, not redistributed in this package.
+plugin.json (dependencies.modelFiles). Weights are downloaded separately, not redistributed in this package.
 Source: https://huggingface.co/Systran/faster-whisper-small
 
 Source: https://github.com/bradautomates/claude-video

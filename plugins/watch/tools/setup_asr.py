@@ -68,7 +68,7 @@ def prepare(root, model=None):
             from download import guard_network
             guard_network()
             directory.mkdir(exist_ok=True)
-            manifest = read_json(asr.MANIFEST)
+            manifest = asr.MODEL
             for spec in manifest["files"]:
                 print(f"Preparing {spec['path']}", flush=True)
                 download_file(directory, spec, manifest["repository"], manifest["revision"])

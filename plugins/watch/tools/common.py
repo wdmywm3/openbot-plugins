@@ -27,7 +27,7 @@ DOWNLOAD_FORMAT = "bv*+ba/b/bv*"
 # yt-dlp's res sorting uses the shorter side, including portrait video.
 DOWNLOAD_SORT = f"res:{PREFERRED_RESOLUTION}"
 MAX_FRAME_EDGE = 1920
-VERSION = "0.10.0"
+VERSION = "0.12.0"
 TOKEN = re.compile(r"^[a-f0-9]{32}$")
 
 

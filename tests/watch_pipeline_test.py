@@ -2,6 +2,9 @@
 import hashlib
 import io
 import json
+import os
+import threading
+import wave
 from pathlib import Path
 import shutil
 import subprocess
@@ -15,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins/watch/tool
 import asr
 import media
 import setup_asr
-from common import Runner, WatchError, write_json
+from asr_worker import TranscriptionWorker
+from common import Cancelled, Runner, WatchError, write_json
 from jobs import Jobs, import_video
 
 
@@ -53,6 +57,63 @@ class ModelSetup(unittest.TestCase):
                 with self.assertRaises(ValueError): setup_asr.prepare(folder, folder / "custom")
             self.assertFalse((folder / "models/ready.json").exists())
 
+    def test_missing_installed_model_does_not_trigger_a_download(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {"OPENBOT_MODEL_DIR": temp}), \
+             patch("asr.importlib.util.find_spec", return_value=True):
+            runner = Runner(temp, temp)
+            with self.assertRaisesRegex(WatchError, "本地语音模型缺失，请重新准备插件依赖"):
+                asr.prepare(Path(temp), {"asr_backend": "local"}, runner, self.fail)
+            self.assertEqual(list(Path(temp).iterdir()), [])
+            first = asr.MODEL["files"][0]
+            path = Path(temp) / first["path"]
+            for data, reason in [(b"", "本地语音模型文件为空"), (b"x", f"本地语音模型文件为 1 字节，声明大小为 {first['size']} 字节")]:
+                path.write_bytes(data)
+                with self.assertRaisesRegex(WatchError, reason):
+                    asr.prepare(Path(temp), {"asr_backend": "local"}, runner, self.fail)
+
+    def test_auto_language_is_unspecified_in_worker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = Runner(root, root)
+            runner.asr_worker = TranscriptionWorker()
+            output = root / "result.json"
+            write_json(output, {"language": "en", "segments": []})
+            with patch.object(runner.asr_worker, "transcribe") as call:
+                asr.transcribe(root / "input.wav", output, root, {"asr_language": ""}, runner)
+            call.assert_called_once_with(root, root / "input.wav", output, None, runner)
+
+    @unittest.skipUnless(os.environ.get("WATCH_TEST_MODEL_DIR"), "requires unpacked local speech model")
+    def test_real_worker_reuse_cancel_and_restart(self):
+        model = Path(os.environ["WATCH_TEST_MODEL_DIR"])
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            audio, output = root / "input.wav", root / "result.json"
+            with wave.open(str(audio), "wb") as wav:
+                wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+                wav.writeframes(bytes(64000))
+            runner = Runner(root, root)
+            worker = TranscriptionWorker()
+            self.addCleanup(worker.close)
+            worker.transcribe(model, audio, output, None, runner)
+            pid = worker.process.pid
+            output.unlink()
+            worker.transcribe(model, audio, output, None, runner)
+            self.assertEqual(worker.process.pid, pid)
+            self.assertEqual(json.loads(output.read_text())["segments"], [])
+            worker.close()
+            timer = threading.Timer(0.05, runner.cancelled.set)
+            timer.start()
+            try:
+                with self.assertRaises(Cancelled):
+                    worker.transcribe(model, audio, output, None, runner)
+                self.assertIsNone(worker.process)
+            finally:
+                timer.cancel()
+                timer.join()
+            runner.cancelled.clear()
+            worker.transcribe(model, audio, output, None, runner)
+            self.assertTrue(worker.process.is_alive())
+
     def test_owner_config_and_legacy_model_are_independent_of_chat_input(self):
         with tempfile.TemporaryDirectory() as temp:
             write_json(Path(temp) / "settings.json", {"asr_model_path": str(Path(temp) / "custom"), "local_roots": [temp]})
@@ -84,6 +145,50 @@ class Pipeline(unittest.TestCase):
             if state["status"] in {"ready", "failed"}: return state
             time.sleep(0.02)
         self.fail("job timed out")
+
+    def test_frames_are_readable_while_speech_is_pending(self):
+        video = self.root / "speech-and-video.mkv"
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=blue:s=64x64:d=4",
+                        "-i", str(self.wav), "-c:v", "ffv1", "-c:a", "pcm_s16le", str(video)], check=True)
+        source = import_video(self.jobs.root, video)["source"]
+        self.jobs.settings["asr_backend"] = "local"
+        for cancel in (False, True):
+            with self.subTest(cancel=cancel):
+                release = threading.Event()
+                def delayed_audio(audio, output, model, settings, runner):
+                    while not release.wait(0.02):
+                        runner.check()
+                    runner.check()
+                    return {"segments": [{"start": 0, "end": 3, "text": "hello"}], "language": "en"}
+                with patch.object(asr, "prepare", return_value=self.root), patch.object(asr, "transcribe", delayed_audio):
+                    identity = self.jobs.start({"source": source, "sampling": "uniform", "frame_count": 2})["job_id"]
+                    try:
+                        deadline = time.monotonic() + 30
+                        while not self.jobs.status(identity).get("storyboard_ready"):
+                            self.assertLess(time.monotonic(), deadline, self.jobs.status(identity))
+                            time.sleep(0.03)
+                        sheet, _ = self.jobs.storyboard(identity)
+                        self.assertEqual(sheet["transcript_state"], "pending")
+                        self.assertEqual(self.jobs.frames(identity, sheet["cells"][0]["frame_index"], 1)[1][1]["type"], "image")
+                        with self.assertRaises(WatchError):
+                            self.jobs.transcript(identity)
+                        if cancel:
+                            self.jobs.cancel(identity)
+                    finally:
+                        release.set()
+                    deadline = time.monotonic() + 10
+                    while self.jobs.status(identity)["status"] not in {"ready", "cancelled", "failed"}:
+                        self.assertLess(time.monotonic(), deadline)
+                        time.sleep(0.02)
+                    if cancel:
+                        self.assertEqual(self.jobs.status(identity)["status"], "cancelled")
+                        with self.assertRaises(WatchError):
+                            self.jobs.storyboard(identity)
+                    else:
+                        final, _ = self.jobs.storyboard(identity)
+                        self.assertEqual(final["transcript_state"], "available")
+                        self.assertEqual(final["cells"][0]["transcript"]["lines"][0]["text"], "hello")
+                        self.assertEqual(sheet["cells"][0]["timestamp_seconds"], final["cells"][0]["timestamp_seconds"])
 
     def test_audio_only_is_accepted_without_making_up_frames(self):
         source = import_video(self.jobs.root, self.wav)["source"]

@@ -26,9 +26,9 @@ B站小管家 1.9.0 默认通过 `watch_media` 补读语音和画面。两者在
 
 ## 安装和运行
 
-Watch 0.10.0 的在线读取需要 OpenBot 0.1.78 或更新版本。宿主提供通用页面媒体接口和 `native_tools`，视频流程由插件负责。请先更新宿主，再从插件市场升级 Watch。
+Watch 0.12.0 需要支持 `pluginModelFiles` 的 OpenBot。宿主在安装时准备模型依赖，插件负责离线语音识别和画面读取。
 
-1. 使用支持依赖安装的新版本 OpenBot。安装弹窗会使用自带 Python 和 uv，按 requirements-media.lock 准备独立环境，并下载 FFmpeg/ffprobe 与 Deno；无需手动安装 Python 或修改系统 PATH。旧版宿主仍需自行准备这些依赖。
+1. 使用支持依赖安装的新版本 OpenBot。安装弹窗会使用自带 Python 和 uv，按 requirements-media.lock 准备独立环境，并下载 FFmpeg/ffprobe 与 Deno；同时按插件声明下载并校验语音模型。
 2. 在 OpenBot 的插件管理中导入本目录或从市场安装，在插件详情打开运行开关；再在目标实例或主人私聊中允许暴露插件工具。安装完成和启动状态分别以实际结果为准，查看画面需要支持图片的模型。
 3. 向 Bot 提供视频链接和问题。`watch_info` 可检查依赖；不要用执行脚本代替缺失的工具权限。
 
@@ -48,7 +48,7 @@ python -m pip install -r requirements-media.txt
 
 ## 分镜概览与高清补看
 
-`watch_start` 完成后，用 `watch_storyboard({job_id})` 一次读取分镜图片和时间、字幕索引。每页最多12格，最多两页；`next_page` 非空时继续读取。每格提供实际取帧时间、关联区间及字幕节选。字幕保留原时间，节选被截断时明确标记；完整文字仍由 `watch_transcript` 分页读取。相同画面合并存储后，各观察时刻仍有独立分镜编号。
+任务运行中返回 `storyboard_ready: true` 或任务完成且有分镜时，用 `watch_storyboard({job_id})` 一次读取分镜图片和时间、字幕索引。每页最多12格，最多两页；`next_page` 非空时继续读取。每格提供实际取帧时间、关联区间及字幕节选。字幕保留原时间，节选被截断时明确标记；完整文字仍由 `watch_transcript` 分页读取。相同画面合并存储后，各观察时刻仍有独立分镜编号。
 
 `watch_zoom({job_id,cell_id})` 从该任务缓存的原视频重新读取对应区间，默认抽取6个采样位置，返回新的任务编号；完成后用 `watch_frames` 查看独立画面。分镜编号绑定不可变的原任务，新概览和服务重启不会覆盖旧编号。补看可带 `crop`，不填时返回整帧。旧版本任务没有分镜索引时，原有画面、字幕和按时间补看仍可使用。
 
@@ -72,11 +72,11 @@ python -m pip install -r requirements-media.txt
 
 安装插件时，宿主按同一份带哈希的锁文件准备视频下载、图像和本地转写依赖，包括 faster-whisper、CTranslate2、NumPy、ONNX Runtime 与内置 Silero 语音检测。Windows 还声明 MSVC 运行库。无需另行执行 pip 安装。
 
-插件配置的“无字幕时的语音读取”默认选“本地转写”，可改为“仅使用字幕”。第一次确实需要读取无字幕音频时，插件准备固定版本的多语言 small 模型（约486 MB），逐文件校验 SHA256，运行模型与语音检测后才记为就绪。中断下载可续传，失败可重试；就绪后从本插件数据目录复用，普通任务清理不删除模型。后续识别离线运行，不上传音频，不自动切换云服务。
+插件配置的“无字幕时的语音读取”默认选“本地转写”，可改为“仅使用字幕”。安装插件时下载固定版本的多语言 small 模型（约 486 MB）并逐文件校验 SHA-256。需要转写时，Watch 启动自己的后台进程并加载模型，后续任务及浏览器音频分段共用它。取消正在执行的转写会终止该进程，下次转写时按需重建。
 
-流程参考 [claude-video](https://github.com/bradautomates/claude-video) 的本地模式：准备隔离环境和模型 → 试运行 → 字幕优先 → 缺字幕时转写 → 按时间整合画面和文字。Watch 沿用 faster-whisper，使用 CPU/int8，FFmpeg 将音频转为单声道16 kHz PCM；不额外安装 WhisperX/Torch，也不引入上游的 Gemini 或云转写账户。口述语言可留空自动识别，或在配置中填写 zh、en 等提示；它不改变字幕语言选择。
+流程参考 [claude-video](https://github.com/bradautomates/claude-video) 的本地模式：准备隔离环境和模型 → 字幕优先 → 缺字幕时转写 → 按时间整合画面和文字。Watch 沿用 faster-whisper，使用 CPU/int8，FFmpeg 将音频转为单声道16 kHz PCM；不额外安装 WhisperX/Torch，也不引入上游的 Gemini 或云转写账户。口述语言可留空自动识别，或在配置中填写 zh、en 等提示；它不改变字幕语言选择。
 
-`watch_info.asr.state` 区分 disabled、runtime_missing、model_missing、needs_warmup 和 ready。信息查询本身不下载模型。独立 MCP 使用者在本插件 `settings.json` 设置 `"asr_backend": "local"` 启用同一流程；已有 `asr_model_path` 继续使用主人指定的模型目录，也会先试运行。可提前执行 `python -B tools/setup_asr.py --data-dir <本插件数据目录>` 准备托管模型。
+`watch_info.asr.state` 区分 disabled、runtime_missing、model_missing、model_invalid、needs_warmup 和 ready。信息查询本身不下载模型。独立 MCP 使用者在本插件 `settings.json` 设置 `"asr_backend": "local"` 启用转写。独立部署前执行 `python -B tools/setup_asr.py --data-dir <本插件数据目录>` 准备并验证模型；使用已有的 `asr_model_path` 时，加 `--model <模型目录>`。
 
 平台和浏览器文字字幕优先；本地或下载文件还会读取 SRT、ASS/SSA、WebVTT、mov_text 等内嵌文字字幕。整条字幕可用而所选片段没有台词时，不再启动转写。图片字幕和烧录在画面里的字幕不作为文字轨抽取，需要结合实际画面阅读。
 
@@ -107,7 +107,7 @@ python -B tools/server.py --data-dir 'D:/OpenBotData/mcp/ext-example' --import-f
 - 整帧与局部画面的长边最多 1920 像素，保留普通横屏或竖屏 1080p 的尺寸，不放大小尺寸视频。局部补看从原视频裁剪，保留原始像素细节；结果中的 `frame_view` 及图片文字说明区分整帧和裁剪画面。
 - 默认最多12个采样位置，可设为2–24个；极短片段会减少区间数。`balanced` 按变化密度分配，`uniform` 等距采样。分镜每页返回一张拼图，独立画面每次最多四张。只合并字节完全相同的图片，保留所有观察时间戳。
 - 用 `watch:<job_id>` 复用原文件，选择新范围或具体时间戳。结果始终报告实际处理区间、采样时间、最大观察间隔和字幕来源；下载到预览或短文件时会提示。
-- 同一服务串行处理视频，最多四个未完成任务。下载/抽帧/转写有超时、容量限制与取消。服务重启后将未完成任务标为中断，不自动重放。
+- 同一服务一次处理一个视频，最多四个未完成任务。视频需要本地转写时，抽帧、拼图和语音转写并行。运行中可按状态里的 `storyboard_ready` 或 `frames_ready` 先看画面，完成后再取带时间戳的转写。网页播放器的寻帧和录音共用同一播放位置，采集完成后再并行处理。下载/抽帧/转写有超时、容量限制与取消。服务重启后将未完成任务标为中断，不自动重放。
 - 缓存上限 2 GiB，最多 64 个任务。任务及导入文件保留约 24 小时，在服务启动或队列空闲时的新请求触发清理；达到限额时拒绝新任务。
 - 数据按实例隔离。任务标识是不可猜测的读取凭证，无任务列表接口。MCP 当前未向本服务传递经过验证的聊天身份，因此这些标识不能作为严格的跨聊天身份隔离；Skill 要求只在原任务内使用它们。
 
