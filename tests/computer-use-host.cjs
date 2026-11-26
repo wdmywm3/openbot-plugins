@@ -74,6 +74,7 @@ async function main() {
   const { createExternalMcpService } = host("./electron/lib/features/mcp-external-service.cjs");
   const { createPluginToolService } = host("./electron/lib/plugins/plugin-tools.cjs");
   const { channelPrincipalForMessage } = host("./electron/lib/features/channels/channel-permissions.cjs");
+  const { groupTurnPrincipal } = host("./electron/lib/features/channels/channel-turn-sources.cjs");
 
   const parent = fs.realpathSync(os.tmpdir());
   const root = fs.mkdtempSync(path.join(parent, "openbot-cu-host-"));
@@ -96,17 +97,26 @@ async function main() {
     channelPrincipal: channelPrincipalForMessage(channel, { id: randomUUID(), chatId: "onebot:" + type + ":" + (type === "group" ? "42" : sender),
       messageType: type, sender: { id: sender, role: "member" } }) });
   const [a, b] = channels.map(channel => context(channel));
-  async function invoke(tool, input, ctx = a, key = randomUUID()) {
+  const group = context(channels[0], "101", "group");
+  const member = context(channels[0], "202", "group").channelPrincipal;
+  const ownerMessage = group.channelPrincipal.messageId;
+  group.channelPrincipal = groupTurnPrincipal(group.channelPrincipal, [
+    { senderId: "101", messageId: ownerMessage },
+    { senderId: member.senderId, messageId: member.messageId, platformRole: "owner" },
+  ]);
+  const ownerOnlyGroup = { ...group, channelPrincipal: { ...group.channelPrincipal, groupMessageSources: group.channelPrincipal.groupMessageSources.slice(0, 1) } };
+  async function invoke(tool, input, ctx = a, key = randomUUID(), messageId) {
     const name = "plugin__computer-use__" + tool;
-    let job = await runtime.runNativePluginTool(name, { action: "start", requestKey: key, input }, ctx);
+    let job = await runtime.runNativePluginTool(name, { action: "start", requestKey: key, input, messageId }, ctx);
     const deadline = Date.now() + 30000;
     while (job.status === "running" && Date.now() < deadline) {
       await delay(80);
-      job = await runtime.runNativePluginTool(name, { action: "status", jobId: job.id }, ctx);
+      job = await runtime.runNativePluginTool(name, { action: "status", jobId: job.id, messageId }, ctx);
     }
     if (job.status !== "completed") throw Error(String(job.error || job.status));
     return job;
   }
+  const invokeInGroup = (tool, input) => invoke(tool, input, group, randomUUID(), ownerMessage);
   const token = (state, pattern) => {
     const row = state.tree.match(pattern);
     assert.ok(row, "expected fixture control in the UIA tree");
@@ -122,7 +132,11 @@ async function main() {
     assert.equal(store.data.mcps.filter(e => e.pluginId === loaded.id).length, 2);
     assert.equal(runtime.pluginToolSchemas(a).length, 6);
     assert.equal(runtime.pluginToolSchemas(context(channels[0], "202")).length, 0);
-    assert.equal(runtime.pluginToolSchemas(context(channels[0], "101", "group")).length, 0);
+    assert.equal(runtime.pluginToolSchemas({ ...group, channelPrincipal: member }).length, 0);
+    assert.equal(runtime.pluginToolSchemas(group).length, 6);
+    await assert.rejects(invoke("windows", {}, group), /当前聊天未启用此插件/);
+    await assert.rejects(invoke("windows", {}, group, randomUUID(), member.messageId), /当前聊天未启用此插件/);
+    await assert.rejects(invokeInGroup("open_app", { name: "OpenBot Fixture" }), /允许打开应用或激活窗口/);
     const entry = store.data.mcps.find(e => e.channelId === channels[0].id && e.pluginId === loaded.id);
     assert.deepEqual((await mcp.request(entry.id, "tools/list", {}, a)).tools, []);
     await assert.rejects(mcp.request(entry.id, "tools/call", { name: "desktop_step", arguments: {} }, a), /未获授权/);
@@ -161,6 +175,21 @@ async function main() {
     await invoke("act", { view: captured.result.view, action: "click", x: win.x, y: win.y });
     assert.ok((await invoke("view", target)).result.tree.includes('Button "Clicked twice"'), "window-local screenshot coordinates including display scaling");
     assert.equal((await invoke("finish", {})).result.released, true);
+
+    const groupView = await invoke("view", { ...target, image: true }, ownerOnlyGroup, randomUUID(), ownerMessage);
+    assert.ok(groupView.userContextBlocks.some(part => part.type === "image_url"));
+    assert.ok(!groupView.result.url);
+    const groupState = (await invokeInGroup("view", target)).result;
+    const groupText = "主人在群里安排任务";
+    await invokeInGroup("act", { ...type, view: groupState.view, element: token(groupState, /\[(\d+)\] Edit/), text: groupText });
+    const groupImage = await invokeInGroup("screenshot", target);
+    assert.ok(groupImage.result.tree.includes(groupText));
+    assert.ok(!groupImage.result.attachments);
+    const media = [{ type: "image", data: { file: groupImage.result.url } }];
+    assert.match((await runtime.resolvePluginMedia(channels[0], member.chatId, media))[0].data.file, /^base64:\/\//);
+    await assert.rejects(runtime.resolvePluginMedia(channels[0], a.channelPrincipal.chatId, media), { message: "此媒体在当前范围不可用" });
+    assert.equal((await invokeInGroup("finish", {})).result.released, true);
+
     fs.writeFileSync(pauseFile, "");
     const pauseDeadline = Date.now() + 4000;
     while (!fs.existsSync(pauseFile + ".started") && Date.now() < pauseDeadline) await delay(30);
@@ -173,7 +202,7 @@ async function main() {
     await delay(4600);
     assert.equal(mcp.pluginStatus(loaded.id).state, "running", "canceling a stalled driver call keeps both MCP services running");
     const next = await invoke("view", target, b);
-    assert.ok(next.result.tree.includes(text));
+    assert.ok(next.result.tree.includes(groupText));
     await assert.rejects(invoke("act", type, b), /观察已失效/);
     await invoke("act", { view: next.result.view, action: "click", element: token(next.result, /\[(\d+)\] Button "Minimize fixture"/) }, b);
     await assert.rejects(invoke("screenshot", target, b), /最小化/);
@@ -204,7 +233,8 @@ async function main() {
     await installer.authorizePlugin({ pluginId: loaded.id, fingerprint: loaded.authorization.fingerprint, approved: false });
     await mcp.syncPlugins();
     assert.equal(runtime.pluginToolSchemas(a).length, 0);
-    console.log("Computer use: managed install, private routing, Chinese input, UIA/pixel clicks, Electron canvas, screenshots, minimized window, stale input, per-instance settings, multi-instance exclusion, cancellation and revocation passed.");
+    assert.equal(runtime.pluginToolSchemas(group).length, 0);
+    console.log("Computer use: managed install, owner private and group routing, chat-scoped screenshots, Chinese input, UIA/pixel clicks, Electron canvas, minimized window, stale input, per-instance settings, multi-instance exclusion, cancellation and revocation passed.");
   } finally {
     if (form && form.exitCode === null && !form.killed) form.kill();
     if (canvas && canvas.exitCode === null && canvas.signalCode === null) {

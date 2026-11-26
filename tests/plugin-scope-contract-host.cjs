@@ -6,7 +6,7 @@ const load = file => require(path.join(host, "electron/lib", file));
 const { readRuntime } = load("plugins/plugin-install-package.cjs");
 const { decidePluginAuthorization, pluginAuthorization } = load("plugins/plugin-authorization.cjs");
 const { createChannelPluginRegistryService } = load("features/channels/channel-plugin-registry-service.cjs");
-const { pluginOperationAccess } = load("features/channels/channel-operation-policy.cjs");
+const { pluginOperation, pluginOperationAccess } = load("features/channels/channel-operation-policy.cjs");
 const { validatePluginOverrides } = load("plugins/plugin-config-validation.cjs");
 const { deliveryTarget } = load("plugins/plugin-conversation-policy.cjs");
 const entries = require("../catalog-v2.json").plugins;
@@ -54,15 +54,30 @@ for (const { id, version } of entries) {
     }
   }
   if (id === "content-monitor" || id === "computer-use") {
-    assert.equal(get(a, chat).enabled, false);
-    const caller = { chatId: chat, messageType: "group", source: "channel", senderId: "outsider", role: "member" };
+    const groupSupport = id === "computer-use";
+    assert.equal(get(a, chat).enabled, groupSupport);
+    const caller = { chatId: chat, messageType: "group", source: "channel", senderId: "outsider", role: "member", platformRole: "owner" };
     const declaration = (local.commands || [])[0] || local.tools[0];
-    const operation = load("features/channels/channel-operation-policy.cjs").pluginOperation(local, declaration);
+    const kind = local.commands?.length ? "command" : "tool";
+    const operation = pluginOperation(local, declaration, kind);
     a.config.commandPolicy = { rules: { [operation.id]: { subjects: ["everyone"], contexts: ["group"] } } };
-    assert.deepEqual(pluginOperationAccess(a, local, declaration, caller, caller), { allowed: false, reason: "此插件操作仅支持私聊" });
+    assert.deepEqual(pluginOperationAccess(a, local, declaration, caller, caller, kind),
+      { allowed: false, reason: groupSupport ? "此插件操作仅允许主人使用" : "此插件操作仅支持私聊" });
     const privateCaller = { ...caller, chatId: "onebot:private:outsider", messageType: "private" };
-    assert.deepEqual(pluginOperationAccess(a, local, declaration, privateCaller, privateCaller), { allowed: false, reason: "此插件操作仅允许主人使用" });
-    if (id === "content-monitor") {
+    assert.deepEqual(pluginOperationAccess(a, local, declaration, privateCaller, privateCaller, kind),
+      { allowed: false, reason: "此插件操作仅允许主人使用" });
+    if (groupSupport) {
+      assert.deepEqual(local.ui.chatAudiences, ["private:owner", "group:owner"]);
+      const owner = { ...caller, senderId: "host-owner", platformRole: "member" };
+      assert.equal(get(a, chat, caller).enabled, false);
+      assert.equal(get(a, chat, owner).enabled, true);
+      for (const tool of local.tools) {
+        assert.equal(pluginOperationAccess(a, local, tool, owner, owner, "tool").allowed, true);
+      }
+      local.conversationTypes = ["private:owner"];
+      assert.equal(get(a, chat, owner).enabled, false);
+      delete local.conversationTypes;
+    } else {
       assert.equal(get(a, chat, { [deliveryTarget]: true }).enabled, true);
       a.config.chatOverrides[chat].pluginOverrides[id] = { mode: "disabled" };
       assert.equal(get(a, chat, { [deliveryTarget]: true }).enabled, false);

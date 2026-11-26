@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "computer-use",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
   "extensions": {
     "com.openbot": {
@@ -16,8 +16,9 @@
       ],
       "dependencies": { "python": { "version": "3.12", "requirements": "requirements.lock" } },
       "metadata": {
-        "usage": "在主人私聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
+        "usage": "实例主人可在 QQ 私聊或群聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
         "requirements": ["Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。", "查看截图需要支持图片的模型。"],
+        "changelog": "实例主人可在 QQ 群聊中操作电脑，并按要求将截图发到当前聊天。",
         "homepage": "https://github.com/wdmywm3/openbot-plugins"
       },
       "configSchema": {
@@ -32,21 +33,21 @@
       "tools": [
         {
           "name": "windows", "export": "windows", "description": "按应用名、窗口标题或进程号查找本机已打开的窗口。",
-          "scope": "private", "permission": "owner", "mutating": false,
+          "scope": "all", "permission": "owner", "mutating": false,
           "inputSchema": { "type": "object", "additionalProperties": false, "properties": {
             "query": { "type": "string", "maxLength": 160 }, "pid": { "type": "integer", "minimum": 1 }
           } }
         },
         {
           "name": "open_app", "export": "open_app", "description": "按应用显示名称打开用户指定的 Windows 应用。需要已允许打开应用或激活窗口。",
-          "scope": "private", "permission": "owner", "mutating": true,
+          "scope": "all", "permission": "owner", "mutating": true,
           "inputSchema": { "type": "object", "additionalProperties": false, "required": ["name"], "properties": {
             "name": { "type": "string", "minLength": 1, "maxLength": 100 }
           } }
         },
         {
           "name": "view", "export": "view", "description": "读取选定窗口的控件、文字和快照编号。需要视觉定位时可附窗口图片。",
-          "scope": "private", "permission": "owner", "mutating": false,
+          "scope": "all", "permission": "owner", "mutating": false,
           "inputSchema": { "type": "object", "additionalProperties": false, "required": ["pid", "window_id"], "properties": {
             "pid": { "type": "integer", "minimum": 1 }, "window_id": { "type": "integer", "minimum": 1 },
             "query": { "type": "string", "maxLength": 200 }, "image": { "type": "boolean" }
@@ -54,7 +55,7 @@
         },
         {
           "name": "act", "export": "act", "description": "对最近一次观察的窗口执行一个动作。用控件 token 或当前图片的相对坐标定位，动作后重新观察。",
-          "scope": "private", "permission": "owner", "mutating": true,
+          "scope": "all", "permission": "owner", "mutating": true,
           "inputSchema": { "type": "object", "additionalProperties": false, "required": ["view", "action"], "properties": {
             "view": { "type": "string", "minLength": 1, "maxLength": 64 },
             "action": { "type": "string", "enum": ["click", "type", "key", "scroll", "drag"] },
@@ -73,15 +74,15 @@
           } }
         },
         {
-          "name": "screenshot", "export": "screenshot", "description": "按用户的明确要求取得指定窗口截图，生成可在当前主人私聊发送的图片地址。",
-          "scope": "private", "permission": "owner", "mutating": true,
+          "name": "screenshot", "export": "screenshot", "description": "按主人明确要求取得指定窗口截图，生成可在当前聊天发送的图片地址。",
+          "scope": "all", "permission": "owner", "mutating": true,
           "inputSchema": { "type": "object", "additionalProperties": false, "required": ["pid", "window_id"], "properties": {
             "pid": { "type": "integer", "minimum": 1 }, "window_id": { "type": "integer", "minimum": 1 }
           } }
         },
         {
           "name": "finish", "export": "finish", "description": "结束本次桌面操作，释放当前任务占用的桌面。",
-          "scope": "private", "permission": "owner", "mutating": false,
+          "scope": "all", "permission": "owner", "mutating": false,
           "inputSchema": { "type": "object", "additionalProperties": false, "properties": {} }
         }
       ],
@@ -89,7 +90,8 @@
         "version": 1,
         "sections": [],
         "chatAudiences": [
-          "private:owner"
+          "private:owner",
+          "group:owner"
         ]
       }
     }

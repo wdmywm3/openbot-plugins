@@ -6,7 +6,7 @@
 
 ## 电脑操作
 
-在实例主人的私聊中操作本机 Windows 应用，支持读取窗口、点击控件、中文输入和窗口截图。需要 Windows x64，Cua Driver 随插件依赖准备。[安装与使用](plugins/computer-use/README.md)
+实例主人可在 QQ 私聊和群聊中操作本机 Windows 应用，支持读取窗口、点击控件、中文输入和窗口截图。需要 Windows x64，Cua Driver 随插件依赖准备。[安装与使用](plugins/computer-use/README.md)
 
 ## 画图
 
