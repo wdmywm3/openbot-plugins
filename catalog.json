@@ -201,13 +201,14 @@
     {
       "id": "computer-use",
       "name": "电脑操作",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
       "category": "utility",
       "main": "index.js",
       "permissions": [
         "mcp",
-        "assets"
+        "assets",
+        "agent"
       ],
       "metadata": {
         "usage": "实例主人可在 QQ 私聊或群聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
@@ -216,7 +217,7 @@
           "Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。",
           "查看截图需要支持图片的模型。"
         ],
-        "changelog": "实例主人可在 QQ 群聊中操作电脑，并按要求将截图发到当前聊天。",
+        "changelog": "群聊和私聊的电脑操作默认由子代理完成，支持在群聊任务中查看窗口预览。",
         "homepage": "https://github.com/wdmywm3/openbot-plugins",
         "components": [
           "tools",
@@ -225,12 +226,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "4fdc660cc28d42946e58d51df39a9c2511f1bb16",
+      "ref": "61e3f597b2ba4a2d9dc4c1cda6cee6c408b264a8",
       "files": [
         {
           "path": "README.md",
-          "size": 2149,
-          "sha256": "ec458ba49702031e019be9e70cb3f2fa04376450e80d7247967d110ea5384e29"
+          "size": 2188,
+          "sha256": "0347c4612cf1c034784800793225c586e7ae6711d41238f640c832d1605a193a"
         },
         {
           "path": "desktop_server.py",
@@ -239,8 +240,8 @@
         },
         {
           "path": "index.js",
-          "size": 3095,
-          "sha256": "1ec7088ee1509c9d3bb529fe7c909855b72f60936787cd0b9b39b7ac0be8008e"
+          "size": 4398,
+          "sha256": "50121e5b05b52819f67e5628507298ba90d5e16b042ea594a95e8a6ab7936500"
         },
         {
           "path": "mcp.json",
@@ -249,8 +250,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 5951,
-          "sha256": "46e37e609c06013087dee759ca7480bf132d7d94d071b382a3606bc5b0077200"
+          "size": 6876,
+          "sha256": "70b441e71e521cd83da2c902561dbad2ed8a4ab5f1742fe88ef7273e8b780eff"
         },
         {
           "path": "requirements.lock",
@@ -259,8 +260,8 @@
         },
         {
           "path": "skills/computer-use/SKILL.md",
-          "size": 2937,
-          "sha256": "8794c732193048ee2320ad619c085f641f8d17d6abc1e4bc335c7ed35be82285"
+          "size": 2727,
+          "sha256": "8be912955b9bd61fd767e6aaeade4b70f14a024d83682e009beef4972d8e9e41"
         }
       ]
     },
@@ -474,7 +475,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.5",
+      "version": "0.6.6",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -502,14 +503,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "用户只给主题或参考图时，Bot 会自行构思画面。参考图用于创作新图时，会设计明显不同的动作、视角或构图。",
+        "changelog": "自拍表情成品可填写动作名称，图库仅自动收藏当前角色自己的表情。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "1377402b3aeea9b9cd427c71a07c4101610be63e",
+      "ref": "61e3f597b2ba4a2d9dc4c1cda6cee6c408b264a8",
       "files": [
         {
           "path": "README.md",
@@ -518,13 +519,13 @@
         },
         {
           "path": "index.js",
-          "size": 49308,
-          "sha256": "ccb95cecd5e4d340dc2140fae149272fd9e510e930061dc63aa08bf8fff5f456"
+          "size": 49791,
+          "sha256": "f75d00fa6d9396310dd046ee761689feaa8127292114242a5f64277c5a92a93b"
         },
         {
           "path": "plugin.json",
-          "size": 27382,
-          "sha256": "ea4a7c0400d4fdbc704a1abcde50b728191ccc93c5de9854d20a942cdcf6aed2"
+          "size": 27326,
+          "sha256": "c036d9b93c311648a53e4e96103f88bd9477a1aea8af7fa965c776e950b4eda2"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
@@ -553,8 +554,8 @@
         },
         {
           "path": "skills/imagegen/SKILL.md",
-          "size": 6907,
-          "sha256": "b773088c1280bcda795c6466bc5d9f6cb0ce5438399eb84a2a240b370d174f53"
+          "size": 6867,
+          "sha256": "e069881586f70016f105d1717fb4d0d3639d909c051ff65dda25163cb11dcc71"
         },
         {
           "path": "skills/imagegen/references/prompting.md",
@@ -573,8 +574,8 @@
         },
         {
           "path": "skills/imagegen/references/tool-use.md",
-          "size": 5007,
-          "sha256": "e5c272d3346b08d7536ac96f129a1025099c4c4ad446156d76108e95fa0b0995"
+          "size": 4758,
+          "sha256": "6b5fc9fcd43e9a3ed23c8580ae67efeb06710fbc7abae7457be932eb124a03b6"
         },
         {
           "path": "ui/reference.css",
@@ -702,7 +703,7 @@
     {
       "id": "meme-library",
       "name": "表情包",
-      "version": "2.6.7",
+      "version": "2.6.8",
       "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
       "category": "entertainment",
       "main": "index.js",
@@ -738,7 +739,7 @@
           "需要宿主提供 embeddings 和 vectorIndex 接口；图片准备服务仅安装 sharp，不再安装 Transformers 或 ONNX Runtime。",
           "检索模型和下载来源统一在 OpenBot 的模型设置中管理；不可用时使用插件的 BM25 关键词索引。"
         ],
-        "changelog": "精简表情包插件注入的系统提示词与上下文可用性提示。",
+        "changelog": "聊天可直接发送最贴切的表情，并用短序号选图。自动收藏当前角色的自拍表情成品，按动作命名。",
         "components": [
           "commands",
           "hooks",
@@ -749,12 +750,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
+      "ref": "61e3f597b2ba4a2d9dc4c1cda6cee6c408b264a8",
       "files": [
         {
           "path": "README.md",
-          "size": 10791,
-          "sha256": "1bc5cc2312c89a3280054b1f8082ebedbbfff28be5835cb0f0892d38477b9782"
+          "size": 10751,
+          "sha256": "cad2a76c8e8141f29b249954ac38b094d7a11b2e9fb8fe24328e75a5a1b36789"
         },
         {
           "path": "engine/animation-NOTICE.txt",
@@ -773,8 +774,8 @@
         },
         {
           "path": "index.js",
-          "size": 79605,
-          "sha256": "b5f83afe9e26a2076064c6746fcc9d7a4a62a9f0060da5ee6ba9268003612ce3"
+          "size": 83331,
+          "sha256": "f7b97ba28796d07ceb8b330bb5ca7a0a0ad5eeba9a33a3afd01cc0d688c362d0"
         },
         {
           "path": "mcp.json",
@@ -793,13 +794,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 24142,
-          "sha256": "ac7f7cfb86989411d895d6b891e95757ae8fb8d229f829893c20aeead3875f74"
+          "size": 24602,
+          "sha256": "2d300c89c732c6f25a5c897642e73e25ac03cb348c003d595e027df06ed0707e"
         },
         {
           "path": "skills/stickers/SKILL.md",
-          "size": 5372,
-          "sha256": "29ee4fdd27d8bfecc4d47181b46d8c4475f50eb8c9baf3448572bd2448f00436"
+          "size": 1691,
+          "sha256": "56176933266f04c992adbc6c4f19fe47cfcfe23ab93a7bcfd8beb6f473d3ed71"
         },
         {
           "path": "ui/app.js",
