@@ -39,7 +39,7 @@ description: 通过画图插件生成图片、自拍或动图，编辑参考图�
 
 用 `draw_image` 的 `action:"start"` 提交；外层填写简短的 `title` 和稳定的 `requestKey`，`input` 中放 `mode`、创作正文 `prompt` 及本张所需的参数。一次生成一张，本轮有多条请求时分别关联真实的 `messageId`。同一条消息的多张参考使用相同的 `messageId`，按附件顺序填写从 0 起的 `index`。同一请求重试沿用原 key。
 
-只在用户要聊天反应表情时使用 `purpose:"sticker"`，草稿另加 `draft:true`。普通图片与动图默认使用 `purpose:"image"`。动图写清动作起止、固定机位或循环方式，使用 `format:"gif"` 及所需的帧参数。
+画自己的聊天表情用 `mode:"selfie"` 和 `purpose:"sticker"`，成品填写 `stickerName`。画其他角色的表情用 `mode:"image"`。用途和成品交付见 [工具参数](references/tool-use.md)。
 
 提交后等待原任务回执。生成成功时，按原请求用 `images[].url` 交付、暂存或继续改图。查询、取回旧图、取消及工具字段详见 `references/tool-use.md`；选择服务和模型时再读 `references/provider-controls.md`。
 

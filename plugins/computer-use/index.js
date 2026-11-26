@@ -47,6 +47,35 @@ async function step(ctx, operation) {
   return result;
 }
 
-for (const name of ["windows", "open_app", "view", "act", "screenshot", "finish"]) {
+const desktopTools = ["windows", "open_app", "view", "act", "screenshot", "finish"];
+
+module.exports.operate = async ctx => {
+  ownerChat(ctx.principal || {});
+  const task = ctx.input.task.trim();
+  if (!task) throw Error("请说明要操作的应用和任务。");
+  const shareScreenshot = ctx.input.shareScreenshot === true;
+  const tools = desktopTools.filter(name => shareScreenshot || name !== "screenshot").map(name => `plugin__computer-use__${name}`);
+  const result = await ctx.api.runAgent({
+    skill: "computer-use",
+    taskId: ctx.message.id,
+    prompt: task,
+    tools,
+    timeoutMs: 180000,
+  });
+  const { status, summary, remaining } = result;
+  const output = { status, summary, ...(remaining?.length ? { remaining } : {}) };
+  if (!shareScreenshot) return output;
+  const url = result.data?.screenshotUrl;
+  if (url) {
+    if (typeof url !== "string" || !/^openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image$/.test(url)) throw Error("子代理返回的截图地址无效。");
+    const image = await ctx.api.assets({ action: "inspectPublished", url });
+    if (image.pluginId !== ctx.plugin.id) throw Error("子代理返回的图片不属于本插件。");
+    return { ...output, url };
+  }
+  if (status === "completed") return { ...output, status: "partial", remaining: ["子代理未返回截图。"] };
+  return output;
+};
+
+for (const name of desktopTools) {
   module.exports[name] = ctx => step(ctx, name);
 }

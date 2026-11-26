@@ -71,6 +71,7 @@ async function main() {
   const { createPluginCommands } = host("./electron/lib/commands/extensions/plugin-commands.cjs");
   const { createChannelPluginRegistryService } = host("./electron/lib/features/channels/channel-plugin-registry-service.cjs");
   const { createChannelPluginRuntimeService, shutdownPluginWorkers } = host("./electron/lib/features/channels/channel-plugin-runtime-service.cjs");
+  const { createPluginAgentService } = host("./electron/lib/features/channels/channel-plugin-agent-service.cjs");
   const { createExternalMcpService } = host("./electron/lib/features/mcp-external-service.cjs");
   const { createPluginToolService } = host("./electron/lib/plugins/plugin-tools.cjs");
   const { channelPrincipalForMessage } = host("./electron/lib/features/channels/channel-permissions.cjs");
@@ -89,9 +90,42 @@ async function main() {
   const mcp = createExternalMcpService({ getStore: () => store, getPlugins: (id, chat, ctx) => registry.botPluginsFor(resolveChannel(id), chat, ctx),
     secretStore: { encryptSecret: v => v, hydrateSecretMap: v => v } });
   const pluginTools = createPluginToolService({ entries: () => store.data.mcps, request: (...args) => mcp.request(...args), allowedTools: async () => [] });
+  const model = { id: "fixture-vision", imageEnabled: true };
+  let workerTarget, workerText;
+  const delegatedText = "子代理核对了输入";
+  const runPluginAgent = createPluginAgentService({
+    getStore: () => store,
+    chatOverrideFor: () => ({}),
+    channelAgentProfileByRef: id => ({ id }),
+    getModelForSession: () => model,
+    getExactModelById: id => id === model.id ? model : null,
+    llmToolSchemas: async (_, ctx) => runtime.pluginToolSchemas(ctx),
+    streamLlm: async (_, messages, signal, _onText, _onUsage, ctx) => {
+      signal.throwIfAborted();
+      assert.equal(ctx.channelPrincipal.senderId, "101");
+      assert.equal(ctx.channelPrincipal.groupMessageSources, undefined);
+      assert.match(messages[1].content, /task_result\.data\.screenshotUrl/);
+      assert.ok(!ctx.allowedToolNames.includes("plugin__computer-use__operate"));
+      const canShareScreenshot = ctx.allowedToolNames.includes("plugin__computer-use__screenshot");
+      assert.equal(canShareScreenshot, ctx.channelPrincipal.messageType === "group");
+      const preview = await invoke("view", { ...workerTarget, image: true }, ctx);
+      assert.ok(preview.result.tree.includes(workerText));
+      assert.ok(preview.userContextBlocks.some(part => part.type === "image_url"));
+      let screenshot;
+      if (canShareScreenshot) {
+        await invoke("act", { view: preview.result.view, action: "type", element: token(preview.result, /\[(\d+)\] Edit/), text: delegatedText }, ctx);
+        const captured = await invoke("screenshot", workerTarget, ctx);
+        assert.ok(captured.result.tree.includes(delegatedText));
+        screenshot = captured.result.url;
+      }
+      assert.equal((await invoke("finish", {}, ctx)).result.released, true);
+      ctx.taskResultSubmit({ outcome: "completed", summary: "已核对测试窗口文字。", ...(screenshot ? { data: { screenshotUrl: screenshot } } : {}) });
+    },
+  });
   const runtime = createChannelPluginRuntimeService({ fs, path, store, ensureStoreArray: array, resolveChannel, pluginTools,
     botPluginsFor: registry.botPluginsFor, getPluginState: registry.getPluginState, setPluginState: registry.setPluginState,
-    pluginStateScopeId: registry.pluginStateScopeId, makeId: prefix => prefix + "-" + randomUUID(), safeError: e => e.message, isNapCatOneBotChannel: () => true });
+    pluginStateScopeId: registry.pluginStateScopeId, makeId: prefix => prefix + "-" + randomUUID(), safeError: e => e.message,
+    isNapCatOneBotChannel: () => true, runPluginAgent });
 
   const context = (channel, sender = "101", type = "private") => ({ purpose: "chat", requestId: randomUUID(),
     channelPrincipal: channelPrincipalForMessage(channel, { id: randomUUID(), chatId: "onebot:" + type + ":" + (type === "group" ? "42" : sender),
@@ -130,12 +164,13 @@ async function main() {
     await installer.authorizePlugin({ pluginId: loaded.id, fingerprint: loaded.authorization.fingerprint, approved: true });
     await mcp.startPlugin(loaded.id);
     assert.equal(store.data.mcps.filter(e => e.pluginId === loaded.id).length, 2);
-    assert.equal(runtime.pluginToolSchemas(a).length, 6);
+    assert.equal(runtime.pluginToolSchemas(a).length, 7);
     assert.equal(runtime.pluginToolSchemas(context(channels[0], "202")).length, 0);
     assert.equal(runtime.pluginToolSchemas({ ...group, channelPrincipal: member }).length, 0);
-    assert.equal(runtime.pluginToolSchemas(group).length, 6);
+    assert.equal(runtime.pluginToolSchemas(group).length, 7);
     await assert.rejects(invoke("windows", {}, group), /当前聊天未启用此插件/);
     await assert.rejects(invoke("windows", {}, group, randomUUID(), member.messageId), /当前聊天未启用此插件/);
+    await assert.rejects(invoke("operate", { task: "查看窗口" }, group, randomUUID(), member.messageId), /当前聊天未启用此插件/);
     await assert.rejects(invokeInGroup("open_app", { name: "OpenBot Fixture" }), /允许打开应用或激活窗口/);
     const entry = store.data.mcps.find(e => e.channelId === channels[0].id && e.pluginId === loaded.id);
     assert.deepEqual((await mcp.request(entry.id, "tools/list", {}, a)).tools, []);
@@ -190,6 +225,16 @@ async function main() {
     await assert.rejects(runtime.resolvePluginMedia(channels[0], a.channelPrincipal.chatId, media), { message: "此媒体在当前范围不可用" });
     assert.equal((await invokeInGroup("finish", {})).result.released, true);
 
+    workerTarget = target;
+    workerText = groupText;
+    const privateTask = await invoke("operate", { task: "核对测试窗口文字" });
+    assert.deepEqual(privateTask.result, { status: "completed", summary: "已核对测试窗口文字。" });
+    const groupTask = await invokeInGroup("operate", { task: "填写文字、核对结果并把窗口截图发到当前群聊", shareScreenshot: true });
+    assert.equal(groupTask.result.status, "completed");
+    assert.equal(groupTask.userContextBlocks, undefined);
+    assert.ok(groupTask.result.url);
+    assert.match((await runtime.resolvePluginMedia(channels[0], member.chatId, { file: groupTask.result.url })).file, /^base64:\/\//);
+
     fs.writeFileSync(pauseFile, "");
     const pauseDeadline = Date.now() + 4000;
     while (!fs.existsSync(pauseFile + ".started") && Date.now() < pauseDeadline) await delay(30);
@@ -202,7 +247,7 @@ async function main() {
     await delay(4600);
     assert.equal(mcp.pluginStatus(loaded.id).state, "running", "canceling a stalled driver call keeps both MCP services running");
     const next = await invoke("view", target, b);
-    assert.ok(next.result.tree.includes(groupText));
+    assert.ok(next.result.tree.includes(delegatedText));
     await assert.rejects(invoke("act", type, b), /观察已失效/);
     await invoke("act", { view: next.result.view, action: "click", element: token(next.result, /\[(\d+)\] Button "Minimize fixture"/) }, b);
     await assert.rejects(invoke("screenshot", target, b), /最小化/);
@@ -234,7 +279,7 @@ async function main() {
     await mcp.syncPlugins();
     assert.equal(runtime.pluginToolSchemas(a).length, 0);
     assert.equal(runtime.pluginToolSchemas(group).length, 0);
-    console.log("Computer use: managed install, owner private and group routing, chat-scoped screenshots, Chinese input, UIA/pixel clicks, Electron canvas, minimized window, stale input, per-instance settings, multi-instance exclusion, cancellation and revocation passed.");
+    console.log("Computer use: managed install, delegated private and mixed-group tasks with visual previews, chat-scoped screenshots, Chinese input, UIA/pixel clicks, Electron canvas, minimized window, stale input, per-instance settings, multi-instance exclusion, cancellation and revocation passed.");
   } finally {
     if (form && form.exitCode === null && !form.killed) form.kill();
     if (canvas && canvas.exitCode === null && canvas.signalCode === null) {

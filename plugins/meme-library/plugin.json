@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meme-library",
-  "version": "2.6.7",
+  "version": "2.6.8",
   "description": "管理聊天表情，自动识图，通过共享检索模型按语境选图。",
   "extensions": {
     "com.openbot": {
@@ -137,6 +137,17 @@
                 "type": "string",
                 "maxLength": 256
               },
+              "number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000,
+                "description": "填字时使用本次搜索返回的表情序号。"
+              },
+              "referenceFormat": {
+                "type": "string",
+                "enum": ["number", "url"],
+                "description": "搜索结果默认使用序号。需要直接读取图片地址的调用方可选 url。"
+              },
               "id": {
                 "type": "string",
                 "maxLength": 256
@@ -165,7 +176,7 @@
                   "optional",
                   "required"
                 ],
-                "description": "搜索用途。optional 是文字顺便配图；required 是用户明确要表情、斗图或删掉图就无法完成回复。仅本次回复的必要表情免除配图概率和间隔。"
+                "description": "optional 表示随手配图。用户明确要表情、正在斗图或回复离不开图片时使用 required。"
               },
               "url": {
                 "type": "string",
@@ -845,7 +856,7 @@
         ]
       },
       "metadata": {
-        "changelog": "精简表情包插件注入的系统提示词与上下文可用性提示。",
+        "changelog": "聊天可直接发送最贴切的表情，并用短序号选图。自动收藏当前角色的自拍表情成品，按动作命名。",
         "requirements": [
           "请先安装 OpenBot 0.1.109 或更新版本，再更新本插件。",
           "OpenBot 的受管 Node.js 24 环境；Windows x64 已验证，CPU 推理，无需 Python 或 CUDA。",

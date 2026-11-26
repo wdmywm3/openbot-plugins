@@ -51,7 +51,7 @@ function fixture(config = {}, input = {}) {
   assert.equal(fx.publications[0].shareable, true); assert.equal(fx.publications[0].metadata.reusable, false);
   fx = fixture({}, { purpose: "sticker", format: "gif" }); fx.state.payload = { data: [{ b64_json: gif }] };
   await draw(fx.ctx);
-  assert.deepEqual(fx.publications[0].metadata, { generated: true, purpose: "sticker", reusable: true });
+  assert.deepEqual(fx.publications[0].metadata, { generated: true, purpose: "sticker", reusable: false });
   assert.equal(fx.publications[0].compact, true); assert.equal(fx.stored[0].data, gif);
   fx = fixture({}, { purpose: "sticker", draft: true }); await draw(fx.ctx);
   assert.equal(fx.publications[0].metadata.reusable, false, "drafts are not marked as reusable outputs");

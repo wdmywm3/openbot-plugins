@@ -607,6 +607,9 @@ async function drawImage(ctx, mode) {
   const input = ctx.input || {}, config = ctx.config || {};
   const purpose = input.purpose || "image";
   if (!["image", "sticker"].includes(purpose) || input.draft !== undefined && typeof input.draft !== "boolean") throw Error("图片用途无效");
+  const selfSticker = mode === "selfie" && purpose === "sticker" && input.draft !== true;
+  const stickerName = selfSticker && input.stickerName !== undefined ? string(input.stickerName, 24, "表情名称") : "";
+  if (/[\x00-\x1f\x7f<>:"/\\|?*]/.test(stickerName)) throw Error("表情名称含有不支持的字符");
   if (input.selfieView !== undefined && (mode !== "selfie" || !SELFIE_VIEWS.includes(input.selfieView))) throw Error("请选择有效的角色视角");
   let prompt = string(input.prompt, LIMIT.prompt, "画图要求");
   const settings = options(input, config), snapshot = mode === "selfie" ? await readSelfieSnapshot(ctx, input.selfieView || "front") : null;
@@ -689,14 +692,16 @@ async function drawImage(ctx, mode) {
   const data = base64(picture.data, limits.image), mimeType = imageType(data, settings.output_format === "gif");
   if (settings.output_format === "gif" && mimeType !== "image/gif") throw Error("服务没有返回所请求的 GIF 动图");
   const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }[mimeType];
+  const roleProfileId = selfSticker ? snapshot.references?.[0]?.profileId || ctx.profile?.id : "";
+  const reusable = !!roleProfileId && roleProfileId === ctx.profile?.id;
   check(ctx);
-  const stored = await ctx.api.assets({ action: "put", data, mimeType, name: `drawing.${extension}`, kind: "image" });
+  const name = stickerName ? `表情-${stickerName}.${extension}` : `drawing.${extension}`;
+  const stored = await ctx.api.assets({ action: "put", data, mimeType, name, kind: "image" });
   check(ctx);
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   const published = await ctx.api.assets({ action: "publish", ref: stored.ref, shareable: true, compact: purpose === "sticker",
-    metadata: { generated: true, purpose, reusable: purpose === "sticker" && input.draft !== true,
-      ...(purpose === "sticker" && mode === "selfie" && ctx.profile?.id ? { roleProfileId: ctx.profile.id } : {}) } });
+    metadata: { generated: true, purpose, reusable, ...(roleProfileId ? { roleProfileId } : {}), ...(stickerName ? { stickerName } : {}) } });
   await currentDrawConfig(ctx, mode);
   if (snapshot) await assertSelfieCurrent(ctx, snapshot);
   return { mode, provider, ...(snapshot?.manual ? { selfieReferenceRevision: snapshot.manual.revision } : {}), images: [{ assetRef: stored.ref, url: published.url, mimeType }],

@@ -39,7 +39,7 @@ function fixture(pictures, config = {}) {
     updateState: async (name, reducer, scope) => { key(name, scope); return write(name, reducer(plain(state.get(name)))); },
     assets: async input => {
       if (input.action === "put") { fx.puts.push(plain(input)); return { ref: "result-" + ++serial }; }
-      if (input.action === "publish") { fx.publications.push(input.ref); return { url: "openbot-asset://plugin-media/fixture/image" }; }
+      if (input.action === "publish") { fx.publications.push(plain(input)); return { url: "openbot-asset://plugin-media/fixture/image" }; }
       if (input.action === "remove") { fx.removals.push(input.ref); assets.delete(input.ref); return { removed: true }; }
       const value = assets.get(input.ref); if (!value) throw Error("媒体不存在或当前范围不可用");
       if (input.action === "info") { const { preview, ...info } = value; return plain(info); }
@@ -129,7 +129,8 @@ function fixture(pictures, config = {}) {
   const chatUrls = references.map(({ index }) => index % 2 ? "data:image/png;base64," + png.toString("base64") : "data:image/jpeg;base64," + b);
   for (const provider of PROVIDERS) for (const mode of ["image", "selfie"]) for (const format of ["png", "gif"]) {
     fx = fixture(pictures, { provider, imageEnabled: mode === "image", selfieEnabled: mode === "selfie" }); await fx.set();
-    const result = await fx.draw({ mode, format, references, prompt: "模仿图1的惊叫表情，使用图2的背景" });
+    fx.ctx.profile = { id: "fixture-role" };
+    const result = await fx.draw({ mode, format, references, purpose: "sticker", stickerName: "哈气", prompt: "模仿图1的惊叫表情，使用图2的背景" });
     assert.equal(result.mode, mode); assert.equal(result.images[0].mimeType, "image/" + format);
     assert.equal(result.selfieReferenceRevision, mode === "selfie" ? 1 : undefined);
     const request = fx.calls[0].native || fx.calls[0].body;
@@ -142,10 +143,18 @@ function fixture(pictures, config = {}) {
     if (request.tools) assert.equal(request.tools[0].action, "edit"); else assert.ok(fx.calls[0].url.endsWith("/images/edits"));
     if (format === "gif" && !request.tools) assert(!("stream" in request));
     assert.equal(fx.puts.length, 1); assert.equal(fx.publications.length, 1);
+    assert.deepEqual(fx.publications[0].metadata, { generated: true, purpose: "sticker", ...(mode === "selfie"
+      ? { reusable: true, roleProfileId: "fixture-role", stickerName: "哈气" } : { reusable: false }) });
+    assert.equal(fx.puts[0].name, mode === "selfie" ? `表情-哈气.${format}` : `drawing.${format}`);
     assert.ok(!JSON.stringify(result).includes(a));
   }
   fx = fixture(pictures, { imageEnabled: true, selfieEnabled: false }); await fx.set();
   await fx.draw({ mode: "image" }); assert.equal(fx.calls[0].body.prompt, fx.ctx.input.prompt); assert.equal(fx.calls[0].body.images, undefined, "ordinary generation does not inherit the fixed selfie reference");
+  fx = fixture(pictures, { selfieEnabled: true }); await fx.set(); fx.ctx.profile = { id: "fixture-role" };
+  await assert.rejects(fx.draw({ purpose: "sticker", stickerName: "哈/气" }), /表情名称.*字符/);
+  assert.equal(fx.calls.length, 0);
+  await fx.draw({ purpose: "sticker", draft: true });
+  assert.equal(fx.publications[0].metadata.reusable, false);
 
   for (const problem of ["missing", "deleted", "private", "preview-error"]) {
     fx = fixture(pictures, { selfieEnabled: true });

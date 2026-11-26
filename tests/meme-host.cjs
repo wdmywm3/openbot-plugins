@@ -98,7 +98,8 @@ async function main() {
     const originalMessages = [{ role: "system", content: "host protocol" }, { role: "user", content: "hello" }];
     const prompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: originalMessages, requestId: "turn" }, context.channelPrincipal);
     assert.equal(prompt.messages[1].role, "system"); assert.match(prompt.messages[1].content, /stickers/);
-    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /随手配图/);
+    assert.match(prompt.messages[1].content, /选最贴切的一张/);
+    assert.equal(prompt.messages.at(-1).role, "user"); assert.match(prompt.messages.at(-1).content, /有可用表情/);
     assert.equal(prompt.contextRecords.length, 1, "availability is a durable context record");
     const repeated = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel", { messages: prompt.messages, requestId: "next-turn" }, context.channelPrincipal);
     assert.equal(repeated.contextRecords?.length || 0, 0, "the same availability is not appended twice");
@@ -110,14 +111,21 @@ async function main() {
     const mediaPrompt = await runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "beforeModel",
       { messages: [...originalMessages, mediaMessage], requestId: "large-media-turn" }, context.channelPrincipal);
     assert.match(mediaPrompt.messages[1].content, /stickers/);
-    assert.match(mediaPrompt.messages.at(-1).content, /随手配图/);
+    assert.match(mediaPrompt.messages.at(-1).content, /有可用表情/);
     const retained = mediaPrompt.messages.find(message => Array.isArray(message.content));
     assert.deepEqual(retained, mediaMessage, "the model retains all 72 MiB of image input while the plugin prepares availability");
     let found = await runtime.runNativePluginTool("qqSticker", { action: "search", query: "冷静" }, context);
     for (let n = 0; n < 100 && found.status === "running"; n++) { await wait(20); found = await runtime.runPluginTool({ action: "status", pluginId: plugin.id, jobId: found.id }, context); }
     assert.equal(found.status, "completed", found.error); assert.equal(found.result.candidates.length, 1);
     assert(found.userContextBlocks.some(block => block.type === "image_url"), "native tool image references become model-visible previews");
-    const url = found.result.candidates[0].url, segments = [{ type: "image", data: { file: url } }];
+    const modelHook = (replyId, content) => runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "afterModel",
+      { requestId: "turn", replyId, content, purpose: "chat", messageIds: ["source"] }, context.channelPrincipal);
+    const candidate = found.result.candidates[0];
+    assert.equal(candidate.number, 1); assert.equal(candidate.id, undefined); assert.equal(candidate.url, undefined);
+    const short = `openbot-asset://plugin-media/s/${found.result.searchId}/${candidate.number}`;
+    const actual = await modelHook("numbered", `![](${short})`);
+    const url = actual.content.match(/openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image/)[0];
+    const segments = [{ type: "image", data: { file: url } }];
     const resolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, segments);
     assert.equal(resolved[0].data.file, "base64://" + bytes.toString("base64")); assert.equal(resolved[0].data.sub_type, 1);
     await assert.rejects(runtime.resolvePluginMedia(channel, "onebot:group:other", segments), /不可用/);
@@ -136,10 +144,12 @@ async function main() {
       assert.equal(result.status, "completed", result.error); return result.result;
     };
     const candidates = await waitTool({ action: "search", query: "冷静" });
-    const selected = candidates.candidates.find(item => item.id === asset.sha256);
+    const selected = candidates.candidates.find(item => item.number === 1);
     assert.equal(selected.textTemplate, true); assert.equal(selected.url, undefined);
-    const textResult = await waitTool({ action: "render", searchId: candidates.searchId, id: selected.id, text: "白痴！" });
-    const textSegments = [{ type: "image", data: { file: textResult.url } }];
+    const textResult = await waitTool({ action: "render", searchId: candidates.searchId, number: selected.number, text: "白痴！" });
+    const rendered = await modelHook("numbered-text", `![](${textResult.url})`);
+    const renderedUrl = rendered.content.match(/openbot-asset:\/\/plugin-media\/[a-f0-9]{64}\/image/)[0];
+    const textSegments = [{ type: "image", data: { file: renderedUrl } }];
     assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, textSegments)).content.length, 1);
     const textResolved = await runtime.resolvePluginMedia(channel, context.channelPrincipal.chatId, textSegments);
     const output = Buffer.from(textResolved[0].data.file.slice("base64://".length), "base64");
@@ -152,8 +162,6 @@ async function main() {
     const settingsPage = await runtime.runPluginAction(channel, plugin, action("list"), {});
     await runtime.runPluginAction(channel, plugin, action("settings"), { revision: settingsPage.preferences.revision, frequency: 0, cooldownSeconds: 0 });
     const mixedContent = `先冷静一下。然后再说。![表情](${url})`;
-    const modelHook = (replyId, content) => runtime.runPluginModelHook(channel, context.channelPrincipal.chatId, "afterModel",
-      { requestId: "turn", replyId, content, purpose: "chat", messageIds: ["source"] }, context.channelPrincipal);
     assert.equal((await modelHook("mixed-zero", mixedContent)).content, "先冷静一下。然后再说。");
     assert.equal((await modelHook("pure-zero", `![表情](${url})`)).content, `![表情](${url})`);
     assert.equal((await runtime.runPluginBeforeSend(channel, context.channelPrincipal.chatId, segments)).content.length, 1,
@@ -165,7 +173,7 @@ async function main() {
     const necessaryPage = await runtime.runPluginAction(channel, plugin, action("list"), {});
     await runtime.runPluginAction(channel, plugin, action("settings"), { revision: necessaryPage.preferences.revision, frequency: 0, cooldownSeconds: 3600 });
     await runtime.notifyPluginHook(channel, context.channelPrincipal.chatId, "afterSend", { result: { status: "sent", sentSegments: segments } }, context.channelPrincipal);
-    const needed = await waitTool({ action: "search", query: "冷静", usage: "required" });
+    const needed = await waitTool({ action: "search", query: "冷静", usage: "required", referenceFormat: "url" });
     const neededUrl = needed.candidates[0].url, neededContent = `就是这个![表情](${neededUrl})`;
     assert.equal((await modelHook("needed", neededContent)).content, neededContent);
     const neededSegments = [{ type: "text", data: { text: "就是这个" } }, { type: "image", data: { file: neededUrl } }];
@@ -185,12 +193,16 @@ async function main() {
     }, storage: { getEvent: () => ({ id: "source", direction: "in", chatId: context.channelPrincipal.chatId, sender: { id: "user" } }) },
       makeId: prefix => prefix + "-" + ++sendId, persistMessage() {}, chatRecord: (_session, role, content, extra) => ({ role, content, ...extra }), sendEvent() {}, safeError: String });
     const turn = outbound.createTurn({ sessionId: "session", requestId: "turn", principal: context.channelPrincipal, agent: {} });
-    const args = { requestKey: "mixed", messageIds: ["source"], content: `先冷静一下。然后再说。<image src="${url}"/>` };
+    const args = { requestKey: "mixed", messageIds: ["source"], content: `先冷静一下。然后再说。<image src="${short}"/>` };
     const ack = turn.submit(args); assert.equal(ack.ok, true); assert.equal(turn.submit(args), ack);
     await outbound.drain();
-    assert.equal(hookInputs.length, 1); assert(hookInputs[0].content.includes(url));
+    assert.equal(hookInputs.length, 1); assert(hookInputs[0].content.includes(short));
     assert.equal(delivered.map(row => row.text || "").join(""), "先冷静一下。然后再说。");
     assert(!JSON.stringify(delivered).includes(url), "image cannot escape filtering as a later pure segment");
+    const pureTurn = outbound.createTurn({ sessionId: "session", requestId: "turn", principal: context.channelPrincipal, agent: {} });
+    assert.equal(pureTurn.submit({ requestKey: "pure", messageIds: ["source"], content: `<image src="${short}"/>` }).ok, true);
+    await outbound.drain();
+    assert(JSON.stringify(delivered.at(-1)).includes(url), "the actual reply tool hands canonical media to delivery");
     engineAvailable = false;
     const secondBytes = await hostRequire("sharp")({ create: { width: 33, height: 32, channels: 3, background: "blue" } }).png().toBuffer();
     const second = media.put(actor, secondBytes, { mimeType: "image/png", name: "offline.png" });
@@ -267,7 +279,7 @@ async function main() {
         try { await runtime.runPluginAction(channel, plugin, action("save"), { id: largeAsset.sha256, revision: detail.revision, name: "大图填字", textTemplate: template }); break; }
         catch (error) { if (attempt >= 4 || !/更新|刷新|冲突/.test(error.message)) throw error; }
       }
-      const largeSearch = await waitTool({ action: "search", query: "大图填字", mode: "text" });
+      const largeSearch = await waitTool({ action: "search", query: "大图填字", mode: "text", referenceFormat: "url" });
       const largeCandidate = largeSearch.candidates.find(item => item.id === largeAsset.sha256);
       assert(largeCandidate?.textTemplate);
       const largeResult = await waitTool({ action: "render", searchId: largeSearch.searchId, id: largeCandidate.id, text: "你好！" });
@@ -290,7 +302,7 @@ async function main() {
     const gif = Buffer.from("R0lGODlhAgABAIEAAExpcQD/AP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQFCgAAACwAAAAAAgABAAACAlQKACH5BAUPAAAALAAAAAACAAEAgUxpcf//AAAA/wAAAAICVAoAOw==", "base64");
     const original = await media.background.put(producerActor, gif, { mimeType: "image/gif", name: "自制动图" });
     const published = await media.background.call(producerActor, { action: "publish", ref: original.ref, shareable: true,
-      metadata: { generated: true, purpose: "sticker", reusable: true } });
+      metadata: { generated: true, purpose: "sticker", reusable: true, roleProfileId: channel.config.agentId, stickerName: "哈气" } });
     const recognizedBeforeCollection = generated;
     await runtime.notifyPluginHook(channel, context.channelPrincipal.chatId, "afterSend", { result: {
       status: "sent", sentSegments: [{ type: "image", data: { file: published.url } }],
@@ -308,6 +320,8 @@ async function main() {
     assert.equal(collectedRecord.indexStatus, "ready", "the automatic collection job indexes the generated sticker");
     assert.equal(generated, recognizedBeforeCollection + 1);
     assert.equal(collectedRecord.source.pluginId, producer.id);
+    assert.equal(collectedRecord.name, "自制表情：哈气");
+    assert.equal(collectedRecord.roleProfileId, channel.config.agentId);
     assert.deepEqual(collectedRecord.chatIds, [context.channelPrincipal.chatId]);
     const adoptedRef = collectedRecord.refs[0].ref;
     assert.deepEqual((await media.background.read({ ...producerActor, pluginId: plugin.id }, adoptedRef)).data, gif);
