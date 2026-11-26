@@ -201,7 +201,7 @@
     {
       "id": "computer-use",
       "name": "电脑操作",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "description": "操作本机 Windows 应用，读取窗口、点击控件、填写文字并核对结果。",
       "category": "utility",
       "main": "index.js",
@@ -210,13 +210,13 @@
         "assets"
       ],
       "metadata": {
-        "usage": "在主人私聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
+        "usage": "实例主人可在 QQ 私聊或群聊中指定应用和任务，例如给已打开的记事本填写文字。需要时可请求窗口截图。",
         "platforms": [],
         "requirements": [
           "Windows x64，OpenBot 与目标窗口位于同一已登录的交互桌面。",
           "查看截图需要支持图片的模型。"
         ],
-        "changelog": "",
+        "changelog": "实例主人可在 QQ 群聊中操作电脑，并按要求将截图发到当前聊天。",
         "homepage": "https://github.com/wdmywm3/openbot-plugins",
         "components": [
           "tools",
@@ -225,12 +225,12 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "90c53e6e0c65ed98ac0da3de3e72bb0425bf9bba",
+      "ref": "4fdc660cc28d42946e58d51df39a9c2511f1bb16",
       "files": [
         {
           "path": "README.md",
-          "size": 2218,
-          "sha256": "64abf15911b9ff7bedb30a91ad187817d80b4ac80251a80330b1ed464a65e4a9"
+          "size": 2149,
+          "sha256": "ec458ba49702031e019be9e70cb3f2fa04376450e80d7247967d110ea5384e29"
         },
         {
           "path": "desktop_server.py",
@@ -239,8 +239,8 @@
         },
         {
           "path": "index.js",
-          "size": 2647,
-          "sha256": "90f53d415e2a1d2eae18d9d942b4e2f771b4458aad8d6f5ba16b4535c23a2ffe"
+          "size": 3095,
+          "sha256": "1ec7088ee1509c9d3bb529fe7c909855b72f60936787cd0b9b39b7ac0be8008e"
         },
         {
           "path": "mcp.json",
@@ -249,8 +249,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 5824,
-          "sha256": "6832270da2ff64459639377aac5dd64af9ae6e0ce25ec7a783eaa3db86937cab"
+          "size": 5951,
+          "sha256": "46e37e609c06013087dee759ca7480bf132d7d94d071b382a3606bc5b0077200"
         },
         {
           "path": "requirements.lock",
@@ -259,8 +259,8 @@
         },
         {
           "path": "skills/computer-use/SKILL.md",
-          "size": 3054,
-          "sha256": "23eb807df200f422853f7e100cdc8f5448f35c95eb2c728eab595c01a61095af"
+          "size": 2937,
+          "sha256": "8794c732193048ee2320ad619c085f641f8d17d6abc1e4bc335c7ed35be82285"
         }
       ]
     },
