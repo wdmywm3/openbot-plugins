@@ -106,7 +106,7 @@
     {
       "id": "bilibili-explorer",
       "name": "B站小管家",
-      "version": "1.16.6",
+      "version": "1.16.7",
       "description": "浏览 B 站、互动与分享，管理收藏并保留阅读笔记",
       "category": "subscription",
       "main": "./index.js",
@@ -134,7 +134,7 @@
         "requirements": [
           "推荐 OpenBot 0.1.84 或更新版本，使用统一记忆保存笔记与活动经验。"
         ],
-        "changelog": "支持向微信绑定私聊发送通知，完整送达后记录成功。未完整送达时保留原因；评论、投币及互动触发本地配额时显示实际限制。",
+        "changelog": "保留 B 站和外部工具返回的错误码。响应缺少错误码时显示具体的响应问题。",
         "components": [
           "commands",
           "hooks",
@@ -144,7 +144,7 @@
         ],
         "hasBackgroundAgent": true
       },
-      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "MEDIA.md",
@@ -153,8 +153,8 @@
         },
         {
           "path": "index.js",
-          "size": 232746,
-          "sha256": "fd818d0c03daca15cf689eacfa8eaf70b37a9dcb9dcaccb3955a1638c2e0f0d8"
+          "size": 233159,
+          "sha256": "d23e5c93d9a0a1f0d1bd91e22162ff07d0208face68ec063f5a1001d17cc3682"
         },
         {
           "path": "media-mcp/launch.py",
@@ -173,8 +173,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 69836,
-          "sha256": "051e74b351adf8c2937dfe5c53b1036dddd42c8981dd78a5e4b7f962b5810a86"
+          "size": 69767,
+          "sha256": "f40f7eee8d6222be964b044efbe2228751abebb59374c0a074804adf3e95c206"
         },
         {
           "path": "skills/bilibili-butler/SKILL.md",
@@ -268,7 +268,7 @@
     {
       "id": "content-monitor",
       "name": "内容监控",
-      "version": "1.1.3",
+      "version": "1.1.4",
       "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
       "category": "subscription",
       "main": "index.js",
@@ -288,24 +288,24 @@
           "wechat"
         ],
         "requirements": [],
-        "changelog": "订阅推送只在确认完整发送后计入成功。部分送达或缺少回执时可查看原因并核对。",
+        "changelog": "读取 B 站动态或直播状态失败时，显示对应操作和服务返回的错误码。",
         "components": [
           "commands",
           "background"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "index.js",
-          "size": 25722,
-          "sha256": "46311fc1ace801bddcdd8933a15afb81399836b21b7d5c1a498a6f802c71e0ef"
+          "size": 25988,
+          "sha256": "2bc76a031529ccda494947e35edc60df0e87423e2572be0fc192862f458401bf"
         },
         {
           "path": "plugin.json",
-          "size": 6916,
-          "sha256": "0507d4a2ecae19b517921a151f7ac18ab57118f6e78956b15ce3ae21df357869"
+          "size": 6898,
+          "sha256": "edbb2e3d58393fe453a6c2e162101de0155ada7f4902683a1df9b722b5b851f7"
         }
       ]
     },
@@ -597,7 +597,7 @@
     {
       "id": "mailbox",
       "name": "邮箱",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "查询、收发和整理邮件，管理 Gmail 会话、标签和草稿，关注新来信。",
       "category": "integration",
       "main": "index.js",
@@ -619,14 +619,14 @@
         "requirements": [
           "Gmail 使用 Google OAuth 授权；其他邮箱使用支持 TLS 的 IMAP / SMTP 服务。"
         ],
-        "changelog": "",
+        "changelog": "保留邮箱请求失败时的状态码和已知原因，便于区分服务拒绝和请求错误。",
         "components": [
           "tools",
           "background"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "1922870a4277d18a36e828c90f223d407bfd79e9",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "README.md",
@@ -645,8 +645,8 @@
         },
         {
           "path": "gmail.cjs",
-          "size": 16170,
-          "sha256": "9c298f5d63afc7a05ea720403c3f4f9fb0cf3e22ceb74f9834339737b6228985"
+          "size": 16310,
+          "sha256": "0715966c2aeb89c233b6bea90ee8cf2ffdc6a8e244b662e82d09ff87813ef12e"
         },
         {
           "path": "imap-actions.cjs",
@@ -655,8 +655,8 @@
         },
         {
           "path": "imap.cjs",
-          "size": 11497,
-          "sha256": "a8864097979ff31f8556a5fce2ab07cc35ce74edb9fce64bee1edcf0d1bb5947"
+          "size": 11534,
+          "sha256": "6ef325bee436983b135125d76154da986ac4470adcf0fa6482fda9a5c00df50d"
         },
         {
           "path": "index.js",
@@ -690,13 +690,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 23036,
-          "sha256": "feaf5d693af3b6b78735e534b2e86889f1415a98643ca3015028df1e7651879e"
+          "size": 23160,
+          "sha256": "67e1bd81de90f8656b72e4582c47fe6e4e02f4ec0286e4a5245d480834ba1deb"
         },
         {
           "path": "process.cjs",
-          "size": 1392,
-          "sha256": "22224ff02b38a3542efc1b25517b3c2c14915633cdec702866d7769113ec8fb4"
+          "size": 1634,
+          "sha256": "d6a6fde04765923a1f7d55ce0c5b8b033721d2889b4d1a287c13cd152f65cf5f"
         }
       ]
     },
@@ -832,7 +832,7 @@
     {
       "id": "memewiki",
       "name": "梗百科",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "description": "查梗、解释黑话与出处，支持本地词库和图片卡片。移植自 in1t1a1 的 AstrBot 梗百科。",
       "category": "utility",
       "main": "index.js",
@@ -855,7 +855,7 @@
           "需要读取 catalog-v2.json、支持 50 MiB 插件包的 OpenBot；旧版市场目录不显示此插件。",
           "需要支持 Python 插件依赖的 OpenBot 版本；角色与聊天需授权本插件的 MCP 工具。"
         ],
-        "changelog": "移除梗百科预查事件内重复的外层包裹标签，由宿主统一封装。",
+        "changelog": "区分查询参数错误和在线词库请求失败，并保留词库返回的 HTTP 状态。",
         "components": [
           "commands",
           "hooks",
@@ -865,7 +865,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "LICENSE",
@@ -889,8 +889,8 @@
         },
         {
           "path": "index.js",
-          "size": 12308,
-          "sha256": "0cd2344f02b97e51293da8e43504f4d7f4a4106f4f4cd044ce043121fcfda5d0"
+          "size": 13018,
+          "sha256": "741b19126e00042ff082ebd6ef4dc9b32f9ae8a5d87939120613ffe68a756c05"
         },
         {
           "path": "mcp.json",
@@ -899,8 +899,8 @@
         },
         {
           "path": "plugin.json",
-          "size": 9855,
-          "sha256": "e0d29d3f6a0816d2ae8d21ab26988eca97b2c28096469c8ab52685611559b1ea"
+          "size": 9864,
+          "sha256": "ec51842ce3d7a07e0d1ca7fe09a5a761308ce8c47e3377cc95937b14522e9027"
         },
         {
           "path": "requirements.lock",
@@ -914,15 +914,15 @@
         },
         {
           "path": "tools/server.py",
-          "size": 5567,
-          "sha256": "32d4d4e4154e3eb0c3fdb2f53e37c149eccd0eb5523e5af1b289e87deb342460"
+          "size": 6077,
+          "sha256": "870507bd16bb23de7d59c429a6b5a3b088b846e3d34172c1d9a0e7d5b0aa165b"
         }
       ]
     },
     {
       "id": "memory",
       "name": "记忆 Plus",
-      "version": "2.6.16",
+      "version": "2.6.17",
       "description": "为统一记忆提供自动召回、人物画像、主题知识、常驻记忆和 Dream 整理。",
       "category": "assistant",
       "main": "index.js",
@@ -958,7 +958,7 @@
           "超大图片标记和索引失败隔离需要 OpenBot 0.1.102 或更新版本。",
           "跨聊天共享授权即时刷新需要 OpenBot 0.1.132 或更新版本。"
         ],
-        "changelog": "精简每轮记忆提示与 Dream/画像整理提示词，去除过期或矛盾说明。",
+        "changelog": "记忆任务失败时保留原有错误码、HTTP 状态和服务返回的参数名。",
         "components": [
           "hooks",
           "tools",
@@ -967,7 +967,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "06a10477a9d0a3a3a7d1a546b06a8a690925b85a",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "README.md",
@@ -1141,13 +1141,13 @@
         },
         {
           "path": "plugin.json",
-          "size": 15858,
-          "sha256": "dbc788b08d2f745f3e4e0be79b0d4da3a5abc1a0140afd62b80e3d7bb005863b"
+          "size": 15856,
+          "sha256": "6152eafaab8afe95ebc0ceefd6f7a3b836fe03e4386a61efdbc0115ec0abc6a9"
         },
         {
           "path": "process.cjs",
-          "size": 2528,
-          "sha256": "c7fd75df6e63df3bf7e7a4b24cc51892a32047ffd99e2bd4a9dc51c52271da69"
+          "size": 2776,
+          "sha256": "69aae69b2c34a59eb61351fc50468eea60445ab21dac8766d86543820b6b3d7f"
         },
         {
           "path": "recall-context.cjs",
@@ -1429,7 +1429,7 @@
     {
       "id": "personal-butler",
       "name": "私人管家",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "description": "为 QQ 和微信聊天整理线索，结合既有记忆继续查证，并跟进有用发现和期限。",
       "category": "utility",
       "main": "index.js",
@@ -1459,7 +1459,7 @@
         "requirements": [
           "QQ 实例在主人私聊使用。微信 iLink 需要支持绑定聊天授权和后台任务的 OpenBot 构建。"
         ],
-        "changelog": "网页跟进在正文相同时复用已核对的结果，时间条件仍按时检查。保留尚未解决的问题和下一步。主人交办总结技能时，按近期成功回执提交可审核的草稿。",
+        "changelog": "网页跟进读取失败时，保留网页实际返回的 HTTP 状态。",
         "components": [
           "hooks",
           "tools",
@@ -1467,7 +1467,7 @@
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "a96b36275bfbe4f9c480cd650dfe90bbcdf4ec84",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "README.md",
@@ -1476,13 +1476,13 @@
         },
         {
           "path": "index.js",
-          "size": 112505,
-          "sha256": "ee61f7eda4a05551659068632486c60a8694c92997b8110fe249f1f1917ffd97"
+          "size": 112554,
+          "sha256": "70989099efb7bdea688a27e00d3ff6299091420f5de07774c15d03149201f3b2"
         },
         {
           "path": "plugin.json",
-          "size": 6077,
-          "sha256": "41823437adb77dbcff427d20333346b9cf56aacdda0d422415ce9b4eb25dbb37"
+          "size": 5942,
+          "sha256": "abafc6478bca70040cb9539211b4dc8071dac34cc7ee0fb081ab779e3dffc8a7"
         }
       ]
     },
@@ -1529,7 +1529,7 @@
     {
       "id": "search",
       "name": "搜索",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "description": "搜索并核对网页资料、按描述找参考图，或用聊天图片查出处。",
       "category": "utility",
       "main": "index.js",
@@ -1552,14 +1552,14 @@
           "需要 OpenBot 0.1.120 或更高版本。",
           "Google 图片搜索需在已结算的项目启用 Cloud Vision API，并配置允许调用该 API 的 Key。"
         ],
-        "changelog": "以图搜图或读取参考图超过输入上限时返回明确的限制原因。",
+        "changelog": "区分搜索请求被拒绝、服务返回错误和结果缺失。保留可用的状态码、错误码和参数名。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "08b9e4541275c8c7c90d53a5b6dda0b0b194af90",
+      "ref": "ec489ee1bc4bd273cd1b527fe6f0a4c919e75523",
       "files": [
         {
           "path": "README.md",
@@ -1568,13 +1568,13 @@
         },
         {
           "path": "index.js",
-          "size": 37098,
-          "sha256": "3325edb3aae8d1177a3652cb68bf145757f1a71f139bc98ab6aefebfd8e41c7b"
+          "size": 38542,
+          "sha256": "591abf4d94528e5b05c4093427c2df012935e68f9370aea2830457fa022fef3f"
         },
         {
           "path": "plugin.json",
-          "size": 14957,
-          "sha256": "670c65842cf97b2b8984a7ad40fd37534666de4b783b10341f777ec966ed8a7f"
+          "size": 14993,
+          "sha256": "62ca3ebc95f976e71129504f8f791564dfb5e450c44269fec6e63b5da268ca77"
         },
         {
           "path": "skills/search/SKILL.md",
