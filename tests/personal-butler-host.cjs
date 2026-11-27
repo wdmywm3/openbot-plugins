@@ -227,10 +227,10 @@ async function until(fn, predicate, message) {
 
     const minute = 60000;
     for (const [status, type, empty, code, reason, minutes] of [
-      [500, "text/html", false, "BUTLER_PAGE_HTTP", "网页请求返回 HTTP 500。", 15],
+      [500, "text/html", false, "BUTLER_PAGE_HTTP", "读取网页失败（HTTP 500）。", 15],
       [200, "image/png", false, "BUTLER_PAGE_FORMAT", "网页响应格式不受支持。", 30],
       [200, "text/plain", true, "BUTLER_PAGE_EMPTY", "网页没有可核对的文字。", 60],
-      [502, "text/html", false, "BUTLER_PAGE_HTTP", "网页请求返回 HTTP 502。", 120],
+      [502, "text/html", false, "BUTLER_PAGE_HTTP", "读取网页失败（HTTP 502）。", 120],
       [0, "text/html", false, "ECONNRESET", "读取跟进网页失败（连接已中断）。", 120],
     ]) {
       pageStatus = status; pageType = type; emptyPage = empty;

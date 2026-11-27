@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "mailbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "查询、收发和整理邮件，管理 Gmail 会话、标签和草稿，关注新来信。",
   "extensions": {
     "com.openbot": {
@@ -42,6 +42,7 @@
       },
       "metadata": {
         "usage": "在实例中选择 Gmail 或 IMAP / SMTP，在主人私聊中查信、收发邮件、管理草稿或关注新邮件。",
+        "changelog": "保留邮箱请求失败时的状态码和已知原因，便于区分服务拒绝和请求错误。",
         "requirements": [
           "Gmail 使用 Google OAuth 授权；其他邮箱使用支持 TLS 的 IMAP / SMTP 服务。"
         ]

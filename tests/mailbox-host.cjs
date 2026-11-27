@@ -26,6 +26,8 @@ async function until(fn, predicate, label) {
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-mailbox-host-"));
   const proc = lib("plugins/plugin-process.cjs"), createProcess = proc.createPluginProcessRuntime;
+  const diagnostics = lib("app/runtime-diagnostics.cjs"), incidents = [];
+  diagnostics.setRuntimeDiagnostics({ record(_level, _event, details) { incidents.push(details); } });
   const pacer = lib("features/website-request-pacer.cjs").websiteRequests, pace = pacer.run;
   // The Gmail HTTP transport is an in-memory fixture. Keep the production request validation.
   pacer.run = (_url, signal, perform) => { signal.throwIfAborted(); return perform(); };
@@ -287,7 +289,10 @@ async function until(fn, predicate, label) {
     assert.equal(google.sent.length, 5);
     const rejected = await invoke("mail_drafts", { action: "create", to: ["me"], text: "retry after authorization" });
     google.rejectSend = true;
-    assert.match(await invoke("send_mail", { draftId: rejected.id }, "failed"), /HTTP 403/);
+    assert.match(await invoke("send_mail", { draftId: rejected.id }, "failed"), /HTTP 403，错误码 PERMISSION_DENIED/);
+    const incident = incidents.find(item => item.pluginId === "mailbox" && item.code === "MAIL_GOOGLE_403");
+    assert.equal(incident?.httpStatus, 403);
+    assert.equal(incident?.upstreamCode, "PERMISSION_DENIED");
     google.rejectSend = false;
     await invoke("send_mail", { draftId: rejected.id }); assert.equal(google.sent.length, 6);
     await invoke("watch_mail", { action: "start", subject: "School" });
@@ -299,6 +304,7 @@ async function until(fn, predicate, label) {
     await poll(); await until(record, v => !v?.active && v?.reason === "history", "expired Gmail history");
     console.log("Mailbox passed IMAP/SMTP and Gmail API host integration, including sparse draft edits, sends, reply-all, original-message forwards, attachments, labels, archives, Trash, threads, unknown submission outcomes and incremental notifications.");
   } finally {
+    diagnostics.setRuntimeDiagnostics(null);
     pacer.run = pace;
     proc.createPluginProcessRuntime = createProcess;
     events?.stop();

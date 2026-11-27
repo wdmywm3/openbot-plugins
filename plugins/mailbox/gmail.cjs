@@ -14,9 +14,10 @@ const idPath = id => {
 };
 function httpError(operation, status, body) {
   const reason = body?.error?.errors?.[0]?.reason || body?.error?.status || body?.error;
-  const suffix = typeof reason === "string" && /^[a-z0-9_]+$/i.test(reason) ? "，" + reason : "";
+  const upstreamCode = typeof reason === "string" && /^[a-z][a-z0-9_]{0,79}$/i.test(reason) ? reason : undefined;
+  const suffix = upstreamCode ? "，错误码 " + upstreamCode : "";
   return Object.assign(failure("MAIL_GOOGLE_" + status, operation + "失败（HTTP " + status + suffix + "）。"),
-    { status, definitelyRejected: status >= 400 && status < 500 && status !== 408 });
+    { status, definitelyRejected: status >= 400 && status < 500 && status !== 408, ...(upstreamCode ? { details: { upstreamCode } } : {}) });
 }
 async function connect(ctx) {
   const secret = await ctx.api.getSecret("gmailOAuth");

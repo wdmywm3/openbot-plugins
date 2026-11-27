@@ -131,5 +131,18 @@ function stateApi(initial = {}) {
   excluded.ctx.api.getCapabilities = semantic.ctx.api.getCapabilities;
   excluded.ctx.api.vectorIndex = async () => { throw Error("exclusions must win before semantic ranking"); };
   await monitor.poll(excluded.ctx); assert.equal(excluded.calls(), 0);
+  for (const [event, payload, message, code] of [
+    ["post", { code: -101, message: "fixture-private" }, "读取 B 站动态失败（错误码 -101）。", "BILIBILI_API_ERROR"],
+    ["liveStart", { message: "fixture-private" }, "读取 B 站直播状态响应缺少有效状态码。", "BILIBILI_RESPONSE_INVALID"],
+  ]) {
+    const fixture = monitoring({ networkStatus: "sent" });
+    Object.assign(fixture.ctx.config.subscriptions[0], { provider: "bilibili", source: "123", events: [event] });
+    fixture.ctx.api.getSecret = async () => "fixture-secret";
+    fixture.ctx.api.fetchJson = async () => payload;
+    await monitor.poll(fixture.ctx);
+    assert.equal(fixture.cursor().lastError, message);
+    assert.equal(fixture.cursor().lastErrorCode, code);
+    assert((await monitor.handle(fixture.ctx)).text.includes(message));
+  }
   console.log("Plugin reliability: concurrent check-ins/stats, bounded state, legacy migration, QQ capability gates, official targets, delivery recovery and uncertain-send fences passed (memory mocks)");
 })().catch(error => { console.error(error); process.exitCode = 1; });

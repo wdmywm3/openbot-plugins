@@ -441,31 +441,53 @@ async function secret(ctx, name, optional = false) {
   if (!key && !optional) throw new Error(`请在搜索插件设置中填写 ${name === "google" ? "Cloud Vision" : name} API Key`);
   return key;
 }
+function rejectionDetails(payload) {
+  if (typeof payload === "string" && payload.length <= 8192) {
+    try { payload = JSON.parse(payload); } catch { return {}; }
+  }
+  const error = payload?.error ?? payload;
+  const code = error?.code ?? error?.status;
+  const param = error?.param;
+  const details = {};
+  if (Number.isSafeInteger(code) || typeof code === "string" && /^[a-z][a-z0-9_]{0,99}$/i.test(code)) details.upstreamCode = code;
+  if (typeof param === "string" && /^[a-z_][a-z0-9_.]{0,159}$/i.test(param)) details.upstreamParam = param;
+  return details;
+}
 async function request(ctx, endpoint, options = {}) {
   ctx.signal?.throwIfAborted();
   const response = await ctx.api.request(endpoint, { timeoutMs: 30000, ...options });
   ctx.signal?.throwIfAborted();
   if (!response.ok) {
-    const explanation = response.status === 401 ? "凭据无效，请检查 API Key"
-      : response.status === 403 ? "访问被拒绝，请检查 API 是否启用、凭据限制和项目权限"
-      : response.status === 429 ? "请求达到服务额度或频率限制，请稍后再试" : "搜索服务暂不可用";
-    const error = new Error(`${explanation}（HTTP ${response.status}）`);
-    error.status = response.status;
-    error.retryAfter = response.headers?.["retry-after"];
-    throw error;
+    const explanation = response.status === 401 ? "搜索服务未通过身份验证"
+      : response.status === 403 ? "搜索服务拒绝访问"
+      : response.status === 429 ? "搜索服务限制本次请求" : "搜索服务请求失败";
+    throw Object.assign(new Error(`${explanation}（HTTP ${response.status}）。`), {
+      code: "SEARCH_HTTP_ERROR", status: response.status, retryAfter: response.headers?.["retry-after"],
+      details: rejectionDetails(response.body),
+    });
   }
   return response;
 }
 async function json(ctx, endpoint, body, headers = {}, extra = {}) {
   return (await request(ctx, endpoint, { method: "POST", headers: { "content-type": "application/json", ...headers }, body, responseType: "json", ...extra })).body;
 }
-function rpcPayload(response, id) {
+function rpcFailure(operation, payload) {
+  const details = rejectionDetails(payload);
+  const code = details.upstreamCode;
+  return Object.assign(new Error("AnySearch " + operation + "失败" + (code === undefined ? "。" : "（错误码 " + code + "）。")),
+    { code: "SEARCH_RPC_ERROR", details });
+}
+function rpcPayload(response, id, operation) {
   const body = response.body;
-  const messages = typeof body === "string" && /^\s*(?:event:|data:|:)/.test(body)
-    ? body.split(/\r?\n\r?\n/).map(event => event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n")).filter(Boolean).map(JSON.parse)
-    : [typeof body === "string" ? JSON.parse(body) : body];
+  let messages;
+  try {
+    messages = typeof body === "string" && /^\s*(?:event:|data:|:)/.test(body)
+      ? body.split(/\r?\n\r?\n/).map(event => event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n")).filter(Boolean).map(JSON.parse)
+      : [typeof body === "string" ? JSON.parse(body) : body];
+  } catch { throw Object.assign(new Error("AnySearch 响应格式无效。"), { code: "SEARCH_RPC_RESPONSE" }); }
   const result = messages.find(message => message?.id === id);
-  if (!result || result.error) throw new Error("AnySearch 未返回有效的调用结果");
+  if (!result) throw Object.assign(new Error("AnySearch 未返回本次调用的结果。"), { code: "SEARCH_RPC_RESPONSE" });
+  if (result.error) throw rpcFailure(operation, result.error);
   return result.result;
 }
 async function anySearch(ctx) {
@@ -473,15 +495,15 @@ async function anySearch(ctx) {
   const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", ...(key ? { authorization: `Bearer ${key}` } : {}) };
   let id = 1;
   const initial = await request(ctx, ANYSEARCH, { method: "POST", headers, body: { jsonrpc: "2.0", id, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "OpenBot Search", version: "0.1.0" } } } });
-  const initialized = rpcPayload(initial, id++);
+  const initialized = rpcPayload(initial, id++, "初始化连接");
   if (initial.headers?.["mcp-session-id"]) headers["mcp-session-id"] = initial.headers["mcp-session-id"];
   if (initialized.protocolVersion) headers["mcp-protocol-version"] = initialized.protocolVersion;
   await request(ctx, ANYSEARCH, { method: "POST", headers, body: { jsonrpc: "2.0", method: "notifications/initialized" } });
   return async (name, args) => {
     const current = id++;
     const response = await request(ctx, ANYSEARCH, { method: "POST", headers, body: { jsonrpc: "2.0", id: current, method: "tools/call", params: { name, arguments: args } } });
-    const result = rpcPayload(response, current);
-    if (result?.isError) throw new Error(`AnySearch ${name} 调用失败，请检查查询参数或服务额度`);
+    const result = rpcPayload(response, current, "调用工具");
+    if (result?.isError) throw rpcFailure("调用工具", result.structuredContent);
     if (!result || !Array.isArray(result.content)) throw new Error("AnySearch 返回格式无效");
     return { provider: "anysearch", content: result.content.filter(part => part.type === "text").map(part => ({ type: "text", text: clip(part.text, 50000) })), ...(result.structuredContent ? { data: result.structuredContent } : {}) };
   };
@@ -620,7 +642,13 @@ module.exports.search_by_image = async ctx => {
   const raw = await json(ctx, "https://vision.googleapis.com/v1/images:annotate", body,
     { "x-goog-api-key": key }, { maxBodyBytes: limitBytes });
   const response = raw?.responses?.[0];
-  if (!response || response.error) throw new Error(`Cloud Vision 图片搜索失败${response?.error?.code ? `（${response.error.code}）` : ""}，请检查图片、API 启用状态及额度`);
+  if (!response) throw Object.assign(new Error("Cloud Vision 未返回本次图片的搜索结果。"), { code: "SEARCH_VISION_RESPONSE" });
+  if (response.error) {
+    const details = rejectionDetails(response.error);
+    const code = details.upstreamCode;
+    throw Object.assign(new Error("Cloud Vision 图片搜索失败" + (code === undefined ? "。" : "（错误码 " + code + "）。")),
+      { code: "SEARCH_VISION_ERROR", details });
+  }
   const web = response.webDetection || {};
   const images = values => (Array.isArray(values) ? values : []).slice(0, count).filter(item => /^https?:\/\//i.test(item?.url || "")).map(item => ({ url: clip(item.url) }));
   const matches = {
@@ -675,7 +703,8 @@ module.exports.prepare_reference = async ctx => {
   const parts = [];
   let size = 0;
   try {
-    if (stream.status < 200 || stream.status >= 300) throw Error("读取参考图失败（HTTP " + stream.status + "）");
+    if (stream.status < 200 || stream.status >= 300) throw Object.assign(Error("读取参考图失败（HTTP " + stream.status + "）"),
+      { code: "SEARCH_REFERENCE_HTTP", status: stream.status });
     const declared = Number(stream.headers?.["content-length"]);
     const checkSize = bytes => {
       if (bytes > maxBytes) throw Object.assign(new Error("参考图为 " + bytes + " 字节，超过 " + maxBytes + " 字节上限"), { code: "PLUGIN_INPUT_LIMIT" });

@@ -31,7 +31,7 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
     const raw = require(path.join(packageRoot, "plugin.json")), manifest = raw.extensions["com.openbot"];
     const plugin = { id: "memory", basePath: packageRoot, packageHash: "test-package", permissions: manifest.permissions, dependencies: manifest.dependencies, execution: manifest.execution };
     await require(path.join(host, "electron/lib/plugins/plugin-environment.cjs")).prepareEnvironment(root, plugin);
-    let generationStarted, finishGeneration, gate, generated = 0;
+    let generationStarted, finishGeneration, gate, rejectedRead, generated = 0;
     const started = new Promise(resolve => { generationStarted = resolve; });
     gate = new Promise(resolve => { finishGeneration = resolve; });
     function context(input = {}, extra = {}) { return { input, config: {}, plugin: { id: "memory", namespace: "one" },
@@ -41,7 +41,10 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
       const actor = { ...scope, pluginId: "memory" }, principal = { actor, requirePermission(permission) { assert(manifest.permissions.includes(permission)); }, signal: new AbortController().signal };
       return processRuntime.run({ channelId: "one", plugin, context: ctx, executionTimeoutMs: timeout, exportName, api: {
         getCapabilities: async () => ({ features: { unifiedMemory: true, persistentContextItems: true, visibleContextItems: true, sourceHead: true } }),
-        memory: input => memories.memory(memoryActor, input), memorySpace: input => memories.memorySpace(memoryActor, input),
+        memory: input => {
+          if (rejectedRead && input.action === "read") throw rejectedRead;
+          return memories.memory(memoryActor, input);
+        }, memorySpace: input => memories.memorySpace(memoryActor, input),
         sources: input => reads({ channelId: "one", chatId: input.chatId || chatId }, input),
         embeddings: input => retrieval.embeddings(principal, input), vectorIndex: input => retrieval.vectorIndex(principal, input),
         runAgent: async request => {
@@ -65,6 +68,13 @@ const watchdog = setTimeout(() => { throw Error("Memory plugin integration timed
     }
     const saved = await run("memory", context({ action: "remember", content: "平时喜欢喝拿铁咖啡" }));
     assert.equal(saved.ok, true); assert(memories.memory(memoryActor, { action: "read", id: saved.id }).item.sources.some(ref => ref.id === "m1"));
+    rejectedRead = Object.assign(new Error("模型请求失败（HTTP 400）。"), { code: "LLM_HTTP_ERROR", status: 400,
+      details: { upstreamCode: "invalid_value", upstreamParam: "input", body: "fixture-private" } });
+    await assert.rejects(run("memory", context({ action: "read", id: saved.id })), {
+      code: "LLM_HTTP_ERROR", status: 400, message: "模型请求失败（HTTP 400）。",
+      details: { upstreamCode: "invalid_value", upstreamParam: "input" },
+    });
+    rejectedRead = undefined;
     await run("process", context());
     put("m2", "你还记得我平时爱喝哪种饮品吗？");
     const before = context({}, { message: { id: "m2", chatId, content: "你还记得我平时爱喝哪种饮品吗？", sender: { id: "u" } }, hook: { requestId: "turn", messages: [] } });

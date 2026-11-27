@@ -35,7 +35,15 @@ function text(entry) {
 function safe(value) { return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 async function service(ctx, name, args = {}, timeoutMs = 6000) {
   const response = await ctx.api.callTool({ pluginId: ctx.plugin.id, pluginServer: "dictionary", name, arguments: args, timeoutMs });
-  if (response?.isError) throw new Error("词库服务暂不可用");
+  if (response?.isError) {
+    const failure = response.structuredContent?.error;
+    if (failure?.code === "MEMEWIKI_TOOL_INPUT" && typeof failure.message === "string")
+      throw Object.assign(new Error(failure.message.slice(0, 180)), { code: failure.code });
+    const status = failure?.status;
+    if (failure?.code === "MEMEWIKI_HTTP_ERROR" && Number.isInteger(status) && status >= 400 && status <= 599)
+      throw Object.assign(new Error(`读取线上词库失败（HTTP ${status}）。`), { code: failure.code, status });
+    throw Object.assign(new Error("词库操作失败。"), { code: "MEMEWIKI_TOOL_FAILED" });
+  }
   return response;
 }
 async function mode(ctx) {
@@ -85,7 +93,11 @@ module.exports.search = async ctx => {
       if (related.length) return { found: false, related, via: "semantic", text: "找到含义相近的候选词条，请结合语境核对，不能直接认定是同一个梗。" };
     } catch { /* Exact dictionary lookup remains available. */ }
     return { ...value, text: value.found ? text(value.entry) : value.unavailable ? "在线词库暂不可用，本地没有查到。" : "词库未收录。", ...(value.modelSearch ? { suggestion: "如当前会话已授权网页搜索，可继续查证；否则说明未查到。" } : {}) };
-  } catch (error) { failure(ctx); return { found: false, unavailable: true, text: String(error.message || error) }; }
+  } catch (error) {
+    failure(ctx);
+    return { found: false, unavailable: true, text: String(error.message || error),
+      ...(typeof error.code === "string" ? { code: error.code } : {}), ...(Number.isInteger(error.status) ? { status: error.status } : {}) };
+  }
 };
 module.exports.handle = async ctx => {
   try {

@@ -94,6 +94,13 @@ function bilibiliDynamicItem(item) {
   };
 }
 
+function checkBilibiliResponse(payload, operation) {
+  const code = payload?.code;
+  if (!Number.isSafeInteger(code)) throw Object.assign(new Error(operation + "响应缺少有效状态码。"), { code: "BILIBILI_RESPONSE_INVALID" });
+  if (code !== 0) throw Object.assign(new Error(operation + "失败（错误码 " + code + "）。"),
+    { code: "BILIBILI_API_ERROR", details: { upstreamCode: code } });
+}
+
 async function fetchBilibili(api, subscription) {
   const uid = bilibiliUid(subscription.source);
   const wantsContent = subscription.events.some((event) => event === "post" || event === "video");
@@ -103,7 +110,7 @@ async function fetchBilibili(api, subscription) {
     if (!cookie) throw new Error("监控 Bilibili 动态或视频需要先配置登录 Cookie");
     const endpoint = `https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=${encodeURIComponent(uid)}&features=itemOpusStyle`;
     const payload = await api.fetchJson(endpoint, { headers: { referer: `https://space.bilibili.com/${uid}/dynamic`, cookie } });
-    if (payload?.code !== 0) throw new Error(`Bilibili 动态接口错误：${payload?.message || payload?.code || "unknown"}`);
+    checkBilibiliResponse(payload, "读取 B 站动态");
     items = Array.isArray(payload?.data?.items)
       ? payload.data.items.map(bilibiliDynamicItem).filter((item) => item.id)
       : [];
@@ -115,7 +122,7 @@ async function fetchBilibili(api, subscription) {
       body: { uids: [Number(uid)] },
       headers: { referer: `https://space.bilibili.com/${uid}` },
     });
-    if (livePayload?.code !== 0) throw new Error(`Bilibili 直播接口错误：${livePayload?.message || livePayload?.code || "unknown"}`);
+    checkBilibiliResponse(livePayload, "读取 B 站直播状态");
     const row = livePayload?.data?.[uid] || livePayload?.data?.[Number(uid)] || null;
     if (row) live = {
       status: Number(row.live_status) === 1 ? "live" : "offline",

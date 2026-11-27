@@ -1,14 +1,14 @@
 {
   "id": "content-monitor",
   "name": "内容监控",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "metadata": {
     "platforms": [
       "napcat",
       "qqbot",
       "wechat"
     ],
-    "changelog": "订阅推送只在确认完整发送后计入成功。部分送达或缺少回执时可查看原因并核对。"
+    "changelog": "读取 B 站动态或直播状态失败时，显示对应操作和服务返回的错误码。"
   },
   "description": "后台监控 Bilibili UP 主和 RSS/Atom Feed，并主动推送到指定聊天",
   "main": "index.js",

@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+from urllib.error import HTTPError
 from library import Library, card
 
 
@@ -23,29 +24,38 @@ for tool in TOOLS:
                            "openWorldHint": tool["name"] in {"memewiki_lookup", "memewiki_sync_step"}}
 
 
+class ToolInputError(ValueError):
+    pass
+
+
+def tool_error(code, message, **fields):
+    return {"content": [{"type": "text", "text": message}], "isError": True,
+            "structuredContent": {"error": {"code": code, "message": message, **fields}}}
+
+
 def call(library, name, args):
     tool = next((t for t in TOOLS if t["name"] == name), None)
     if not tool:
-        raise ValueError("工具名称不存在")
+        raise ToolInputError("工具名称不存在")
     if not isinstance(args, dict):
-        raise ValueError("工具参数必须为对象")
+        raise ToolInputError("工具参数必须为对象")
     shape = tool["inputSchema"]
     if set(args) - set(shape["properties"]):
-        raise ValueError("工具参数包含未知字段")
+        raise ToolInputError("工具参数包含未知字段")
     for key in shape["required"]:
         if key not in args:
-            raise ValueError(f"缺少必需参数 {key}")
+            raise ToolInputError(f"缺少必需参数 {key}")
     for key, value in args.items():
         prop = shape["properties"][key]
         if prop["type"] == "boolean" and not isinstance(value, bool):
-            raise ValueError("开关参数须为布尔值")
+            raise ToolInputError("开关参数须为布尔值")
         if prop["type"] == "string":
             if not isinstance(value, str):
-                raise ValueError(f"参数 {key} 必须为文本")
+                raise ToolInputError(f"参数 {key} 必须为文本")
             if len(value) > prop["maxLength"]:
-                raise ValueError(f"参数 {key} 超过 {prop['maxLength']} 个字符")
+                raise ToolInputError(f"参数 {key} 超过 {prop['maxLength']} 个字符")
         if prop["type"] == "integer" and (type(value) is not int or value < prop.get("minimum", 0) or value > prop.get("maximum", 1000000)):
-            raise ValueError("分页参数无效")
+            raise ToolInputError("分页参数无效")
     if name == "memewiki_card":
         return {"content": [{"type": "image", "mimeType": "image/png", "data": card(args)}], "isError": False}
     if name == "memewiki_entries":
@@ -78,9 +88,13 @@ def dispatch(library, message):
     elif method == "tools/call":
         try:
             value = call(library, params.get("name"), params.get("arguments", {}))
+        except ToolInputError as exc:
+            value = tool_error("MEMEWIKI_TOOL_INPUT", str(exc))
+        except HTTPError as exc:
+            value = tool_error("MEMEWIKI_HTTP_ERROR", f"读取线上词库失败（HTTP {exc.code}）。", status=exc.code)
         except Exception as exc:
-            print(f"memewiki: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-            value = {"content": [{"type": "text", "text": "词库操作失败，请检查参数、网络或插件依赖。"}], "isError": True}
+            print(f"memewiki: {type(exc).__name__}", file=sys.stderr, flush=True)
+            value = tool_error("MEMEWIKI_TOOL_FAILED", "词库操作失败。")
     else:
         return {"jsonrpc": "2.0", "id": identity, "error": {"code": -32601, "message": "Method not found"}}
     return {"jsonrpc": "2.0", "id": identity, "result": value}

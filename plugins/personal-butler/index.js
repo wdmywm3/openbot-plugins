@@ -1583,7 +1583,7 @@ function watchError(code, message) {
 }
 
 function pageText(response) {
-  if (!response.ok) throw watchError("BUTLER_PAGE_HTTP", `网页请求返回 HTTP ${response.status}。`);
+  if (!response.ok) throw Object.assign(watchError("BUTLER_PAGE_HTTP", `读取网页失败（HTTP ${response.status}）。`), { status: response.status });
   if (!/^(text\/|application\/(?:json|xml))/i.test(response.headers["content-type"] || ""))
     throw watchError("BUTLER_PAGE_FORMAT", "网页响应格式不受支持。");
   return normalized(response.body.slice(0, 120000).replace(/<!--[^]*?-->/g, " ")

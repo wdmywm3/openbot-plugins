@@ -33,6 +33,10 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
     ctx.signal.throwIfAborted();
     const result = await handlers[message.exportName](ctx);
     send({ type: "result", runId: message.runId, result });
-  } catch (error) { send({ type: "error", runId: message.runId, error: { message: String(error.message || error), code: error.code } }); }
+  } catch (error) {
+    const { code, status, retryAfter, retryable, runtimeIncidentId, details } = error;
+    send({ type: "error", runId: message.runId, error: { message: String(error.message || error), code, status, retryAfter, retryable, runtimeIncidentId,
+      ...(details ? { details: { upstreamCode: details.upstreamCode, upstreamParam: details.upstreamParam } } : {}) } });
+  }
   finally { runs.delete(message.runId); for (const call of job.pending.values()) call.reject(Error("调用已结束")); }
 });

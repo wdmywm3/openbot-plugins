@@ -3,6 +3,7 @@
 const { createHash } = require("node:crypto");
 const { ImapFlow } = require("imapflow");
 const { convert } = require("html-to-text");
+const { version } = require("./plugin.json");
 
 const PAGE = 12, SEARCH_WINDOW = 1000, UID_WINDOW = 4096, NOTICE_BATCH = 3;
 const BODY_BYTES = 48 * 1024, BODY_CHARS = 8000;
@@ -62,7 +63,7 @@ async function withInbox(settings, perform, folder = "INBOX", writable = false) 
     secure: true, tls: { minVersion: "TLSv1.2", rejectUnauthorized: true }, logger: false, emitLogs: false,
     disableAutoIdle: true, disableCompression: true, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 10000,
     maxLiteralSize: 256 * 1024, maxResponseSize: 512 * 1024, maxLineLength: 256 * 1024,
-    clientInfo: { name: "OpenBot Mailbox", version: "0.2.0" } });
+    clientInfo: { name: "OpenBot Mailbox", version } });
   // Socket errors are also surfaced by the outstanding IMAP operation.
   client.on("error", () => {});
   let phase = ["CONNECT", "连接 IMAP 服务器失败"];

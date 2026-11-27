@@ -23,7 +23,12 @@ function biliMediaBind(value, variables) {
 // The media protocol is the consumer plugin's contract, independent of the
 // host's MCP transport. This also validates results returned by older hosts.
 function biliMediaResult(response, kind) {
-  if (response?.isError || response?.success === false) throw new Error("媒体工具执行失败，请查看 MCP 状态");
+  if (response?.isError || response?.success === false) {
+    const code = response.structuredContent?.error?.code;
+    const known = Number.isSafeInteger(code) || typeof code === "string" && /^[a-z][a-z0-9_]{0,79}$/i.test(code);
+    throw Object.assign(new Error("媒体工具执行失败" + (known ? "（错误码 " + code + "）。" : "。")),
+      { code: "BILI_MEDIA_TOOL_ERROR", ...(known ? { details: { upstreamCode: code } } : {}) });
+  }
   let data = response?.structuredContent;
   if (!data) {
     const text = (response?.content || []).filter(part => part.type === "text").map(part => part.text).join("\n");
@@ -885,12 +890,12 @@ async function biliRequestOnce(ctx, account, path, params = {}, write = false, s
       ...(write ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
     ...(write ? { body: biliForm({ ...params, csrf: account.csrf, ...(messageApi ? { csrf_token: account.csrf } : {}) }) } : {}),
   });
-  if (!response || response.code !== 0) {
-    const error = new Error(`B站请求未完成（${Number(response?.code) || "未知"}），请检查账号状态`);
-    error.code = Number(response?.code);
-    error.notSubmitted = [-101, -111, -400, -404, -352, -412, -509, -799].includes(error.code);
-    throw error;
-  }
+  const code = response?.code;
+  if (!Number.isSafeInteger(code)) throw Object.assign(new Error("B 站请求响应缺少有效状态码。"), { code: "BILI_RESPONSE_INVALID" });
+  if (code !== 0) throw Object.assign(new Error(`B 站请求失败（错误码 ${code}）。`), {
+    code, details: { upstreamCode: code },
+    notSubmitted: [-101, -111, -400, -404, -352, -412, -509, -799].includes(code),
+  });
   if (write && /\/fav\/resource\/(?:deal|batch-deal|copy|move|batch-del)$/.test(path)) account.memberships?.clear();
   return response.data ?? {};
 }

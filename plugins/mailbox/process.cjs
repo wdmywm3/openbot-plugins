@@ -28,6 +28,8 @@ createInterface({ input: process.stdin }).on("line", async line => {
     const result = await handlers[message.exportName]({ ...message.context, dataRoot: message.dataRoot, api });
     send({ type: "result", runId, result: result ?? null });
   } catch (error) {
-    send({ type: "error", runId, error: { message: error.message, code: error.code } });
+    const { code, status, retryAfter, retryable, runtimeIncidentId, details } = error;
+    send({ type: "error", runId, error: { message: error.message, code, status, retryAfter, retryable, runtimeIncidentId,
+      ...(details ? { details: { upstreamCode: details.upstreamCode, upstreamParam: details.upstreamParam } } : {}) } });
   }
 });

@@ -25,6 +25,14 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal((await plugin.web_search(ctx)).content[0].text, "Found source");
   assert.equal(calls.at(-1).options.headers["mcp-session-id"], "session");
   assert.equal(calls.at(-1).options.body.params.name, "search");
+  const anySearchRequest = ctx.api.request;
+  ctx.api.request = async (_url, options) => ({ ok: true, body: JSON.stringify({ id: options.body.id,
+    error: { code: -32602, message: "fixture-private" } }) });
+  await assert.rejects(plugin.web_search(ctx), error =>
+    error.code === "SEARCH_RPC_ERROR" && error.details.upstreamCode === -32602 && error.message === "AnySearch 初始化连接失败（错误码 -32602）。");
+  ctx.api.request = async () => ({ ok: true, body: "fixture-private" });
+  await assert.rejects(plugin.web_search(ctx), { code: "SEARCH_RPC_RESPONSE", message: "AnySearch 响应格式无效。" });
+  ctx.api.request = anySearchRequest;
   ctx.input = { queries: [{ query: "first" }, { query: "second", domain: "code", sub_domain: "code.example", sub_domain_params: { repository: "example" } }] };
   await plugin.batch_search(ctx); assert.equal(calls.at(-1).options.body.params.name, "batch_search"); assert.equal(calls.at(-1).options.body.params.arguments.queries.length, 2);
   ctx.input = { domains: ["code"] }; await plugin.get_sub_domains(ctx); assert.equal(calls.at(-1).options.body.params.arguments.domains[0], "code");
@@ -42,8 +50,12 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const image = await plugin.search_by_image(ctx); assert.equal(image.found, true); assert.equal(image.fullMatches.length, 1); assert.equal(image.similarImages.length, 1);
   assert.ok(!JSON.stringify(image).includes(data)); assert.ok(!JSON.stringify(image).includes("fixture-key"));
   ctx.api.request = async () => ({ ok: true, body: { responses: [{}] } }); assert.equal((await plugin.search_by_image(ctx)).found, false);
-  ctx.api.request = async () => ({ ok: true, body: { responses: [{ error: { code: 7 } }] } }); await assert.rejects(plugin.search_by_image(ctx), /搜索失败/);
-  ctx.api.request = async () => ({ ok: false, status: 403 }); await assert.rejects(plugin.search_by_image(ctx), /权限/);
+  ctx.api.request = async () => ({ ok: true, body: { responses: [{ error: { code: 7, message: "fixture-private" } }] } });
+  await assert.rejects(plugin.search_by_image(ctx), error =>
+    error.code === "SEARCH_VISION_ERROR" && error.details.upstreamCode === 7 && error.message === "Cloud Vision 图片搜索失败（错误码 7）。");
+  ctx.api.request = async () => ({ ok: false, status: 403, body: { error: { status: "PERMISSION_DENIED", message: "fixture-private" } } });
+  await assert.rejects(plugin.search_by_image(ctx), error => error.status === 403
+    && error.details.upstreamCode === "PERMISSION_DENIED" && error.message === "搜索服务拒绝访问（HTTP 403）。");
   const readImage = ctx.api.readMessageAttachment;
   ctx.api.readMessageAttachment = async () => ({ type: "image", mimeType: "image/png", data: "a".repeat(10000000) });
   ctx.api.request = async () => { throw Error("oversized image reached the provider"); };

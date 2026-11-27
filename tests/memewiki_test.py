@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "plugins/memewiki/tools"))
@@ -36,6 +37,20 @@ class DictionaryTests(unittest.TestCase):
         self.assertEqual(normalize("杂鱼杂鱼"), "杂鱼")
         self.assertEqual(normalize("666666"), "666")
         self.assertEqual(self.library.lookup("大水理论是什么梗")["entry"]["title"], "大水理论")
+
+    def test_rpc_errors_keep_operation_and_status(self):
+        request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                   "params": {"name": "memewiki_lookup", "arguments": {}}}
+        invalid = dispatch(self.library, request)["result"]
+        self.assertEqual(invalid["structuredContent"]["error"]["code"], "MEMEWIKI_TOOL_INPUT")
+        self.assertIn("query", invalid["content"][0]["text"])
+        request["params"]["name"] = "memewiki_sync_step"
+        failure = HTTPError("https://fixture.invalid/?private=data", 502, "fixture-private", {}, None)
+        with patch.object(self.library, "sync_step", side_effect=failure):
+            failed = dispatch(self.library, request)["result"]
+        self.assertEqual(failed["structuredContent"]["error"]["status"], 502)
+        self.assertEqual(failed["content"][0]["text"], "读取线上词库失败（HTTP 502）。")
+        self.assertNotIn("fixture-private", json.dumps(failed))
 
     def test_online_detail_and_persistence(self):
         title = "测试新梗ZXQ"

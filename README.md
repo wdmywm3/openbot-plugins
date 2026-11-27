@@ -123,3 +123,5 @@ Bot 可以查看已绑定安卓设备的控件、截图或应用列表，并逐�
 `npm run test:integration` 执行记忆宿主测试、表情／词库／搜索／视频宿主测试、配置页面和 Python 集成；`npm run test:all` 执行独立测试和完整集成。开发时用 `OPENBOT_HOST_ROOT` 指定宿主源码，`WATCH_TEST_PYTHON` 与 `MEMEWIKI_TEST_PYTHON` 指定测试环境；默认使用本仓库已有的 `.venv-watch-full` 和 `.venv-verify`。集成环境或依赖缺失会明确失败，不静默略过。`npm run test:memory` 为记忆宿主测试的单独入口，包含持续整理与人物画像检查；CI 的独立记忆入口为 `npm run test:memory:unit`。
 
 `npm run prepare:candidates -- <新目录>` 为当前工作区各插件生成本地安装目录、ZIP 和内容摘要，`npm run prepare:candidates -- <目录> --verify` 重验。它们是未发布候选；正式发布仍用真实提交运行 `npm run catalog -- <提交SHA>`，不可用工作区摘要伪造远端提交。
+
+发布角色时更新 `catalog-v2.json` 的 `personas` 条目，再运行目录生成命令同步旧版兼容目录。

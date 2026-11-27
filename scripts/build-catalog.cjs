@@ -6,12 +6,17 @@ const ref = process.argv[2] || execFileSync("git", ["rev-parse", "HEAD"], { cwd:
 if (!/^[a-f0-9]{40}$/.test(ref)) throw new Error("Use a committed Git SHA");
 const filesAtRef = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", "plugins"], { cwd: root, encoding: "utf8" }).trim().split("\n");
 const read = file => execFileSync("git", ["show", `${ref}:${file}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+function readCatalog(name) {
+  try { return JSON.parse(fs.readFileSync(path.join(root, name), "utf8")); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+}
+const legacyCatalog = readCatalog("catalog.json") ?? {};
+const modernCatalog = readCatalog("catalog-v2.json") ?? { personas: legacyCatalog.personas };
 // An unchanged package keeps its immutable source reference, so publishing one
 // plugin does not make every other installed plugin look like a reinstall.
-let legacyPrevious = new Map(), previous = new Map(), legacyCatalog = {}, modernCatalog = {};
-try { legacyCatalog = JSON.parse(fs.readFileSync(path.join(root, "catalog.json"), "utf8")); legacyPrevious = new Map(legacyCatalog.plugins.map(entry => [entry.id, entry])); } catch {}
-previous = new Map(legacyPrevious);
-try { modernCatalog = JSON.parse(fs.readFileSync(path.join(root, "catalog-v2.json"), "utf8")); for (const entry of modernCatalog.plugins) previous.set(entry.id, entry); } catch {}
+const legacyPrevious = new Map((legacyCatalog.plugins ?? []).map(entry => [entry.id, entry]));
+const previous = new Map(legacyPrevious);
+for (const entry of modernCatalog.plugins ?? []) previous.set(entry.id, entry);
 const plugins = filesAtRef.filter(file => /^plugins\/[^/]+\/plugin.json$/.test(file)).map(file => {
   const raw = JSON.parse(read(file));
   const ext = raw.extensions?.["com.openbot"] || {};
@@ -40,8 +45,6 @@ const fits = (entry, single, total) => entry.files.every(file => file.size <= si
 for (const entry of plugins) if (!fits(entry, 50 * 1024 * 1024, 50 * 1024 * 1024)) throw new Error(`Package ${entry.id} exceeds 50 MiB`);
 // Retain a prior compatible version when an existing plugin grows past old limits.
 const legacy = plugins.map(entry => fits(entry, 2 * 1024 * 1024, 10 * 1024 * 1024) ? entry : legacyPrevious.get(entry.id)).filter(Boolean);
-// Catalogs may also carry role-market entries. Preserve these independently
-// managed sections whenever plugin metadata is regenerated.
-fs.writeFileSync(path.join(root, "catalog.json"), JSON.stringify({ ...legacyCatalog, schemaVersion: 1, plugins: legacy }, null, 2) + "\n");
 fs.writeFileSync(path.join(root, "catalog-v2.json"), JSON.stringify({ ...modernCatalog, schemaVersion: 1, plugins }, null, 2) + "\n");
+fs.writeFileSync(path.join(root, "catalog.json"), JSON.stringify({ ...legacyCatalog, schemaVersion: 1, plugins: legacy, personas: modernCatalog.personas }, null, 2) + "\n");
 console.log(`Catalog v2 contains ${plugins.length} plugins; legacy retains ${legacy.length}; source ${ref}`);

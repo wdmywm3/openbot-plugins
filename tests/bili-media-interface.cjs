@@ -26,6 +26,9 @@ const input = { kind: "frames", url: "https://www.bilibili.com/video/BV123456789
   response = { structuredContent: { frames: [{ timestamp: 1, mimeType: "text/html", data: "aGVsbG8=" }] } }; await assert.rejects(media(ctx, input), /图片/);
   response = { structuredContent: { status: "queued", jobId: "../foreign" } }; await assert.rejects(media(ctx, input), /任务编号/);
   response = { isError: true, content: [{ type: "text", text: "unavailable" }] }; await assert.rejects(media(ctx, input), /执行失败/);
+  response = { isError: true, structuredContent: { error: { code: -32602, message: "fixture-private" } } };
+  await assert.rejects(media(ctx, input), error =>
+    error.code === "BILI_MEDIA_TOOL_ERROR" && error.details.upstreamCode === -32602 && error.message === "媒体工具执行失败（错误码 -32602）。");
   await assert.rejects(media(ctx, { ...input, url: "https://evil.example/video/BV1234567890/" }), /地址/);
   await assert.rejects(media(ctx, { ...input, end: 1000 }), /范围/);
   ctx.config.mediaServices.backup = { serverId: "backup", toolName: "save", arguments: { namespace: "$namespace", source: "$url" } };
