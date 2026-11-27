@@ -172,11 +172,17 @@ async function readRejection(ctx, id) {
       const part = await ctx.api.readStream({ id, maxBytes: 4096, waitMs: Math.max(0, until - Date.now()) });
       body += part.data || "";
       if (utf8Size(body) > 8192) break;
-      if (part.done) return providerReason(JSON.parse(body)?.error);
+      if (part.done) return JSON.parse(body)?.error;
       if (part.pending) break;
     }
   } catch { ctx.signal?.throwIfAborted(); }
-  return "";
+}
+function upstreamErrorDetails(error) {
+  const { code, param } = error || {};
+  const details = {};
+  if (typeof code === "string" && /^[a-z][a-z0-9_]{0,99}$/i.test(code)) details.upstreamCode = code;
+  if (typeof param === "string" && param.length <= 160 && /^[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*|\[\d{0,6}\])*$/i.test(param)) details.upstreamParam = param;
+  return details;
 }
 function statusError(status, reason, binary) {
   if (binary) return publicError(`下载画图结果失败（HTTP ${status}）。`);
@@ -192,8 +198,14 @@ async function readHttp(ctx, url, options, binary = false, mode = "image") {
   const stream = await ctx.api.openStream(https(url), { ...options, encoding: binary ? "base64" : "text", redirect: "error", timeoutMs: 120000 });
   try {
     if (!(stream.status >= 200 && stream.status < 300)) {
-      const reason = binary ? "" : await readRejection(ctx, stream.id);
-      throw Object.assign(statusError(stream.status, reason, binary), { status: stream.status });
+      const rejection = binary ? undefined : await readRejection(ctx, stream.id);
+      const error = statusError(stream.status, providerReason(rejection), binary);
+      error.status = stream.status;
+      if (rejection && url.startsWith("https://api.openai.com/")) {
+        const details = upstreamErrorDetails(rejection);
+        if (Object.keys(details).length) error.details = details;
+      }
+      throw error;
     }
     const limits = await transferLimits(ctx), parts = [], response = binary ? null : imageResponse(limits.response);
     let total = 0;

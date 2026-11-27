@@ -13,6 +13,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openbot-image-host-")); let runtime, pluginData;
   const diagnostics = fromHost("app/runtime-diagnostics.cjs"), rows = [];
+  const reportRuntimeError = diagnostics.reportRuntimeError;
+  let upstreamRejection;
+  diagnostics.reportRuntimeError = (error, context) => {
+    if (error.status === 400) upstreamRejection = error.details;
+    return reportRuntimeError(error, context);
+  };
   diagnostics.setRuntimeDiagnostics({ record(level, event, details) { rows.push({ level, event, code: details.code, message: details.message }); } });
   try {
     const channel = { id: "images", enabled: true, config: { ownerUsers: ["owner"], modelId: "signed-in" } };
@@ -208,6 +214,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const failed = await finish({ prompt: "rejected size" }, "rejected-size", "failed", receiptContext);
     const failureText = "画图服务不接受本次 size 的取值（HTTP 400）。";
     assert.equal(failed.error, failureText, "the submitter sees the original plugin failure");
+    assert.deepEqual(upstreamRejection, { upstreamCode: "unsupported_value", upstreamParam: "size" });
     const result = await runtime.runPluginTool({ action: "result", pluginId: plugin.id, jobId: failed.id }, receiptContext);
     assert.equal(result.error, failureText, "the model's result query receives the diagnostic");
     runtime.startCompletionNotifications();
@@ -249,6 +256,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await assert.rejects(Promise.resolve().then(() => runtime.runNativePluginTool(tool, { prompt: "revoked" }, context)), /不可用/);
     console.log(`Image studio host: installed/authorized; >1 MiB SSE; reference edit; Responses/native models; permission denial; dedup; scoped media; 429; cancellation; heartbeat ${maxGap} ms passed`);
   } finally {
+    diagnostics.reportRuntimeError = reportRuntimeError;
     diagnostics.setRuntimeDiagnostics(null);
     runtime?.clearChannelPluginPollTimers?.({ id: "images" }); await runtime?.pauseForDataSnapshot(); await pluginData?.pause(); shutdownPluginWorkers();
     const resolved = path.resolve(root); assert(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith("openbot-image-host-"));
