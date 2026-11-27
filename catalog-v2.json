@@ -475,7 +475,7 @@
     {
       "id": "image-studio",
       "name": "画图",
-      "version": "0.6.6",
+      "version": "0.6.7",
       "description": "生成图片或动图，可用多张参考图改图，也可让角色模仿参考图中的表情和动作。",
       "category": "utility",
       "main": "index.js",
@@ -503,14 +503,14 @@
           "请先将 OpenBot 更新至支持补发旧图的版本，再更新本插件。",
           "使用 Codex 绘图前，请先在模型设置中完成登录。"
         ],
-        "changelog": "自拍表情成品可填写动作名称，图库仅自动收藏当前角色自己的表情。",
+        "changelog": "OpenAI 画图请求失败时，新版 OpenBot 的运行日志会显示服务返回的错误码和参数名。",
         "components": [
           "tools",
           "skills"
         ],
         "hasBackgroundAgent": false
       },
-      "ref": "61e3f597b2ba4a2d9dc4c1cda6cee6c408b264a8",
+      "ref": "1e3df2158e9f799ea53f56118af621c3276fc7a7",
       "files": [
         {
           "path": "README.md",
@@ -519,13 +519,13 @@
         },
         {
           "path": "index.js",
-          "size": 49791,
-          "sha256": "f75d00fa6d9396310dd046ee761689feaa8127292114242a5f64277c5a92a93b"
+          "size": 50391,
+          "sha256": "63d65fc976fba7c440e00281116e73d6b0a50b968183d7bc0b60f2b7de9a764c"
         },
         {
           "path": "plugin.json",
-          "size": 27326,
-          "sha256": "c036d9b93c311648a53e4e96103f88bd9477a1aea8af7fa965c776e950b4eda2"
+          "size": 27342,
+          "sha256": "674330cd8b76ac46933795e9040d8861d4fd395d3c1a6d82fc8177b90c6ddd3d"
         },
         {
           "path": "skills/gpt-image/LICENSE.txt",
